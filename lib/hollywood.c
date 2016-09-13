@@ -258,7 +258,7 @@ size_t dequeue_message(hlywd_sock *socket, uint8_t *buf, uint8_t *substream_id) 
 		message *dequeued_msg = socket->message_q_head;
 		socket->message_q_head = dequeued_msg->next;
 		size_t return_len = dequeued_msg->len;
-		free(dequeued_msg->data);
+		free(dequeued_msg->data-1);
 		free(dequeued_msg);
 		socket->message_count--;
 		return return_len;
