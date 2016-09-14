@@ -1,18 +1,17 @@
 CC=clang
+BIN=./bin
+SOURCE=./
+PROG=sender receiver file-sender file-receiver vdo-sender
+LIST=$(addprefix $(BIN)/, $(PROG))
 
-all: sender receiver file-sender file-receiver
+all: $(LIST)
+
+$(BIN)/%: $(SOURCE)%.c lib/cobs.c lib/hollywood.c | $(BIN)
+	$(CC) -lm $< -o $@ lib/cobs.c lib/hollywood.c
+
+$(BIN):
+	mkdir $@
 
 clean:
-	rm sender receiver
+	rm $(LIST)
 
-sender: sender.c lib/cobs.c lib/hollywood.c
-	$(CC) -lm -o sender sender.c lib/cobs.c lib/hollywood.c
-
-receiver: receiver.c lib/cobs.c lib/hollywood.c
-	$(CC) -lm -o receiver receiver.c lib/cobs.c lib/hollywood.c
-
-file-sender: file-sender.c lib/cobs.c lib/hollywood.c
-	$(CC) -lm -o file-sender file-sender.c lib/cobs.c lib/hollywood.c
-
-file-receiver: file-receiver.c lib/cobs.c lib/hollywood.c
-	$(CC) -lm -o file-receiver file-receiver.c lib/cobs.c lib/hollywood.c
