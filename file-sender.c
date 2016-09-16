@@ -44,7 +44,7 @@ int main(int argc, char *argv[]) {
 	hlywd_sock hlywd_socket;
 	int fd, seq, msg_len;
 	size_t bytes_read;
-	char *buffer = malloc(BUFLEN);
+	char *buffer = (char *) malloc(BUFLEN);
 	int counter;
 	FILE *fptr;
 

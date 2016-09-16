@@ -41,7 +41,7 @@ int main(int argc, char *argv[]) {
 	struct addrinfo hints, *serveraddr;
 	hlywd_sock hlywd_socket;
 	int fd, i, msg_len;
-	char *buffer = malloc(200);
+	char *buffer = (char *)malloc(200);
 
 	/* Check for hostname parameter */
 	if (argc != 2) {

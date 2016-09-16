@@ -623,7 +623,7 @@ int mp4_read_mdat_a(unsigned char * stream, int len, struct mp4_i * m)
 
 
 	   }
-	   memzero(stream, ret);
+	   //memzero(stream, ret);
 	   return ret;
 
 }

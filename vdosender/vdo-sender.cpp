@@ -27,6 +27,7 @@
  * TCP Hollywood - Example Sender
  */
 
+#include "../lib/hollywood.h"
 #include "mpeg.h"
 #include <stdlib.h>
 #include <stdio.h>
@@ -37,45 +38,111 @@
 #include <string.h>
 #include <unistd.h>
 
-#define BUFLEN 200
+/*The whole message is read into memory before being sent, 
+  BUFLEN should be big enough to hold it, change if needed.
+  If send_message_*** is changed to pass partial messages, 
+  then this can be changed. 
+*/ 
+#define BUFLEN 5000
+
 bool endianness = false;
 bool Mp4Model=true; 
 metrics metric;
 
 int main(int argc, char *argv[]) {
-	int fd, seq, msg_len;
+        struct addrinfo hints, *serveraddr;
+        hlywd_sock hlywd_socket;
+	int ret=0; 
+	int fd = -1, seq, msg_len;
 	size_t bytes_read;
 	unsigned char *buffer = (unsigned char *) malloc(BUFLEN);
 	int counter;
-	FILE *fptr;
+	FILE *fptr = NULL;
 	int leftoverbytes=0;
 	struct mp4_i m= mp4_initialize();
 
 	/* Check for hostname parameter */
 	if (argc != 3) {
 		printf("Usage: %s <hostname> <file-to-send>\n", argv[0]);
-		return 1;
+		ret=1;
+		goto END;
 	}
 
 	/*initialize endianness*/
 	endianness = hostendianness();
 
-	/*Open file*/ 
-	fptr=fopen(argv[2],"rb");
-	if (!fptr)
-	{
-		perror ("Error opening file:");
-		return 7;
-	}
+        /* Lookup hostname */
+        memset(&hints, 0, sizeof(hints));
+        hints.ai_family = PF_UNSPEC;
+        hints.ai_socktype = SOCK_STREAM;
+        if (getaddrinfo(argv[1], "8888", &hints, &serveraddr) != 0) {
+                printf("Hostname lookup failed\n");
+		ret=2;
+		goto END;
+        }
+
+        /* Lookup hostname */
+        memset(&hints, 0, sizeof(hints));
+        hints.ai_family = PF_UNSPEC;
+        hints.ai_socktype = SOCK_STREAM;
+        if (getaddrinfo(argv[1], "8888", &hints, &serveraddr) != 0) {
+                printf("Hostname lookup failed\n");
+		free(buffer);
+                return 2;
+        }
+
+        /*Open file*/ 
+        fptr=fopen(argv[2],"rb");
+        if (!fptr)
+        {
+                perror ("Error opening file:");
+                return 7;
+        }
+
+        /* Create a socket */
+        if ((fd = socket(serveraddr->ai_family, serveraddr->ai_socktype, serveraddr->ai_protocol)) == -1) {
+                printf("Unable to create socket\n");
+		free(buffer);
+		fclose(fptr); 
+                return 3;
+        }
+
+        /* Connect to the receiver */
+        if (connect(fd, serveraddr->ai_addr, serveraddr->ai_addrlen) != 0) {
+                printf("Unable to connect to receiver\n");
+		free(buffer);
+                close(fd);
+		fclose(fptr); 
+                return 4;
+        }
+
+        /* Create Hollywood socket */
+        if (hollywood_socket(fd, &hlywd_socket) != 0) {
+                printf("Unable to create Hollywood socket\n");
+                close(fd);
+		free(buffer);
+		fclose(fptr); 
+                return 5;
+        }
+
+        /* Set the playout delay to 100ms */
+        set_playout_delay(&hlywd_socket, 100);
+
+        /*Start the sequence numbers*/
+        seq = 0; 
 
 	/* Send the file contents */
 	bytes_read = fread(buffer, 1,BUFLEN,fptr);
-	while(bytes_read==BUFLEN) {
+	while(bytes_read==BUFLEN) 
+	{
+                msg_len = send_message_time(&hlywd_socket, buffer, BUFLEN, 0, seq, seq, 20, 150);
 
-		printf("Sending message number %d (length: %d)..\n", seq, bytes_read);
+                printf("Sending message number %d (length: %d)..\n", seq, msg_len);
+
 		if (msg_len == -1) {
 			printf("Unable to send message\n");
 			free(buffer);
+			close(fd);
 			fclose(fptr); 
 			return 6;
 		}
@@ -99,6 +166,7 @@ int main(int argc, char *argv[]) {
 			{
 				printf("Error in Download, exiting now");
 				free(buffer);
+	                        close(fd);
 				fclose(fptr); 
 				return 8;
 			}
@@ -121,12 +189,19 @@ int main(int argc, char *argv[]) {
 	}
 	else 
 		printf ("An error occured while reading the file.\n");
+	END: 
 
 	/* Free message buffer */
-	free(buffer);
+	if(buffer)
+		free(buffer);
 
 	/*close the file*/
-	fclose(fptr);
+	if(fptr)
+		fclose(fptr);
+
+	/*close the socket*/
+	if(fd>-1)
+		close(fd); 
 
 	return 0;
 }

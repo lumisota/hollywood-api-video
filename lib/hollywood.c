@@ -204,7 +204,7 @@ ssize_t recv_message(hlywd_sock *socket, void *buf, size_t len, int flags, uint8
 		parse_segment(socket, segment, segment_len, sequence_num);
 		#endif
 	}
-	return dequeue_message(socket, buf, substream_id);
+	return dequeue_message(socket, (uint8_t *)buf, (uint8_t *)substream_id);
 }
 
 /* Parse an incoming segment */
