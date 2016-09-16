@@ -27,7 +27,7 @@
  * TCP Hollywood - Example Sender
  */
 
-#include "lib/hollywood.h"
+#include "mpeg.h"
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
@@ -38,15 +38,18 @@
 #include <unistd.h>
 
 #define BUFLEN 200
+bool endianness = false;
+bool Mp4Model=true; 
+metrics metric;
 
 int main(int argc, char *argv[]) {
-	struct addrinfo hints, *serveraddr;
-	hlywd_sock hlywd_socket;
 	int fd, seq, msg_len;
 	size_t bytes_read;
-	char *buffer = malloc(BUFLEN);
+	unsigned char *buffer = (unsigned char *) malloc(BUFLEN);
 	int counter;
 	FILE *fptr;
+	int leftoverbytes=0;
+	struct mp4_i m= mp4_initialize();
 
 	/* Check for hostname parameter */
 	if (argc != 3) {
@@ -54,14 +57,8 @@ int main(int argc, char *argv[]) {
 		return 1;
 	}
 
-	/* Lookup hostname */
-	memset(&hints, 0, sizeof(hints));
-	hints.ai_family = PF_UNSPEC;
-	hints.ai_socktype = SOCK_STREAM;
-	if (getaddrinfo(argv[1], "8888", &hints, &serveraddr) != 0) {
-		printf("Hostname lookup failed\n");
-		return 2;
-	}
+	/*initialize endianness*/
+	endianness = hostendianness();
 
 	/*Open file*/ 
 	fptr=fopen(argv[2],"rb");
@@ -71,45 +68,43 @@ int main(int argc, char *argv[]) {
 		return 7;
 	}
 
-   	/* Create a socket */
-	if ((fd = socket(serveraddr->ai_family, serveraddr->ai_socktype, serveraddr->ai_protocol)) == -1) {
-		printf("Unable to create socket\n");
-		return 3;
-	}
-
-	/* Connect to the receiver */
-	if (connect(fd, serveraddr->ai_addr, serveraddr->ai_addrlen) != 0) {
-		printf("Unable to connect to receiver\n");
-		close(fd);
-		return 4;
-	}
-
-	/* Create Hollywood socket */
-	if (hollywood_socket(fd, &hlywd_socket) != 0) {
-		printf("Unable to create Hollywood socket\n");
-		close(fd);
-		return 5;
-	}
-
-	/* Set the playout delay to 100ms */
-	set_playout_delay(&hlywd_socket, 100);
-
-	/*Start the sequence numbers*/
-	seq = 0; 
-
 	/* Send the file contents */
-   bytes_read = fread(buffer, 1,BUFLEN,fptr);
+	bytes_read = fread(buffer, 1,BUFLEN,fptr);
 	while(bytes_read==BUFLEN) {
-		msg_len = send_message_time(&hlywd_socket, buffer, BUFLEN, 0, seq, seq, 20, 150);
 
-		printf("Sending message number %d (length: %d)..\n", seq, msg_len);
+		printf("Sending message number %d (length: %d)..\n", seq, bytes_read);
 		if (msg_len == -1) {
 			printf("Unable to send message\n");
 			free(buffer);
-			close(fd);
 			fclose(fptr); 
 			return 6;
 		}
+		int index=0;
+		while(1)
+		{
+			if (bytes_read>(index+leftoverbytes))
+				index+=leftoverbytes;
+			else /*we don't have enough data to go to next header, update the leftoverbytes and break*/
+			{
+				leftoverbytes-=bytes_read-index;
+				break;
+			}
+			/* save the flv/mp4/webm tag, the flv_savetag function returns the bodylength+11 of the tag read
+			 * or if the tag is not fully received it returns the number of bytes that were saved
+			 * the function also stores partial headers and takes care of resuming when more data
+			 * is received so we don't need to worry about that here.mkv_savetag does same for mkv
+			 */
+			leftoverbytes=mp4_savetag((unsigned char *)buffer+index, bytes_read-index, &(m));
+			if(leftoverbytes<0)
+			{
+				printf("Error in Download, exiting now");
+				free(buffer);
+				fclose(fptr); 
+				return 8;
+			}
+
+		}
+
 		/* Wait for 20ms before sending the next message */
 		usleep(20000);
 		bytes_read = fread(buffer,1,BUFLEN,fptr);
@@ -120,8 +115,7 @@ int main(int argc, char *argv[]) {
 	if (feof(fptr)) {
 		if(bytes_read > 0)
 		{
-			msg_len = send_message_time(&hlywd_socket, buffer, bytes_read, 0, seq, seq, 20, 150);
-			printf("Sending message number %d (length: %d). \n", seq, msg_len);
+			printf("Sending message number %d (length: %d). \n", seq, bytes_read);
 		}
 		printf ("End-of-File reached.\n");
 	}
@@ -130,9 +124,6 @@ int main(int argc, char *argv[]) {
 
 	/* Free message buffer */
 	free(buffer);
-
-	/* Close socket */
-	close(fd);
 
 	/*close the file*/
 	fclose(fptr);
