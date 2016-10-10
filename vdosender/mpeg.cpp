@@ -5,6 +5,9 @@
  *      Author: sahsan
  *      Based on Quick Time File Format Specification
  *      https://developer.apple.com/library/mac/documentation/QuickTime/QTFF/QTFFChap2/qtff2.html#//apple_ref/doc/uid/TP40000939-CH204-25706
+ *	 Update: Sep 28, 2016
+ *      Code contains hacks added for the TCP Hollywood testing case. Search for term HACK to locate and fix when/if needed. 
+ *      All changes/updates/comments for the TCP Hollywood implementation are added with comment term "HOLLY"
  */
 #include "mpeg.h"
 
@@ -40,6 +43,8 @@ void mp4_destroy(struct mp4_i * m)
 struct mp4_i mp4_initialize()
 {
 	struct mp4_i m;
+	m.stream=1; /*HACK: since we are only using one stream(video) for now, 
+			so hardcoding this value. Should be set dynamically otherwise*/
 	m.mp4state=MREADSIZE;
 	m.mp4level=ML0; /*indicates the level ID that we are looking for*/
 	m.timescale = 0;
@@ -59,6 +64,26 @@ struct mp4_i mp4_initialize()
 	m.ss=NULL;
 	return m;
 }
+
+/* does not update the mp4_i structure, it is a standalone operation
+ * returns 1 if it is an mdat block, else 0, sets m->msg_size*/ 
+int get_msg_size (unsigned char * data, int len, struct hlywd_message * m)
+{
+	int bytesread=0;
+	uint64_t size=0;
+	int headersize=8; int ID=0;
+
+	m->msg_size = atouint32 ((char *)data, endianness);	
+	if (m->msg_size ==1) /*extended size, extract the rest of it*/ 
+	{
+		m->msg_size = atouint64 ((char *)data+8, endianness); /*8 bytes of size+id*/
+		headersize=16;
+	}
+
+	m->lifetime_ms = 10000; /*setting max lifetime 10s for messages that are not to be lost*/
+	return headersize; 
+}
+
 
 int mp4_savetag (unsigned char * data, int len, struct mp4_i * m)
 {
@@ -180,10 +205,7 @@ int mp4_savetag (unsigned char * data, int len, struct mp4_i * m)
  */
 int mp4_get_size (unsigned char * stream, int len, uint64_t * size, bool extended, struct mp4_i * m)
 {
-//	static unsigned char m->header[MAXSIZEMP4] = {0};
-//	static int m->index =0; /* The write position inside m->header */
-//	static int m->tocopy = -1; /* number of bytes of the MP4 size that remain to be read from the data,
-//                             -1 if not known yet. */
+
 	int ret =len;
 	/*Check encoding to know the number of bytes for the datasize*/
 	if(m->tocopy<0 || m->header==NULL)
@@ -271,10 +293,6 @@ int mp4_get_size (unsigned char * stream, int len, uint64_t * size, bool extende
  */
 int mp4_get_ID (unsigned char * stream, int len, int * ID, struct mp4_i * m)
 {
-//	static unsigned char m->header[MP4IDLEN] = {0};
-//	static int m->index =0; /* The write position inside m->header */
-//	static int m->tocopy = -1; /* number of bytes of the FLV tag that remain to be read from the data,
-//                             -1 if not known yet. */
 	int ret =len;
 
 	/*Check encoding to know the number of bytes for the datasize*/
@@ -311,10 +329,8 @@ int mp4_get_ID (unsigned char * stream, int len, int * ID, struct mp4_i * m)
 	memcpy(m->header+m->index, stream, m->tocopy);
 	/*The whole datasize has been copied to m->header*/
 	ret = m->tocopy;
-	//cout<<"UNKNOWN m->header "<<m->header<<endl;
 
 	mp4_setID(m);
-	//printf("LEVEL: %d, ID: %d, %d, %d, %d\n", m->mp4level, m->li.id0, m->li.id1, m->li.id2,m->li.id3);
 	m->mp4state=MREADBODY;
 	m->tocopy = -1;
 	m->index = 0;
@@ -338,6 +354,7 @@ bool mp4_setID( struct mp4_i * m)
 	 * 			Simple Block ID [A3] - ML2
 	 */
 //	cout<<m->header[0]<<m->header[1]<<m->header[2]<<m->header[3]<<" "<<m->mp4level<<endl;
+	
 	if (m->mp4level==ML0)
 	{
 		if(m->header[0]=='f' && m->header[1]=='t' && m->header[2]=='y' && m->header[3]=='p' )
@@ -933,7 +950,7 @@ int mp4_read_stss(unsigned char * stream, int len, struct mp4_i * m)
 	/*The whole datasize has been copied to m->header*/
 	m->tracks[m->currtrakid].keyframes = atouint32 ((char *)m->header+4, endianness);
 
-//	cout<<"STSS Data is : "<<m->tracks[m->currtrakid].keyframes<<endl;
+	cout<<"Number of keyframes : "<<m->tracks[m->currtrakid].keyframes<<endl;
 	if(m->tracks[m->currtrakid].stable!=NULL)
 	{
 		for(unsigned int i=0; i<m->tracks[m->currtrakid].keyframes; i++)

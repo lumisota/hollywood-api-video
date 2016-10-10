@@ -286,6 +286,7 @@ int add_message(hlywd_sock *socket, uint8_t *data, size_t len) {
 
 /* Prints message fragment metadata */
 void print_fragment(fragment *fragment) {
+        return; 
 	if (fragment == NULL) {
 		printf("--> NULL\n");
 		return;

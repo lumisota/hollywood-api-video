@@ -3,6 +3,9 @@
  *
  *  Created on: Mar 5, 2014
  *      Author: sahsan
+ *	 Update: Sep 28, 2016
+ *      Code contains hacks added for the TCP Hollywood testing case. Search for term HACK to locate and fix when/if needed. 
+
  */
 
 
@@ -50,36 +53,13 @@ int mp4_read_sidx(unsigned char * stream, int len, struct mp4_i * m)
 		if(m->table==NULL)
 		{
 			memcpy(m->header+m->index, stream, m->tocopy);
-//			refid = atouint32 ((char *)m->header+4, endianness);
 			m->timescale = atouint32 ((char *)m->header+8, endianness);
-//			ept  = atouint32 ((char *)m->header+12, endianness);
-//			firstoffset  = atouint32 ((char *)m->header+16, endianness);
 			refct = atouint16 ((char *)m->header+22, endianness);
-//			refsize  = atouint32 ((char *)m->header+24, endianness);
-//			ssdur  = atouint32 ((char *)m->header+28, endianness);
-//			sapdelta  = atouint32 ((char *)m->header+32, endianness);
-
-//			cout<<"RefID "<<refid<<endl;
-//			cout<<"Timescale "<<m->timescale<<endl;
-//			cout<<"Ept "<<ept<<endl;
-//			cout<<"Firstoffset "<<firstoffset<<endl;
-			//cout<<"Refct "<<refct<<endl;
-//			cout<<"RefSize "<<refsize<<"\t";
-//			cout<<"SSdur "<<ssdur<<"\t";
-//			cout<<"sapDelta "<<sapdelta<<endl;
-//			cout<<"RefSize "<<atouint32 ((char *)m->header+36, endianness)<<"\t";
-//			cout<<"SSdur "<<atouint32 ((char *)m->header+40, endianness)<<"\t";
-//			cout<<"sapDelta "<<atouint32 ((char *)m->header+44, endianness)<<endl;
-//			cout<<"RefSize "<<atouint32 ((char *)m->header+48, endianness)<<"\t";
-//			cout<<"SSdur "<<atouint32 ((char *)m->header+52, endianness)<<"\t";
-//			cout<<"sapDelta "<<(atouint32 ((char *)m->header+56, endianness) & 0x0FFFFFFF)<<endl;
-//			cout<<"entries in sidx : "<<refct<<endl;
 			m->index=0;
 			tmp = stream+m->tocopy;
 			len-=m->tocopy;
 			m->tocopy =SIDXENTRYSIZE*refct; /*each sidx entry has 16 bytes. 4 for refsize, and 4 for sample duration, 4 for sap delta time*/
 			m->table = new unsigned char [m->tocopy];
-//			cout<<m->tocopy<<endl;
 		}
 		else
 		{
@@ -89,14 +69,7 @@ int mp4_read_sidx(unsigned char * stream, int len, struct mp4_i * m)
 	}while(1);
 	/*The whole datasize has been copied to m->header*/
 	m->ss = new struct subsegs [refct];
-//				cout<<"RefSize "<<atouint32 ((char *)m->table, endianness)<<"\t";
-//				cout<<"SSdur "<<atouint32 ((char *)m->table+4, endianness)<<"\t";
-//				cout<<"sapDelta "<<atouint32 ((char *)m->table+8, endianness)<<endl;
-//				cout<<"RefSize "<<atouint32 ((char *)m->table+12, endianness)<<"\t";
-//				cout<<"SSdur "<<atouint32 ((char *)m->table+16, endianness)<<"\t";
-//				cout<<"sapDelta "<<(atouint32 ((char *)m->table+20, endianness) & 0x0FFFFFFF)<<endl;
 	double timegone=0;
-//	cout<<"here "<<refct<<endl;
 	for(int i=0; i<refct; i++)
 	{
 		int offset = (i*SIDXENTRYSIZE);
@@ -132,8 +105,6 @@ int mp4_read_sidx(unsigned char * stream, int len, struct mp4_i * m)
 	m->li.size0=0;
 	checkmp4level(m);
 	m->mp4state=MREADSIZE;
-//	if(strcmp(m->tracks[m->currtrakid].handler, "vide")==0)
-//		exit(0);
 	return ret;
 
 
@@ -594,13 +565,11 @@ int mp4_read_mdat_a(unsigned char * stream, int len, struct mp4_i * m)
 
 	   for( map<double, uint64_t>::iterator ii=m->samplemap.begin(); ii!=m->samplemap.end();)
 	   {
-		//   exit(0);
-	//       cout << (*ii).first << ": " << (*ii).second << endl;
-		//   cout<<m->rxbytesmp4<<" "<<(*ii).second<<endl;
 	       if(m->rxbytesmp4>(*ii).second)
 	       {
 	    	   baseoffset=(*ii).second;
 		       metric.TSlist[m->stream] = (*ii).first;
+				metric.TSnow = metric.TSlist[m->stream]; /*HACK: Updating TSnow because there's only one stream used for TCP Hollywood*/ 
 	    	   m->samplemap.erase(ii++);
 	       }
 	       else

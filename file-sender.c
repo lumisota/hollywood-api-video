@@ -111,7 +111,7 @@ int main(int argc, char *argv[]) {
 			return 6;
 		}
 		/* Wait for 20ms before sending the next message */
-		usleep(20000);
+//		usleep(20000);
 		bytes_read = fread(buffer,1,BUFLEN,fptr);
 		seq++; 
 	}

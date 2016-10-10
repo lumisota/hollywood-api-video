@@ -8,7 +8,7 @@ LIST=$(addprefix $(BIN)/, $(PROG))
 all: $(LIST) 
 
 $(BIN)/%: $(SOURCE)%.c lib/cobs.c lib/hollywood.c | $(BIN)
-	$(CC) -lm $< -o $@ lib/cobs.c lib/hollywood.c
+	$(CC) -g -lm $< -o $@ lib/cobs.c lib/hollywood.c
 
 
 $(BIN):

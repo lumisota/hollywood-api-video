@@ -40,7 +40,7 @@ int main(int argc, char *argv[]) {
 	int fd, cfd;
 	socklen_t cfd_len;
 	struct sockaddr_in server_addr, client_addr;
-	char buffer[1000];
+	char buffer[1500];
 	char filename[256]="saved_output";
 	ssize_t read_len;
 	uint8_t substream_id;
@@ -95,7 +95,7 @@ int main(int argc, char *argv[]) {
 
 	/* Receive message loop */
 	while ((read_len = recv_message(&h_sock, buffer, 1000, 0, &substream_id)) > 0) {
-		printf("Message received (substream %u)\n", substream_id);
+//		printf("Message received (substream %u)\n", substream_id);
 		if(fwrite (buffer , sizeof(char), read_len, fptr)!=read_len)
 		{
 			if (ferror (fptr))

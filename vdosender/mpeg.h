@@ -44,6 +44,8 @@ using namespace std;
 #include <unistd.h>
 #include <signal.h>
 
+/* The initial read bytes from MP4 file are 16 = 4+4+8 (SIZE+ID+ESIZE)*/
+#define HEADERLEN 16
 
 enum mp4state_t {MREADID, MREADSIZE, MREADBODY, MREADESIZE,MREADSIDX, MREADFTYP, MREADMVHD, MREADMDHD, MREADHDLR, MREADSTSD, MREADTFDT, MREADTRUN, MREADTFHD, MREADSTTS, MREADSTSS, MREADSTSC, MREADSTCO,MREADSTSZ, MREADTKHD,MREADMDAT};
 
@@ -57,6 +59,19 @@ enum mp4idsl2_t {TKHD, TFHD, MDIA, TRUN, TFDT,  MUNKNOWNL2};
 enum mp4idsl3_t {MINF,MDHD,HDLR, MUNKNOWNL3};
 enum mp4idsl4_t {STBL, MUNKNOWNL4};
 enum mp4idsl5_t {STTS,STSS,STSC,STSZ,STCO,CO64, MUNKNOWNL5};
+
+/* Only one message is passed to queue at a time
+  next message will only be parsed once this message is sent
+*/ 
+struct hlywd_message{
+	unsigned char * message; 
+	uint64_t msg_size; 
+	bool stream_complete; 
+   uint16_t depends_on;
+ 	int framing_ms; 
+	int lifetime_ms;
+	struct hlywd_message * next; 
+};
 
 struct metrics
 {
@@ -198,7 +213,7 @@ int mp4_read_mdat_a(unsigned char * stream, int len, struct mp4_i * m);
 int mp4_read_tfdt(unsigned char * stream, int len, struct mp4_i * m);
 int mp4_read_hdlr(unsigned char * stream, int len, struct mp4_i * m);
 void mp4_destroy(struct mp4_i * m);
-
+int get_msg_size (unsigned char * data, int len, struct hlywd_message * m);
 
 /*from helper.cpp*/
 char *str_replace(char *orig, char *rep, char *with);
