@@ -53,7 +53,7 @@ int main(int argc, char *argv[]) {
 	memset(&hints, 0, sizeof(hints));
 	hints.ai_family = PF_UNSPEC;
 	hints.ai_socktype = SOCK_STREAM;
-	if (getaddrinfo(argv[1], "8888", &hints, &serveraddr) != 0) {
+	if (getaddrinfo(argv[1], "8882", &hints, &serveraddr) != 0) {
 		printf("Hostname lookup failed\n");
 		return 2;
 	}
@@ -85,9 +85,9 @@ int main(int argc, char *argv[]) {
 	for (i = 0; i < 100; i++) {
 		sprintf(buffer, "Msg %d..", i);
 		if (i % 2) {
-			msg_len = send_message_time(&hlywd_socket, buffer, 150, 0, i, i, 20, 150);
+			msg_len = send_message_time(&hlywd_socket, buffer, 150, 0, i, i, 150);
 		} else {
-			msg_len = send_message_time(&hlywd_socket, buffer, 140, 0, i, i, 20, 150);
+			msg_len = send_message_time(&hlywd_socket, buffer, 140, 0, i, i, 150);
 		}
 		printf("Sending message number %d (length: %d)..\n", i, msg_len);
 		if (msg_len == -1) {
@@ -97,7 +97,7 @@ int main(int argc, char *argv[]) {
 			return 6;
 		}
 		/* Wait for 20ms before sending the next message */
-		usleep(20000);
+		usleep(200000);
 	}
 
 	/* Free message buffer */

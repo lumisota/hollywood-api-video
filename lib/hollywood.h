@@ -37,15 +37,8 @@
 #include <sys/time.h>
 #include "cobs.h"
 
-typedef struct fragment {
-	int dirty;
-	int ttl;
-	tcp_seq sequence_num;
-	uint8_t *data;
-	size_t len;
-	struct fragment *next;
-	struct fragment *prev;
-} fragment;
+#define MIN(a,b) (((a)<(b))?(a):(b))
+#define MAX(a,b) (((a)>(b))?(a):(b))
 
 typedef struct message {
 	uint8_t *data;
@@ -53,6 +46,19 @@ typedef struct message {
 	uint8_t substream_id;
 	struct message *next;
 } message;
+
+typedef struct sparsebuffer_entry {
+	tcp_seq sequence_num;
+	size_t len;
+	uint8_t *data;
+	struct sparsebuffer_entry *next;
+	struct sparsebuffer_entry *prev;
+} sparsebuffer_entry;
+
+typedef struct sparsebuffer {
+	sparsebuffer_entry *head;
+	sparsebuffer_entry *tail;
+} sparsebuffer;
 
 typedef struct hlywd_sock {
 	int sock_fd;
@@ -63,10 +69,7 @@ typedef struct hlywd_sock {
 	message *message_q_tail;
 	int message_count;
 
-	/* Fragment buffer */
-	fragment *fragment_buf_head;
-	fragment *fragment_buf_tail;
-	int fragment_count;
+	sparsebuffer *sb;
 	
 	/* Current sequence number, when OO_DELIVERY not enabled */
 	tcp_seq current_sequence_num;
@@ -76,7 +79,7 @@ int hollywood_socket(int fd, hlywd_sock *socket);
 
 void set_playout_delay(hlywd_sock *socket, int pd_ms);
 
-ssize_t send_message_time(hlywd_sock *socket, const void *buf, size_t len, int flags, uint16_t sequence_num, uint16_t depends_on, int framing_ms, int lifetime_ms);
+ssize_t send_message_time(hlywd_sock *socket, const void *buf, size_t len, int flags, uint16_t sequence_num, uint16_t depends_on, int lifetime_ms);
 ssize_t send_message_sub(hlywd_sock *socket, const void *buf, size_t len, int flags, uint8_t substream_id);
 ssize_t send_message(hlywd_sock *socket, const void *buf, size_t len, int flags);
 
