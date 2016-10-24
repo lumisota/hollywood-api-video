@@ -203,7 +203,7 @@ ssize_t recv_message(hlywd_sock *socket, void *buf, size_t len, int flags, uint8
 		#endif
 		parse_segment(socket, segment, segment_len, sequence_num);
 	}
-	return dequeue_message(socket, buf, substream_id);
+	return dequeue_message(socket, (uint8_t *)buf, substream_id);
 }
 
 /* Message queue functions */
