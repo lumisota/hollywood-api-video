@@ -32,8 +32,10 @@ void mp4_destroy(struct mp4_i * m)
 #ifdef MP4DEBUG
 	cout<<"Exiting MP4\n";
 #endif
+
 	for( map<uint32_t, struct tinfo>::iterator ii=m->tracks.begin(); ii!=m->tracks.end(); ++ii)
 		delete [] (*ii).second.stable;
+	m->tracks.clear();
 	delete [] m->table;
 	if(m->ss!=NULL)
 		delete [] m->ss;

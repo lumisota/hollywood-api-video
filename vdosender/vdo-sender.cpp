@@ -122,6 +122,12 @@ int main(int argc, char *argv[])
 	if(fd>-1)
 		close(fd); 
 
+	/*free the structures*/
+	mp4_destroy(&p->m); 
+	free(h);
+	free(p); 
+
+
 	/*destroy the attr, mutex & condition*/
 	pthread_attr_destroy(&attr);
 	pthread_cond_destroy (&msg_ready); 
@@ -173,7 +179,9 @@ int add_msg_to_queue( struct hlywd_message * msg, struct parse_attr * p)
 int mp4_send_mdat(struct parse_attr * p )
 {
 	int bytes_read;
+	int lastkey; 
 	struct mp4_i * m = &p->m;
+	unsigned int lastdur=m->decodetime;
 	struct hlywd_message * msg;
 	if (m->samplemap.size()==0)
 	{
@@ -188,13 +196,9 @@ int mp4_send_mdat(struct parse_attr * p )
 			unsigned int i;
 			for( i=0; i< (*ii).second.entries; i++)
 			{
+
 	  			lex_luther++; 
 				cout<<lex_luther<<endl; 
-				if(lex_luther%100==0) 
-				{
-					dropped_frames++; 
-					continue; 
-				}
 				msg = (struct hlywd_message *) malloc(sizeof(struct hlywd_message));
 				memzero(msg, sizeof(struct hlywd_message)); 
 				msg->msg_size=(*ii).second.stable[i].size;
@@ -205,11 +209,37 @@ int mp4_send_mdat(struct parse_attr * p )
 					printf("Error reading file in Mdat\n");
 					return -1;  
 				}
+				if(lex_luther%500==0) 
+				{
+
+					memset(msg->message, 0, msg->msg_size); 
+					dropped_frames++; 
+//					continue; 
+				}
+
+
+
+				msg->framing_ms = (double)(lastdur)*1000/(double)m->timescale;/*timestamp of the msg*/
+				msg->lifetime_ms = (double)((*ii).second.stable[i].sdur)*1000/(double)m->timescale;
+				if((*ii).second.stable[i].key>0)
+				{
+					msg->depends_on = 0; /*value will be added to own seq # at the time of queueing*/
+					lastkey = round((double)((*ii).second.stable[i].key)/(double)((*ii).second.stable[i].sdur)); 
+					printf("Setting depends_on to 0 and lastkey to %d divided by %d = %d \n",lastkey, ((*ii).second.stable[i].key), ((*ii).second.stable[i].sdur)); 
+
+				}
+				else 
+				{
+					printf("last key was %d \n", lastkey); 
+					msg->depends_on = -(lastkey); 
+				}
+				lastdur += (*ii).second.stable[i].sdur;
 				/*Send the message*/
 				printf("Sending message of len: %d : %x\n", msg->msg_size, msg->message); fflush(stdout); 
-
+				cout<<"youtubeevent13\t"<<(*ii).second.stable[i].stime<<"\t"<<(*ii).second.stable[i].size<<"\t"<< (*ii).second.stable[i].sdur<<"\t"<<(*ii).second.stable[i].key<<"\t"<<msg->framing_ms<<"\t"<<msg->lifetime_ms<<"\t"<<msg->depends_on<<endl;
 				add_msg_to_queue(msg, p); 
 				msg=NULL; /*once queued, lose the pointer. Memory is freed by sender.*/
+				lastkey--; 
 
 			}
 			delete [] (*ii).second.stable;
@@ -226,14 +256,14 @@ void * parse_mp4file(void * a)
 	int bytes_read;  
 	int leftoverbytes=0;
 	int seq=0; 
-	int readlen; 
+	int readlen, headerlen; 
 	unsigned char header[HEADERLEN];
 	struct parse_attr * p = (struct parse_attr *) a; 
 	struct hlywd_message * msg;
 
 	while(1)
 	{
-		printf("Read the header\n"); 
+//		printf("Read the header again. Curr position %d\n", ftell( p->fptr)); 
 		msg = (struct hlywd_message *) malloc(sizeof(struct hlywd_message));
 		memzero(msg, sizeof(struct hlywd_message)); 
 		/*read the first header from the file*/ 
@@ -241,33 +271,38 @@ void * parse_mp4file(void * a)
 		bytes_read = fread(header, sizeof(char), readlen, p->fptr);
 		if(bytes_read!=readlen)
 		{
-			printf("header read incorrectly %d instead of %d", bytes_read, readlen); 
-			break; 
+			if (!feof(p->fptr))
+				goto FILEERROR; 
 		}
+//		printf("rewinding the file %d  \n", readlen); fflush(stdout); 
 		fseek (p->fptr, -(readlen), SEEK_CUR); /* rewind the file after reading header*/ 
 		/*Send the mp4 parser for extracting the size and other params of the message*/                
-		int headerlen = get_msg_size(header, bytes_read, msg);
+		headerlen = get_msg_size(header, bytes_read, msg);fflush(stdout);
+//		printf("Next msg size %d\n",msg->msg_size); fflush(stdout);
+//		header[8]=0; 
+//		cout<<header+4<<endl;
 		if(msg->msg_size<=0)
 		{
-			printf("WTF?!?\n");
+			printf("Error: Mp4 block message size could not be read\n");
 			break;
 		}
 		if(header[4]=='m' && header[5]=='d' && header[6]=='a' && header[7]=='t')
 		{
 			/*if mdat we will just send the header now and send the frames later. */
+//			printf("Curr postions: %d, MDAT: %d, New position: %d\n", ftell( p->fptr), msg->msg_size, ftell( p->fptr)+msg->msg_size); 
 			msg->msg_size = headerlen; 
 			msg->message = (unsigned char *) malloc(msg->msg_size);
 			readlen = msg->msg_size;
 			bytes_read = fread(msg->message, sizeof(char), readlen, p->fptr);
 			if(bytes_read!=readlen)
-				break; 
-			printf("Sending message of len: %d : %x\n", msg->msg_size, msg->message); fflush(stdout);  
+				goto FILEERROR; ; 
+//			printf("Sending message of len: %d : %x\n", msg->msg_size, msg->message); fflush(stdout);  
 			add_msg_to_queue(msg, p); 
 			msg=NULL; /*once queued, lose the pointer. Memory is freed by sender.*/
 			/*Now send the frames*/
 			if (mp4_send_mdat(p)<0)
 				break; 
-			printf("Returning to sending metadata\n");  
+//			printf("Returning to sending metadata\n");  
 
 		}
 		else 
@@ -280,32 +315,40 @@ void * parse_mp4file(void * a)
 				break; 
 			if(mp4_savetag (msg->message, msg->msg_size, &p->m)<0)
 			{
-				printf("Error with parsing\n");
+				printf("Error: Mp4 parsing failure\n");
 				break;
 			}
 			/*Send the message*/
-			printf("Sending message of len: %d : %x\n", msg->msg_size, msg->message); fflush(stdout);  
+//			printf("Sending message of len: %d : %x\n", msg->msg_size, msg->message); fflush(stdout);  
 			add_msg_to_queue(msg, p); 
 			msg=NULL; /*once queued, lose the pointer. Memory is freed by sender.*/
+			if (feof(p->fptr))
+			{
+				printf ("End-of-File reached , last bytes read %d.\n", bytes_read);
+				break;  
+			}
 		}
 		
 	}
-	FILEERROR:
-	if (feof(p->fptr)) {
-		printf ("End-of-File reached , last bytes read %d.\n", bytes_read);
-	}
-	else 
-		printf ("An error occured while reading the file.\n");
-	free(msg->message); 
-	free(msg);
-	msg = NULL; 
+
 	pthread_mutex_lock(&msg_mutex);
 	p->h->file_complete = true; 
 	pthread_cond_signal(&msg_ready);
    pthread_mutex_unlock(&msg_mutex); 
-
 	printf("Dropped frames %d \n", dropped_frames); 
 	return NULL; 
+
+	FILEERROR:
+	if (feof(p->fptr)) 
+	{
+		printf ("Error:End-of-File reached prematurely, last bytes read %d.\n", bytes_read);
+	}
+	else 
+	{
+		perror ("An error occured while reading the file.\n");
+	}
+	free(msg->message); 
+	free(msg);
 }
 
 
@@ -331,7 +374,7 @@ void * send_message(void * a)
 	while(1)
 	{
 		pthread_mutex_lock(&msg_mutex);
-		printf("\nSender: Queue length is %d \n", h->qlen);fflush(stdout);
+//		printf("\nSender: Queue length is %d \n", h->qlen);fflush(stdout);
 
 			
 		/* if queue is empty wait for more messages*/
@@ -346,7 +389,7 @@ void * send_message(void * a)
 		msg = h->hlywd_msg; 
 		if(msg==NULL)
 		{
-			printf("WTH!!!!!!!!!!!!!!!!!!!!!\n");
+			printf("Error: Empty message was found in the sender queue\n");
 			break;
 		}
 
@@ -363,6 +406,8 @@ void * send_message(void * a)
 			if (ferror (fptr))
 				printf ("Error Writing to %s\n", filename); 
 			perror("The following error occured\n");
+			free(msg->message); 
+			free(msg);
 			pthread_mutex_unlock(&msg_mutex);
 			break;  	
 		}
@@ -373,20 +418,21 @@ void * send_message(void * a)
 
 		if (msg_len == -1) {
 			printf("Unable to send message\n");
+			free(msg->message); 
+			free(msg);
 			pthread_mutex_unlock(&msg_mutex);
-			break;
+			break; 
 		}
 #endif
 		printf("Sender: Unlocking mutex \n"); fflush(stdout); 
-
 		free(msg->message); 
 		free(msg); 
 		pthread_mutex_unlock(&msg_mutex);
 
 	}
-	free(msg->message); 
-	free(msg);
-	msg = NULL;  
+#ifdef NOSEND
+	fclose(fptr);
+#endif  
 	return NULL;  
 }
 

@@ -67,7 +67,7 @@ struct hlywd_message{
 	unsigned char * message; 
 	uint64_t msg_size; 
 	bool stream_complete; 
-   uint16_t depends_on;
+   int depends_on;
  	int framing_ms; 
 	int lifetime_ms;
 	struct hlywd_message * next; 
@@ -190,6 +190,7 @@ struct mp4_i{
 };
 
 struct mp4_i mp4_initialize();
+void mp4_destroy(struct mp4_i * m);
 int mp4_get_size (unsigned char * stream, int len, uint64_t * size, bool extended, struct mp4_i * m);
 int mp4_get_ID (unsigned char * stream, int len, int * ID, struct mp4_i * m);
 bool mp4_setID( struct mp4_i * m);
@@ -214,6 +215,7 @@ int mp4_read_tfdt(unsigned char * stream, int len, struct mp4_i * m);
 int mp4_read_hdlr(unsigned char * stream, int len, struct mp4_i * m);
 void mp4_destroy(struct mp4_i * m);
 int get_msg_size (unsigned char * data, int len, struct hlywd_message * m);
+
 
 /*from helper.cpp*/
 char *str_replace(char *orig, char *rep, char *with);
