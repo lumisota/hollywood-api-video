@@ -52,7 +52,7 @@ int main(int argc, char *argv[]) {
 
 	/* Bind */
 	server_addr.sin_family = AF_INET;
-	server_addr.sin_port = htons(8888);
+	server_addr.sin_port = htons(8882);
 	server_addr.sin_addr.s_addr = INADDR_ANY;
 	if (bind(fd, (struct sockaddr *) &server_addr, sizeof(server_addr)) == -1) {
 		printf("Unable to bind\n");

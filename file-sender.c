@@ -58,7 +58,7 @@ int main(int argc, char *argv[]) {
 	memset(&hints, 0, sizeof(hints));
 	hints.ai_family = PF_UNSPEC;
 	hints.ai_socktype = SOCK_STREAM;
-	if (getaddrinfo(argv[1], "8888", &hints, &serveraddr) != 0) {
+	if (getaddrinfo(argv[1], "8882", &hints, &serveraddr) != 0) {
 		printf("Hostname lookup failed\n");
 		return 2;
 	}

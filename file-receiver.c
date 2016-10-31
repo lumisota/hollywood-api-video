@@ -35,7 +35,7 @@
 #include <unistd.h>
 #include <string.h>
 
-#define BUFLEN 100000
+#define BUFLEN 500000
 
 int main(int argc, char *argv[]) {
 	hlywd_sock h_sock;
