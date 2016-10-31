@@ -35,12 +35,14 @@
 #include <unistd.h>
 #include <string.h>
 
+#define BUFLEN 100000
+
 int main(int argc, char *argv[]) {
 	hlywd_sock h_sock;
 	int fd, cfd;
 	socklen_t cfd_len;
 	struct sockaddr_in server_addr, client_addr;
-	char buffer[1000];
+	char buffer[BUFLEN];
 	char filename[256]="saved_output";
 	ssize_t read_len;
 	uint8_t substream_id;
@@ -67,7 +69,7 @@ int main(int argc, char *argv[]) {
 
 	/* Bind */
 	server_addr.sin_family = AF_INET;
-	server_addr.sin_port = htons(8888);
+	server_addr.sin_port = htons(8882);
 	server_addr.sin_addr.s_addr = INADDR_ANY;
 	if (bind(fd, (struct sockaddr *) &server_addr, sizeof(server_addr)) == -1) {
 		printf("Unable to bind\n");
@@ -94,8 +96,8 @@ int main(int argc, char *argv[]) {
 	}
 
 	/* Receive message loop */
-	while ((read_len = recv_message(&h_sock, buffer, 1000, 0, &substream_id)) > 0) {
-		printf("Message received (substream %u)\n", substream_id);
+	while ((read_len = recv_message(&h_sock, buffer, BUFLEN, 0, &substream_id)) > 0) {
+		printf("Message received (substream %u) of len %d:%d\n", substream_id, read_len, h_sock.current_sequence_num);
 		if(fwrite (buffer , sizeof(char), read_len, fptr)!=read_len)
 		{
 			if (ferror (fptr))

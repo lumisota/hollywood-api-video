@@ -100,7 +100,7 @@ int main(int argc, char *argv[]) {
 	/* Send the file contents */
    bytes_read = fread(buffer, 1,BUFLEN,fptr);
 	while(bytes_read==BUFLEN) {
-		msg_len = send_message_time(&hlywd_socket, buffer, BUFLEN, 0, seq, seq, 20, 150);
+		msg_len = send_message_time(&hlywd_socket, buffer, BUFLEN, 0, seq, seq, 150);
 
 		printf("Sending message number %d (length: %d)..\n", seq, msg_len);
 		if (msg_len == -1) {
@@ -111,7 +111,7 @@ int main(int argc, char *argv[]) {
 			return 6;
 		}
 		/* Wait for 20ms before sending the next message */
-		usleep(20000);
+//		usleep(20000);
 		bytes_read = fread(buffer,1,BUFLEN,fptr);
 		seq++; 
 	}
@@ -120,7 +120,7 @@ int main(int argc, char *argv[]) {
 	if (feof(fptr)) {
 		if(bytes_read > 0)
 		{
-			msg_len = send_message_time(&hlywd_socket, buffer, bytes_read, 0, seq, seq, 20, 150);
+			msg_len = send_message_time(&hlywd_socket, buffer, bytes_read, 0, seq, seq, 150);
 			printf("Sending message number %d (length: %d). \n%s\n", seq, msg_len,buffer);
 		}
 		printf ("End-of-File reached.\n");

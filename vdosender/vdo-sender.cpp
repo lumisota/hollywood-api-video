@@ -28,7 +28,7 @@
  */
 
 #include "vdo-sender.h"
-#define NOSEND
+//#define NOSEND
 
 int lex_luther=0; 
 int dropped_frames=0; 
@@ -333,6 +333,7 @@ void * parse_mp4file(void * a)
 	}
 	free(msg->message); 
 	free(msg);
+	return NULL;
 }
 
 
@@ -430,7 +431,7 @@ int initialize_socket(const char * hostname)
 	memset(&hints, 0, sizeof(hints));
 	hints.ai_family = PF_UNSPEC;
 	hints.ai_socktype = SOCK_STREAM;
-	if (getaddrinfo(hostname, "8888", &hints, &serveraddr) != 0) {
+	if (getaddrinfo(hostname, "8882", &hints, &serveraddr) != 0) {
 		printf("Hostname lookup failed\n");
 		return -1; 
 	}

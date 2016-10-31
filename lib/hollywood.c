@@ -211,6 +211,7 @@ ssize_t recv_message(hlywd_sock *socket, void *buf, size_t len, int flags, uint8
 /* Removes the message at the head of the message queue */
 size_t dequeue_message(hlywd_sock *socket, uint8_t *buf, uint8_t *substream_id) {
 	if (socket->message_count > 0) {
+		printf("%d, %d , %d\n", socket->message_q_head->len); fflush(stdout); 
 		memcpy(buf, socket->message_q_head->data, socket->message_q_head->len);
 		memcpy(substream_id, &socket->message_q_head->substream_id, 1);
 		message *dequeued_msg = socket->message_q_head;
