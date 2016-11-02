@@ -81,6 +81,8 @@ int hollywood_socket(int fd, hlywd_sock *socket) {
 	socket->message_q_tail = NULL;
 	socket->message_count = 0;
 
+	socket->current_sequence_num = 0;
+
 	socket->sb = new_sbuffer();
 	return result;
 }
@@ -188,7 +190,7 @@ ssize_t recv_message(hlywd_sock *socket, void *buf, size_t len, int flags, uint8
 	while (socket->message_count == 0) {
 		uint8_t segment[1500+sizeof(tcp_seq)];
 		tcp_seq sequence_num = 0;
-		ssize_t segment_len = recv(socket->sock_fd, segment, 50+sizeof(tcp_seq), flags);
+		ssize_t segment_len = recv(socket->sock_fd, segment, 1500+sizeof(tcp_seq), flags);
 		if (segment_len <= 0) {
 			return segment_len;
 		}
@@ -248,6 +250,7 @@ int add_message(hlywd_sock *socket, uint8_t *data, size_t len) {
 void parse_segment(hlywd_sock *socket, uint8_t *segment, size_t segment_len, tcp_seq sequence_num) {
 	int message_region_start = 0;
 	int message_region_end = segment_len-1;
+	int head_found, tail_found = 0;
 	/* check for head */
 	int head_end = 0;
 	int head_len = 0;
@@ -262,8 +265,14 @@ void parse_segment(hlywd_sock *socket, uint8_t *segment, size_t segment_len, tcp
 		} else {
 			head_len = head_end+1;
 		}
+		head_found = 1;
 		sb_head_entry = add_entry(socket->sb, sequence_num, head_len, segment);
 		message_region_start = head_end + 1;
+		if (sb_head_entry->len != head_len) {
+			remove_sb_entry(socket->sb, sb_head_entry);
+			parse_segment(socket, sb_head_entry->data, sb_head_entry->len, sb_head_entry->sequence_num);
+			destroy_sb_entry(sb_head_entry);
+		}
 	}
 	/* check for tail */
 	int tail_start = segment_len-1;
@@ -272,22 +281,12 @@ void parse_segment(hlywd_sock *socket, uint8_t *segment, size_t segment_len, tcp
 	}
 	if (tail_start < segment_len-1 || (tail_start-1 >= 0 && segment[tail_start-1] == '\0')) {
 		message_region_end = tail_start-1;
+		tail_found = 1;
 		sb_tail_entry = add_entry(socket->sb, sequence_num+tail_start, segment_len-tail_start, segment+tail_start);
-	}
-	if (sb_tail_entry != sb_head_entry) {
-		if (sb_tail_entry != NULL) {
-			if (sb_tail_entry->len != segment_len-tail_start) {
+		if (sb_tail_entry->len != segment_len-tail_start && sb_tail_entry->sequence_num != sequence_num) {
 				remove_sb_entry(socket->sb, sb_tail_entry);
 				parse_segment(socket, sb_tail_entry->data, sb_tail_entry->len, sb_tail_entry->sequence_num);
 				destroy_sb_entry(sb_tail_entry);
-			}
-		} 
-		if (sb_head_entry != NULL) {
-			if (sb_head_entry->len != head_len) {
-				remove_sb_entry(socket->sb, sb_head_entry);
-				parse_segment(socket, sb_head_entry->data, sb_head_entry->len, sb_head_entry->sequence_num);
-				destroy_sb_entry(sb_head_entry);
-			}
 		}
 	}
 	/* check for full messages */
