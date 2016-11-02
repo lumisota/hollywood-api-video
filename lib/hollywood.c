@@ -250,7 +250,6 @@ int add_message(hlywd_sock *socket, uint8_t *data, size_t len) {
 void parse_segment(hlywd_sock *socket, uint8_t *segment, size_t segment_len, tcp_seq sequence_num) {
 	int message_region_start = 0;
 	int message_region_end = segment_len-1;
-	int head_found, tail_found = 0;
 	/* check for head */
 	int head_end = 0;
 	int head_len = 0;
@@ -265,7 +264,6 @@ void parse_segment(hlywd_sock *socket, uint8_t *segment, size_t segment_len, tcp
 		} else {
 			head_len = head_end+1;
 		}
-		head_found = 1;
 		sb_head_entry = add_entry(socket->sb, sequence_num, head_len, segment);
 		message_region_start = head_end + 1;
 		if (sb_head_entry->len != head_len) {
@@ -281,7 +279,6 @@ void parse_segment(hlywd_sock *socket, uint8_t *segment, size_t segment_len, tcp
 	}
 	if (tail_start < segment_len-1 || (tail_start-1 >= 0 && segment[tail_start-1] == '\0')) {
 		message_region_end = tail_start-1;
-		tail_found = 1;
 		sb_tail_entry = add_entry(socket->sb, sequence_num+tail_start, segment_len-tail_start, segment+tail_start);
 		if (sb_tail_entry->len != segment_len-tail_start && sb_tail_entry->sequence_num != sequence_num) {
 				remove_sb_entry(socket->sb, sb_tail_entry);
