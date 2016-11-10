@@ -7,8 +7,8 @@
 
 #ifndef MPEG_H_
 #define MPEG_H_
-#define MP4DEBUG
-#define MP4DEBUGA
+//#define MP4DEBUG
+//#define MP4DEBUGA
 #define MAXSIZEMP4 8 /*number of bytes used to represent size of an mp4 atom*/
 #define MP4IDLEN 4 /*number of bytes used to represent the id of an mp4 atom*/
 #define SIZEMVHD 24
