@@ -12,8 +12,8 @@ sender: sender.c lib/cobs.c lib/hollywood.c
 receiver: receiver.c lib/cobs.c lib/hollywood.c
 	$(CC) -g -lm -o receiver receiver.c lib/cobs.c lib/hollywood.c
 
-vdo-sender: vdosender/vdo-sender.cpp vdosender/mpeg.cpp vdosender/mpeg_a.cpp vdosender/helper.cpp lib/cobs.c lib/hollywood.c
-	$(CPLUS) -g -lm -o vdo-sender vdosender/vdo-sender.cpp vdosender/mpeg.cpp vdosender/mpeg_a.cpp vdosender/helper.cpp lib/cobs.c lib/hollywood.c -lpthread
+vdo-sender: httpserver/vdo-sender.cpp httpserver/mpeg.cpp httpserver/mpeg_a.cpp httpserver/helper.cpp lib/cobs.c lib/hollywood.c
+	$(CPLUS) -g -lm -o httpd httpserver/httpd.c httpserver/vdo-sender.cpp httpserver/mpeg.cpp httpserver/mpeg_a.cpp httpserver/helper.cpp lib/cobs.c lib/hollywood.c -lpthread
 
 
 file-sender: file-sender.c lib/cobs.c lib/hollywood.c
