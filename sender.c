@@ -72,7 +72,7 @@ int main(int argc, char *argv[]) {
 	}
 
 	/* Create Hollywood socket */
-	if (hollywood_socket(fd, &hlywd_socket) != 0) {
+	if (hollywood_socket(fd, &hlywd_socket, 1) != 0) {
 		printf("Unable to create Hollywood socket\n");
 		close(fd);
 		return 5;
@@ -81,14 +81,11 @@ int main(int argc, char *argv[]) {
 	/* Set the playout delay to 100ms */
 	set_playout_delay(&hlywd_socket, 100);
 
-	/* Send 100 messages */
-	for (i = 0; i < 100; i++) {
-		sprintf(buffer, "Msg %d..", i);
-		if (i % 2) {
-			msg_len = send_message_time(&hlywd_socket, buffer, 150, 0, i, i, 150);
-		} else {
-			msg_len = send_message_time(&hlywd_socket, buffer, 140, 0, i, i, 150);
-		}
+	/* Send 1000 messages */
+	for (i = 0; i < 1000; i++) {
+		memcpy(buffer, &i, sizeof(int));
+		gettimeofday((struct timeval *) (buffer+sizeof(int)), NULL);
+		msg_len = send_message_time(&hlywd_socket, buffer, 160, 0, i, i, 160);
 		printf("Sending message number %d (length: %d)..\n", i, msg_len);
 		if (msg_len == -1) {
 			printf("Unable to send message\n");
@@ -97,7 +94,7 @@ int main(int argc, char *argv[]) {
 			return 6;
 		}
 		/* Wait for 20ms before sending the next message */
-		usleep(200000);
+		usleep(20000);
 	}
 
 	/* Free message buffer */
