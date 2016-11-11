@@ -34,6 +34,30 @@
 #include <stdio.h>
 #include <unistd.h>
 #include <string.h>
+#include <stdlib.h>
+
+/* from https://www.gnu.org/software/libc/manual/html_node/Elapsed-Time.html */
+int timeval_subtract (struct timeval *result, struct timeval *x, struct timeval *y) {
+  /* Perform the carry for the later subtraction by updating y. */
+  if (x->tv_usec < y->tv_usec) {
+    int nsec = (y->tv_usec - x->tv_usec) / 1000000 + 1;
+    y->tv_usec -= 1000000 * nsec;
+    y->tv_sec += nsec;
+  }
+  if (x->tv_usec - y->tv_usec > 1000000) {
+    int nsec = (x->tv_usec - y->tv_usec) / 1000000;
+    y->tv_usec += 1000000 * nsec;
+    y->tv_sec -= nsec;
+  }
+
+  /* Compute the time remaining to wait.
+     tv_usec is certainly positive. */
+  result->tv_sec = x->tv_sec - y->tv_sec;
+  result->tv_usec = x->tv_usec - y->tv_usec;
+
+  /* Return 1 if result is negative. */
+  return x->tv_sec < y->tv_sec;
+}
 
 int main(int argc, char *argv[]) {
 	hlywd_sock h_sock;
@@ -43,6 +67,12 @@ int main(int argc, char *argv[]) {
 	char buffer[1000];
 	ssize_t read_len;
 	uint8_t substream_id;
+	struct timeval *elapsed[1000] = {NULL};
+
+	if (argc < 2) {
+		printf("Usage: receiver [1|0]\n");
+		return 1;
+	}
 
 	/* Create a socket */
 	if ((fd = socket(AF_INET, SOCK_STREAM, 0)) == -1) {
@@ -73,19 +103,32 @@ int main(int argc, char *argv[]) {
 	}
 
 	/* Create a Hollywood socket */
-	if (hollywood_socket(cfd, &h_sock) != 0) {
+	if (hollywood_socket(cfd, &h_sock, (int) *argv[1]) != 0) {
 		printf("Unable to create Hollywood socket\n");
 		return 2;
 	}
 
 	/* Receive message loop */
 	while ((read_len = recv_message(&h_sock, buffer, 1000, 0, &substream_id)) > 0) {
-		printf("Message received (substream %u): [%s]\n", substream_id, buffer);
+		struct timeval send_time, recv_time;
+		int message_num = 0;
+		memcpy(&message_num, buffer, sizeof(int));
+		memcpy(&send_time, (buffer+sizeof(int)), sizeof(struct timeval));
+		gettimeofday(&recv_time, NULL);
+		if (elapsed[message_num] == NULL) {
+			elapsed[message_num] = (struct timeval *) malloc(sizeof(struct timeval));
+			timeval_subtract(elapsed[message_num], &recv_time, &send_time);
+		}
 	}
 
 	/* Close connection */
 	close(cfd);
 	close(fd);
+
+	for (int i = 0; i < 1000; i++) {
+		printf("%d %ld.%06ld\n", i, elapsed[i]->tv_sec, elapsed[i]->tv_usec);
+		free(elapsed[i]);
+	}
 
 	return 0;
 }

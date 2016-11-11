@@ -39,6 +39,8 @@
 #include <stdlib.h>
 #include <sys/time.h>
 
+#define TCP_OODELIVERY 27
+
 /* Message queue functions */
 int add_message(hlywd_sock *socket, uint8_t *data, size_t len);
 size_t dequeue_message(hlywd_sock *socket, uint8_t *buf, uint8_t *substream_id);
@@ -59,7 +61,7 @@ void print_sbuffer(sparsebuffer *sb);
 sparsebuffer_entry *add_entry(sparsebuffer *sb, tcp_seq sequence_num, size_t length, uint8_t *data);
 
 /* Creates a new Hollywood socket */
-int hollywood_socket(int fd, hlywd_sock *socket) {
+int hollywood_socket(int fd, hlywd_sock *socket, int oo) {
 	int flag = 1;
 
 	/* Disable Nagle's algorithm (TCP_NODELAY = 1) */
@@ -67,7 +69,7 @@ int hollywood_socket(int fd, hlywd_sock *socket) {
 
 	/* Enable out-of-order delivery, if available */
 	#ifdef TCP_OODELIVERY
-	result = setsockopt(fd, IPPROTO_TCP, TCP_OODELIVERY, (char *) &flag, sizeof(int));
+	result = setsockopt(fd, IPPROTO_TCP, TCP_OODELIVERY, (char *) &oo, sizeof(int));
 	#endif
 
 	/* Enable partial reliability, if available */

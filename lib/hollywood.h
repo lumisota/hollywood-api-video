@@ -75,7 +75,7 @@ typedef struct hlywd_sock {
 	tcp_seq current_sequence_num;
 } hlywd_sock;
 
-int hollywood_socket(int fd, hlywd_sock *socket);
+int hollywood_socket(int fd, hlywd_sock *socket, int oo);
 
 void set_playout_delay(hlywd_sock *socket, int pd_ms);
 
