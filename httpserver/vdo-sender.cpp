@@ -29,9 +29,10 @@
 
 #include "vdo-sender.h"
 //#define NOSEND
+int mickey = 0;
 
 bool            endianness = false;
-bool            Mp4Model=true;
+bool            Mp4Model=false;
 metrics         metric;
 pthread_t       p_tid; /*thread id of the parser thread*/
 pthread_t       h_tid; /*thread id of the tcp hollywood sender thread*/
@@ -128,10 +129,11 @@ int add_msg_to_queue( struct hlywd_message * msg, struct parse_attr * p)
 {
     uint32_t tmp =htonl(offset);
     memcpy(msg->message+msg->msg_size, &tmp, sizeof(uint32_t));
-    printf("HOLLYWOOD: %d : %u : %u\n", msg->msg_size, offset, tmp);
+    //printf("HOLLYWOOD: %llu : %u : %u\n", msg->msg_size, offset, tmp);
 
     offset+=msg->msg_size;
     msg->msg_size+=sizeof(uint32_t);
+
         
 	pthread_mutex_lock(&msg_mutex);
     

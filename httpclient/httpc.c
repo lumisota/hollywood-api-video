@@ -24,11 +24,10 @@ int receive_video_over_hlywd (int fd, struct metrics * metric)
     /*TODO: What is the third argument?, need to make it user assigned*/
     if (hollywood_socket(fd, &(metric->h_sock), 0) != 0) {
         printf("Unable to create Hollywood socket\n");
-        return 2;
+        return -1;
     }
-    mm_parser(metric);
     
-    return 0;
+    return (mm_parser(metric));
 }
 
 /**********************************************************************/
@@ -37,8 +36,7 @@ int receive_video_over_tcp (int fd, struct metrics * metric)
 {
     printf("Receiving file over TCP\n");
     metric->Hollywood=0;
-    mm_parser(metric);
-    return 0;
+    return (mm_parser(metric));
 }
 
 /**********************************************************************/
@@ -89,17 +87,16 @@ int receive_response(int fd, struct metrics * metric)
         
     if(strstr(buf, "video/mp4")!=NULL)
     {
-        receive_video_over_tcp(fd, metric);
+        return (receive_video_over_tcp(fd, metric));
     }
     else if(strstr(buf, "video/hlywd")!=NULL)
     {
-        receive_video_over_hlywd(fd, metric);
+        return receive_video_over_hlywd(fd, metric);
     }
     else
         printf("No markers found"); 
     
-    return 0;
-    
+    return -1; 
 }
 
 
@@ -214,12 +211,19 @@ int main(int argc, char *argv[])
     }
     
     metric.sock = fd;
-    strcpy(metric.filename, filename);
-
+    metric.fptr=fopen(filename,"wb");
+    if (metric.fptr==NULL)
+    {
+        perror ("Error opening file:");
+        close(fd);
+        return 6;
+    }
     
     send_get_request(fd, host, filename);
-    receive_response(fd, &metric);
+    if(receive_response(fd, &metric)==0)
+        printf("Successfully received file\n");
     
+    fclose(metric.fptr);
     close(fd);
     return 0;
 }

@@ -28,13 +28,32 @@ static int read_packet(void *opaque, uint8_t *buf, int buf_size) {
     {
         /* Receive message loop */
         read_len = recv_message(&(m->h_sock), buf, buf_size, 0, &substream_id);
-        if(read_len<0)
+        if(read_len<=0)
             return read_len;
         read_len-=4;
         uint32_t tmp;
         memcpy(&tmp,buf+read_len, sizeof(uint32_t));
-        offset+=ntohl(tmp);
-        printf("HOLLYWOOD: %d : %u : %u\n", read_len, ntohl(tmp), tmp);
+        tmp = ntohl(tmp);
+        if(offset<tmp)
+        {
+            printf("Dropped frame size: %d, offset : %u\n", tmp-offset, offset);
+            if(read_len+(tmp-offset)>MAX_BUFFER_SIZE)
+                return -1;
+            memcpy(buf+(tmp-offset), buf, read_len);
+            memzero(buf, tmp-offset);
+            read_len+=(tmp-offset);
+        }
+        offset+=read_len;
+        
+        /*Write buffer to file for later use*/
+        if(fwrite (buf , sizeof(char), read_len, m->fptr)!=read_len)
+        {
+            if (ferror (m->fptr))
+                printf ("Error Writing to file\n");
+            perror("The following error occured\n");
+            return -1;
+        }
+
     }
     else
     {
@@ -44,28 +63,29 @@ static int read_packet(void *opaque, uint8_t *buf, int buf_size) {
 	return read_len;
 }
 
-void mm_parser(struct metrics * m) {
+int mm_parser(struct metrics * m) {
     av_register_all();
 	void *buff = av_malloc(MAX_BUFFER_SIZE);
 	AVIOContext *avio = avio_alloc_context(buff, MAX_BUFFER_SIZE, 0,
 			m, read_packet, NULL, NULL);
 	if (avio == NULL) {
-		exit(EXIT_FAILURE);
+        fprintf(stderr, "Could not alloc avio context\n\n");
+        return -1;
 	}
 
 	AVFormatContext *fmt_ctx = avformat_alloc_context();
 	if (fmt_ctx == NULL) {
-		exit(EXIT_FAILURE);
-	}
+        fprintf(stderr, "Could not alloc fmt context\n\n");
+        return -1;
+    }
 	fmt_ctx->pb = avio;
 
 	int ret = avformat_open_input(&fmt_ctx, NULL, NULL, NULL);
 	if (ret < 0) {
         char errbuf[256];
-        av_strerror	(ret,errbuf,256);
+        av_strerror	(ret, errbuf, 256);
         fprintf(stderr, "Could not open source file %d\n%s\n", ret, errbuf);
-
-        exit(EXIT_FAILURE);
+        return -1;
 	}
 
 	avformat_find_stream_info(fmt_ctx, NULL);
@@ -84,8 +104,9 @@ void mm_parser(struct metrics * m) {
 	if (videoStreamIdx != -1) {
 		int vnum = fmt_ctx->streams[videoStreamIdx]->time_base.num;
 		if (vnum > (int) (UINT64_MAX / SEC2PICO)) {
-			exit(EXIT_FAILURE);
-		}
+            fprintf(stderr, "vnum exceeds max uint64 value\n");
+            return -1;
+        }
 		int vden = fmt_ctx->streams[videoStreamIdx]->time_base.den;
 		vtb = DIV_ROUND_CLOSEST(vnum * SEC2PICO, vden);
 	}
@@ -94,7 +115,8 @@ void mm_parser(struct metrics * m) {
 	if (audioStreamIdx != -1) {
 		int anum = fmt_ctx->streams[audioStreamIdx]->time_base.num;
 		if (anum > (int) (UINT64_MAX / SEC2PICO)) {
-			exit(EXIT_FAILURE);
+            fprintf(stderr, "anum exceeds max uint64 value\n");
+            return -1;
 		}
 		int aden = fmt_ctx->streams[audioStreamIdx]->time_base.den;
 		atb = DIV_ROUND_CLOSEST(anum * SEC2PICO, aden);
@@ -126,5 +148,5 @@ void mm_parser(struct metrics * m) {
 	avformat_free_context(fmt_ctx);
 	av_free(avio);
 
-	return;
+	return 0;
 }

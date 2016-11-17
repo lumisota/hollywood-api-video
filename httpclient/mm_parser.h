@@ -3,6 +3,7 @@
 
 #include <stdint.h>
 #include <stddef.h>
+#include <stdio.h>
 #include <sys/time.h>
 #include <sys/socket.h>
 #include "helper.h"
@@ -12,10 +13,10 @@
 struct metrics {
     int Hollywood;
     int sock;
-    char filename[64];
+    FILE * fptr;
     hlywd_sock h_sock;
 };
 
-void mm_parser(struct metrics * m);
+int mm_parser(struct metrics * m);
 
 #endif
