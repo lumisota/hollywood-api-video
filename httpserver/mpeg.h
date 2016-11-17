@@ -7,8 +7,8 @@
 
 #ifndef MPEG_H_
 #define MPEG_H_
-//#define MP4DEBUG
-//#define MP4DEBUGA
+#define MP4DEBUG
+#define MP4DEBUGA
 #define MAXSIZEMP4 8 /*number of bytes used to represent size of an mp4 atom*/
 #define MP4IDLEN 4 /*number of bytes used to represent the id of an mp4 atom*/
 #define SIZEMVHD 24
@@ -47,15 +47,15 @@ using namespace std;
 /* The initial read bytes from MP4 file are 16 = 4+4+8 (SIZE+ID+ESIZE)*/
 #define HEADERLEN 16
 
-enum mp4state_t {MREADID, MREADSIZE, MREADBODY, MREADESIZE,MREADSIDX, MREADFTYP, MREADMVHD, MREADMDHD, MREADHDLR, MREADSTSD, MREADTFDT, MREADTRUN, MREADTFHD, MREADSTTS, MREADSTSS, MREADSTSC, MREADSTCO,MREADSTSZ, MREADTKHD,MREADMDAT};
+enum mp4state_t {MREADID, MREADSIZE, MREADBODY, MREADESIZE,MREADSIDX, MREADFTYP, MREADMVHD, MREADMDHD, MREADHDLR, MREADSTSD, MREADTFDT, MREADTRUN, MREADTFHD, MREADSTTS, MREADSTSS, MREADSTSC, MREADSTCO,MREADSTSZ, MREADTKHD,MREADMDAT, MREADTREX, MREADMEHD};
 
 enum mp4level_t {ML0, ML1, ML2, ML3, ML4, ML5 };
 
-enum mp4ftyp {MP42, DASH, MUNKNOWNF};
+enum mp4ftyp {MP42, DASH, ISO5, MUNKNOWNF};
 
 enum mp4idsl0_t {MOOV, MOOF, MDAT, FTYP, SIDX, MUNKNOWNL0};
-enum mp4idsl1_t {MVHD, MFHD, TRAK, TRAF, MUNKNOWNL1};
-enum mp4idsl2_t {TKHD, TFHD, MDIA, TRUN, TFDT,  MUNKNOWNL2};
+enum mp4idsl1_t {MVHD, MFHD, TRAK, TRAF, MVEX, MUNKNOWNL1};
+enum mp4idsl2_t {TKHD, TFHD, MDIA, TRUN, TFDT, MEHD, TREX, MUNKNOWNL2};
 enum mp4idsl3_t {MINF,MDHD,HDLR, MUNKNOWNL3};
 enum mp4idsl4_t {STBL, MUNKNOWNL4};
 enum mp4idsl5_t {STTS,STSS,STSC,STSZ,STCO,CO64, MUNKNOWNL5};
@@ -215,6 +215,8 @@ int mp4_read_tfdt(unsigned char * stream, int len, struct mp4_i * m);
 int mp4_read_hdlr(unsigned char * stream, int len, struct mp4_i * m);
 void mp4_destroy(struct mp4_i * m);
 int get_msg_size (unsigned char * data, int len, struct hlywd_message * m);
+int mp4_read_trex(unsigned char * stream, int len, struct mp4_i * m);
+int mp4_read_mehd(unsigned char * stream, int len, struct mp4_i * m);
 
 
 /*from helper.cpp*/

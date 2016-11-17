@@ -18,16 +18,12 @@
 
 #define MAXQLEN 10 /*Maximum number of messages waiting to be sent*/
 
-
-
-
-
 struct hlywd_attr {
 	int seq; 
 	int qlen; /*number of messages waiting to be sent*/ 
 	hlywd_sock hlywd_socket;
 	bool file_complete; 
-	struct hlywd_message * hlywd_msg;  
+	struct hlywd_message * hlywd_msg;
 };
 
 struct parse_attr {

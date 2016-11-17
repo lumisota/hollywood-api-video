@@ -163,14 +163,20 @@ int mp4_savetag (unsigned char * data, int len, struct mp4_i * m)
 				ret=mp4_read_stsc(data+bytesread, len-bytesread,m);
 				break;
 			case MREADMDAT:
-				if(m->ftyp == DASH)
+				if(m->ftyp == DASH || m->ftyp == ISO5 )
 					ret=mp4_read_mdat_a(data+bytesread, len-bytesread,m);
 				else
 					ret=mp4_read_mdat(data+bytesread, len-bytesread,m);
 				break;
-			case MREADTRUN:
-				ret=mp4_read_trun(data+bytesread, len-bytesread,m);
-				break;
+            case MREADTRUN:
+                ret=mp4_read_trun(data+bytesread, len-bytesread,m);
+                break;
+            case MREADTREX:
+                ret=mp4_read_trex(data+bytesread, len-bytesread,m);
+                break;
+            case MREADMEHD:
+                ret=mp4_read_mehd(data+bytesread, len-bytesread,m);
+                break;
 			case MREADTFHD:
 				ret=mp4_read_tfhd(data+bytesread, len-bytesread,m);
 				break;
@@ -383,8 +389,15 @@ bool mp4_setID( struct mp4_i * m)
 			m->li.id1 = MVHD;
 		else if (m->header[0]=='t' && m->header[1]=='r' && m->header[2]=='a' && (m->header[3]=='k' || m->header[3]=='f'))
 			m->li.id1 = TRAK;
+        else if(m->header[0]=='m' && m->header[1]=='v' && m->header[2]=='e' && m->header[3]=='x')
+            m->li.id1 = MVEX;
 		else
+        {
+#ifdef MP4DEBUG
+            cout<<"UNKNOWN1 m->header "<<m->header[0]<<m->header[1]<<m->header[2]<<m->header[3]<<endl;
+#endif
 			m->li.id1 = MUNKNOWNL1;
+        }
 	}
 	else if(m->mp4level==ML2)
 	{
@@ -398,13 +411,33 @@ bool mp4_setID( struct mp4_i * m)
 				m->li.id2 = TFHD;
 			else if(m->header[0]=='t' && m->header[1]=='f'  && m->header[2]=='d' && m->header[3]=='t')
 				m->li.id2 = TFDT;
-			else if (m->header[0]=='t' && m->header[1]=='r' && m->header[2]=='u' && m->header[3]=='n')
-				m->li.id2 = TRUN;
+            else if (m->header[0]=='t' && m->header[1]=='r' && m->header[2]=='u' && m->header[3]=='n')
+                m->li.id2 = TRUN;
 			else
+            {
+#ifdef MP4DEBUG
+                cout<<"UNKNOWN2 m->header "<<m->header[0]<<m->header[1]<<m->header[2]<<m->header[3]<<endl;
+#endif
 				m->li.id2 = MUNKNOWNL2;
+            }
 
 		}
-		else
+		else if(m->li.id1 == MVEX)
+        {
+            if (m->header[0]=='t' && m->header[1]=='r' && m->header[2]=='e' && m->header[3]=='x')
+                m->li.id2 = TREX;
+            else if (m->header[0]=='m' && m->header[1]=='e' && m->header[2]=='h' && m->header[3]=='d')
+                m->li.id2 = MEHD;
+            else
+            {
+#ifdef MP4DEBUG
+                cout<<"UNKNOWN2 m->header "<<m->header[0]<<m->header[1]<<m->header[2]<<m->header[3]<<endl;
+#endif
+                m->li.id2 = MUNKNOWNL2;
+            }
+
+        }
+        else
 			m->li.id2 = MUNKNOWNL2;
 	}
 	else if (m->mp4level==ML3)
@@ -541,13 +574,20 @@ int mp4_get_body (unsigned char * stream, int len, uint64_t size, struct mp4_i *
 					m->mp4level = ML2;
 					ret= 0;
 					break;
-				case MVHD:
-					m->mp4state=MREADMVHD;
+                case MVHD:
+                    m->mp4state=MREADMVHD;
 #ifdef MP4DEBUG
-					printf("\tMVHD:%ld\n",m->li.size1);
+                    printf("\tMVHD:%ld\n",m->li.size1);
 #endif
-					ret= 0;
-					break;
+                    ret= 0;
+                    break;
+                case MVEX:
+#ifdef MP4DEBUG
+                    printf("\MVEX:%ld\n",m->li.size1);
+#endif
+                    m->mp4level = ML2;
+                    ret= 0;
+                    break;
 				case MUNKNOWNL1:
 #ifdef MP4DEBUG
 					printf("\tMUNKNOWNL1:%ld\n",m->li.size1);
@@ -595,13 +635,27 @@ int mp4_get_body (unsigned char * stream, int len, uint64_t size, struct mp4_i *
 					m->mp4state=MREADTFDT;
 					ret= 0;
 					break;
-				case TRUN:
+                case TRUN:
 #ifdef MP4DEBUG
-					printf("\t\tTRUN:%ld\n",m->li.size2);
+                    printf("\t\tTRUN:%ld\n",m->li.size2);
 #endif
-					m->mp4state=MREADTRUN;
-					ret= 0;
-					break;
+                    m->mp4state=MREADTRUN;
+                    ret= 0;
+                    break;
+                case TREX:
+#ifdef MP4DEBUG
+                    printf("\t\tTREX:%ld\n",m->li.size2);
+#endif
+                    m->mp4state=MREADTREX;
+                    ret= 0;
+                    break;
+                case MEHD:
+#ifdef MP4DEBUG
+                    printf("\t\tMEHD:%ld\n",m->li.size2);
+#endif
+                    m->mp4state=MREADMEHD;
+                    ret= 0;
+                    break;
 				case MUNKNOWNL2:
 #ifdef MP4DEBUG
 					printf("\t\tMUNKNOWNL2:%ld\n",m->li.size2);
@@ -806,7 +860,9 @@ int mp4_read_mvhd(unsigned char * stream, int len, struct mp4_i * m)
 	if(metric.duration< tmpdur)
 		metric.duration =tmpdur;
 	m->mp4tinfo.prefrate = atouint32 ((char *)m->header+20, endianness);
-//	cout<<"MVHD Data is : "<<m->mp4tinfo.m->timescale<<" "<<m->mp4tinfo.duration<<" "<<m->mp4tinfo.prefrate<<endl;
+#ifdef MP4DEBUG
+	cout<<"MVHD Data is : "<<m->mp4tinfo.timescale<<" "<<m->mp4tinfo.duration<<" "<<m->mp4tinfo.prefrate<<endl;
+#endif
 	m->tocopy = -1;
 	m->index = 0;
 	delete [] m->header;

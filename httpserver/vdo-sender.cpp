@@ -30,7 +30,6 @@
 #include "vdo-sender.h"
 //#define NOSEND
 
-
 bool            endianness = false;
 bool            Mp4Model=true;
 metrics         metric;
@@ -39,6 +38,7 @@ pthread_t       h_tid; /*thread id of the tcp hollywood sender thread*/
 pthread_cond_t  msg_ready; /*indicates whether a full message is ready to be sent*/
 pthread_mutex_t msg_mutex; /*mutex of the hlywd_message*/
 
+static uint32_t offset = 0; /*offset added to last 4 bytes of the message*/
 
 
 int send_video(int fd, const char * filename)
@@ -113,7 +113,8 @@ int send_video(int fd, const char * filename)
 	mp4_destroy(&p->m); 
 	free(h);
 	free(p);
-
+    
+    offset = 0;
 	/*destroy the attr, mutex & condition*/
 	pthread_attr_destroy(&attr);
 	pthread_cond_destroy (&msg_ready); 
@@ -125,6 +126,13 @@ int send_video(int fd, const char * filename)
 /* Add message to the queue of messages*/
 int add_msg_to_queue( struct hlywd_message * msg, struct parse_attr * p)
 {
+    uint32_t tmp =htonl(offset);
+    memcpy(msg->message+msg->msg_size, &tmp, sizeof(uint32_t));
+    printf("HOLLYWOOD: %d : %u : %u\n", msg->msg_size, offset, tmp);
+
+    offset+=msg->msg_size;
+    msg->msg_size+=sizeof(uint32_t);
+        
 	pthread_mutex_lock(&msg_mutex);
     
 	/* if MAXQLEN is reached, wait for it to empty*/
@@ -179,7 +187,7 @@ int mp4_send_mdat(struct parse_attr * p )
 				msg = (struct hlywd_message *) malloc(sizeof(struct hlywd_message));
 				memzero(msg, sizeof(struct hlywd_message)); 
 				msg->msg_size=(*ii).second.stable[i].size;
-				msg->message = (unsigned char *) malloc(msg->msg_size);
+				msg->message = (unsigned char *) malloc(msg->msg_size+sizeof(uint32_t));
 				bytes_read = fread(msg->message, sizeof(char), msg->msg_size, p->fptr);
 				if(bytes_read!=msg->msg_size)
 				{
@@ -198,7 +206,10 @@ int mp4_send_mdat(struct parse_attr * p )
 					msg->depends_on = -(lastkey); 
 				}
 				lastdur += (*ii).second.stable[i].sdur;
-
+#ifdef MP4DEBUG 
+                printf("Frame real values: sdur %u ; lastdur %u ; key %u timescale %u \n",((*ii).second.stable[i].sdur), lastdur, ((*ii).second.stable[i].key,m->timescale));
+                printf("Frame # TS: %d ; Lifetime: %d ; Depends_on: %d\n", msg->framing_ms, msg->lifetime_ms, msg->depends_on);
+#endif
                 add_msg_to_queue(msg, p);
 				msg=NULL; /*once queued, lose the pointer. Memory is freed by sender.*/
 				lastkey--; 
@@ -248,7 +259,7 @@ void * parse_mp4file(void * a)
 			/*if mdat we will just send the header now and send the frames later. */
 
 			msg->msg_size = headerlen; 
-			msg->message = (unsigned char *) malloc(msg->msg_size);
+			msg->message = (unsigned char *) malloc(msg->msg_size+sizeof(uint32_t));
 			readlen = msg->msg_size;
 			bytes_read = fread(msg->message, sizeof(char), readlen, p->fptr);
 			if(bytes_read!=readlen)
@@ -263,7 +274,7 @@ void * parse_mp4file(void * a)
 		else 
 		{
 			/*It's just metadata, read the full message and send*/ 
-			msg->message = (unsigned char *) malloc(msg->msg_size);
+			msg->message = (unsigned char *) malloc(msg->msg_size+sizeof(uint32_t));
 			readlen = msg->msg_size;
 			bytes_read = fread(msg->message, sizeof(char), readlen, p->fptr);
 			if(bytes_read!=readlen)
@@ -364,7 +375,7 @@ void * send_message(void * a)
 #else
 		msg_len = send_message_time(&h->hlywd_socket, msg->message, msg->msg_size, 0, h->seq, msg->depends_on, msg->lifetime_ms);
 		printf("Sending message number %d (length: %d)..\n", h->seq, msg_len);
-		h->seq++; 
+		h->seq++;
 		if (msg_len == -1) {
 			printf("Unable to send message\n");
 			free(msg->message); 
