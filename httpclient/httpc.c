@@ -28,6 +28,7 @@ int receive_video_over_hlywd (int fd, struct metrics * metric)
     }
     
     return (mm_parser(metric));
+    
 }
 
 /**********************************************************************/
@@ -185,9 +186,8 @@ int main(int argc, char *argv[])
         if((check_arguments(argc, argv, port, host, filename))<0)
             return(0);
     }
-    
+    init_metrics(&metric);
 
-    
     /* Lookup hostname */
     memset(&hints, 0, sizeof(hints));
     hints.ai_family = PF_UNSPEC;
@@ -212,13 +212,16 @@ int main(int argc, char *argv[])
     
     metric.sock = fd;
     metric.fptr=fopen(filename,"wb");
+
     if (metric.fptr==NULL)
     {
         perror ("Error opening file:");
         close(fd);
         return 6;
     }
-    
+ 
+    metric.stime = gettimelong();
+
     send_get_request(fd, host, filename);
     if(receive_response(fd, &metric)==0)
         printf("Successfully received file\n");

@@ -3,6 +3,8 @@
 #include <libavformat/avformat.h>
 #include <libavcodec/avcodec.h>
 
+#define DEBUG
+
 #define MAX_BUFFER_SIZE 100*1024
 
 #define DIV_ROUND_CLOSEST(x, divisor)(                  \
@@ -16,6 +18,8 @@
 #define SEC2PICO UINT64_C(1000000000000)
 //#define SEC2NANO 1000000000
 #define SEC2MILI 1000
+
+static uint minbuffer = MIN_PREBUFFER;
 
 
 static int read_packet(void *opaque, uint8_t *buf, int buf_size) {
@@ -60,6 +64,7 @@ static int read_packet(void *opaque, uint8_t *buf, int buf_size) {
         read_len = recv(m->sock, buf, buf_size, 0);
     }
 
+    m->totalbytes[STREAM_VIDEO] += read_len;
 	return read_len;
 }
 
@@ -129,17 +134,18 @@ int mm_parser(struct metrics * m) {
 	while (av_read_frame(fmt_ctx, &pkt) >= 0) {
 		if (pkt.stream_index == videoStreamIdx) {
 			if (pkt.dts > 0) {
-                 printf("Current video timestamp : %llu\n",(pkt.dts * vtb) / (SEC2PICO / SEC2MILI));
+                m->TSlist[STREAM_VIDEO] = (pkt.dts * vtb) / (SEC2PICO / SEC2MILI);
+                printf("TS now: %llu\n",  m->TSlist[STREAM_VIDEO]);
 				/*SA-10214- checkstall should be called after the TS is updated for each stream, instead of when new packets 
-				  arrive, this ensures that we know exactly what time the playout would stop and stall would occur
-				checkstall(false); */
+				  arrive, this ensures that we know exactly what time the playout would stop and stall would occur*/
+				checkstall(0, m);
 			}
 		} else if (pkt.stream_index == audioStreamIdx) {
 			if (pkt.dts > 0) {
-				printf("Current audio timestamp : %llu\n",(pkt.dts * atb) / (SEC2PICO / SEC2MILI));
+				m->TSlist[STREAM_VIDEO] = (pkt.dts * atb) / (SEC2PICO / SEC2MILI);
 				/*SA-10214- checkstall should be called after the TS is updated for each stream, instead of when new packets 
-				  arrive, this ensures that we know exactly what time the playout would stop and stall would occur
-				checkstall(false); */
+				  arrive, this ensures that we know exactly what time the playout would stop and stall would occur*/
+				checkstall(0, m);
 			}
 		}
 		av_packet_unref(&pkt);
@@ -147,6 +153,121 @@ int mm_parser(struct metrics * m) {
 
 	avformat_free_context(fmt_ctx);
 	av_free(avio);
-
+    m->etime = gettimelong();
+    printmetric(*m);
 	return 0;
 }
+
+
+void init_metrics(struct metrics *metric)
+{
+    memzero(metric, sizeof(*metric));
+    metric->Tmin=-1;
+    metric->T0 = -1;
+    metric->htime = gettimelong();
+    metric->Tmin0 = -1;
+    metric->initialprebuftime = -1;
+    /*if this value is set to 0, the whole file is requested. */
+    metric->playout_buffer_seconds=0;
+    
+}
+
+
+/* If end is true, it means video has finished downloading. The function will only be called at that time to
+ * un-pause in case it is stalled and prebuffering.
+ * This function controls the playout and measures the stalls. It is called from inside the savetag functions
+ * whenever there is a new TS. The savetag function only needs to update metric->TSnow before calling this function.
+ */
+void checkstall(int end, struct metrics * metric)
+{
+    long long timenow = gettimelong();
+    /*If more than one stream is being downloaded, they need to be synchronized
+     metric->TSnow should be the smallest TS in the list, since it represents the highest TS that can be played out.*/
+    /*SA 18.11.2014: NUMOFSTREAMS set to 2 for AUDIO and VIDEO. Since mm_parser stores timestamps to TSlist even when both streams are
+     in same file, so the check for metric->numofstreams shouldn't be done.*/
+    //	if(metric->numofstreams > 1)
+    //	{
+    metric->TSnow= metric->TSlist[0];
+    for(int i=1; i<NUMOFSTREAMS; i++)
+    {
+        if(metric->TSnow>metric->TSlist[i])
+            metric->TSnow=metric->TSlist[i];
+    }
+    //	}
+    if(metric->T0 < 0)
+    {
+        /*initial run, initialize values*/
+        metric->T0 = timenow; /* arrival time of first packet*/
+        metric->Tmin0= timenow; /*time at which prebuffering started*/
+        metric->TS0 = metric->TSnow; /*the earliest timestamp to be played out after prebuffering*/
+    }
+    /* check if there is a stall, reset time values if there is. Tmin is the start of playout.
+     * if Tmin is -1 this playout has not started so no need to check
+     * Adding 10ms (10000us) for the encoder and whatnots delay*/
+    if(metric->Tmin >= 0 && ((double)(metric->TSnow-metric->TS0)*1000) <=(timenow-metric->Tmin))
+    {
+        metric->Tmin0=metric->Tmin+((metric->TSnow-metric->TS0)*1000);
+        metric->Tmin = -1;
+        metric->TS0 = metric->TSnow;
+#ifdef DEBUG
+        printf("Stall has occured at TS: %llu and Time: %lld\n", metric->TSnow, metric->Tmin0); //calculate stall duration
+#endif
+        
+    }
+    
+    /*if Tmin<0, then video is buffering; check if prebuffer is reached*/
+    if(metric->Tmin< 0)
+    {
+        if(metric->TSnow-metric->TS0 >= minbuffer || end)
+        {
+            metric->Tmin = timenow;
+#ifdef DEBUG
+            printf("Min prebuffer has occured at TS: %llu and Time: %lld, start time %lld \n", metric->TSnow, timenow, metric->T0);
+            
+#endif
+            if(metric->initialprebuftime<0)
+            {
+                metric->initialprebuftime=(double)(metric->Tmin-metric->stime);
+                metric->startup =(double)(metric->Tmin-metric->htime);
+                /*stalls need shorter prebuffering, so change minbufer now that initial prebuf is done. */
+                minbuffer = MIN_STALLBUFFER;
+            }
+            else
+            {
+                printf("youtubeevent12;%ld;%ld;%" PRIu64 ";%.3f\n",(long)gettimeshort(),(long)metric->htime/1000000, metric->TS0, (double)(metric->Tmin-metric->Tmin0)/1000);
+                ++metric->numofstalls;
+                metric->totalstalltime+=(double)(metric->Tmin-metric->Tmin0);
+            }
+        }
+#ifdef DEBUG
+        else
+            printf("Prebuffered time %llu, TSnow %llu, TS0 %llu \n",metric->TSnow-metric->TS0, metric->TSnow, metric->TS0); fflush(stdout);
+#endif
+        
+    }
+    
+}
+
+void printmetric(struct metrics metric)
+{
+    double mtotalrate=(metric.totalbytes[STREAM_VIDEO])/(metric.etime-metric.stime);
+    
+    printf("ALL.1;");
+    printf("%lld;",         metric.etime-metric.stime);   //download time
+    printf("%"PRIu64";",    metric.TSnow*1000); // duration
+    printf("%.0f;",         metric.startup); /*startup delay*/
+    printf("%.0f;",         metric.initialprebuftime); // Initial prebuf time
+           
+   // printf("VIDEO.1;");
+    printf("%.0f;",         metric.totalbytes[STREAM_VIDEO]); //total bytes
+    
+    printf("%d;",           metric.numofstalls); //num of stalls
+    printf("%.0f;",         (metric.numofstalls>0 ? (metric.totalstalltime/metric.numofstalls) : 0)); // av stall duration
+    printf("%.0f;",         metric.totalstalltime); // total stall time
+
+    printf("%d;\n",         metric.playout_buffer_seconds); /*range*/
+    
+    
+}
+
+

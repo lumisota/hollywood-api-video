@@ -576,51 +576,51 @@ int mp4_read_trun(unsigned char * stream, int len, struct mp4_i * m)
 		m->tracks[m->currtrakid].stable=new tts [entries];
 		memzero(m->tracks[m->currtrakid].stable, sizeof(tts)*entries);
 	}
-    cout<<"***************************TRUN***********************************"<<endl;
-    cout<<"Number of entries"<<entries<<" and the flags "<<flags<<endl;
+    //cout<<"***************************TRUN***********************************"<<endl;
+    //cout<<"Number of entries"<<entries<<" and the flags "<<flags<<endl;
 	for(unsigned int i=0; i<entries; i++)
 	{
 		if(flags & 0x100)
 		{
 			m->tracks[m->currtrakid].stable[i].sdur = atouint32 ((char *)m->header+offset, endianness);
 			offset+=4;
-            cout<<"\t ActDuration "<<m->tracks[m->currtrakid].stable[i].sdur;
+          //  cout<<"\t ActDuration "<<m->tracks[m->currtrakid].stable[i].sdur;
 
 		}
 		else
         {
 			m->tracks[m->currtrakid].stable[i].sdur = m->defsampledur;
-            cout<<"\t DefDuration "<<m->defsampledur;
+           // cout<<"\t DefDuration "<<m->defsampledur;
 
 		}
 		if(flags & 0x200)
 		{
 			m->tracks[m->currtrakid].stable[i].size = atouint32 ((char *)m->header+offset, endianness);
 			offset+=4;
-			cout<<"\t ActSize "<<m->tracks[m->currtrakid].stable[i].size<<endl;
+		//	cout<<"\t ActSize "<<m->tracks[m->currtrakid].stable[i].size<<endl;
 		}
 		else
 		{
 			m->tracks[m->currtrakid].stable[i].size = m->defsamplesize;
-			cout<<"\t DefSize "<<m->tracks[m->currtrakid].stable[i].size<<endl;
+			//cout<<"\t DefSize "<<m->tracks[m->currtrakid].stable[i].size<<endl;
 		}
 
 		if(flags & 0x400)
 		{
-			cout<<" sample flags present "<<atouint32 ((char *)m->header+offset, endianness)<<endl;
+			//cout<<" sample flags present "<<atouint32 ((char *)m->header+offset, endianness)<<endl;
 			offset+=4;
 		}
 
 		if(flags & 0x800)
 		{
-			cout<<" sample composition flags present "<<atouint32 ((char *)m->header+offset, endianness)<<endl;
+			//cout<<" sample composition flags present "<<atouint32 ((char *)m->header+offset, endianness)<<endl;
 			m->tracks[m->currtrakid].stable[i].key=atouint32 ((char *)m->header+offset, endianness);
 			offset+=4;
 		}
 
 
 	}
-    cout<<"******************************************************************"<<endl;
+  //  cout<<"******************************************************************"<<endl;
 
 	m->tocopy = -1;
 	m->index = 0;

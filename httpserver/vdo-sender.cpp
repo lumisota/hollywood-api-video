@@ -32,7 +32,7 @@
 int mickey = 0;
 
 bool            endianness = false;
-bool            Mp4Model=false;
+bool            Mp4Model=true;
 metrics         metric;
 pthread_t       p_tid; /*thread id of the parser thread*/
 pthread_t       h_tid; /*thread id of the tcp hollywood sender thread*/
@@ -208,9 +208,12 @@ int mp4_send_mdat(struct parse_attr * p )
 					msg->depends_on = -(lastkey); 
 				}
 				lastdur += (*ii).second.stable[i].sdur;
-#ifdef MP4DEBUG 
+#ifdef TRASH
                 printf("Frame real values: sdur %u ; lastdur %u ; key %u timescale %u \n",((*ii).second.stable[i].sdur), lastdur, ((*ii).second.stable[i].key,m->timescale));
                 printf("Frame # TS: %d ; Lifetime: %d ; Depends_on: %d\n", msg->framing_ms, msg->lifetime_ms, msg->depends_on);
+                cout<<"youtubeevent13\t"<<(*ii).second.handler<<"\t"<<(*ii).first<<"\t"<<(*ii).second.stable[i].stime<<"\t"<<(*ii).second.stable[i].chunk<<"\t"\
+                <<(*ii).second.stable[i].size<<"\t"<< (*ii).second.stable[i].sdur<<"\t"<<(*ii).second.stable[i].offset<<"\t"<<(*ii).second.stable[i].key<<endl;fflush(stdout);
+                
 #endif
                 add_msg_to_queue(msg, p);
 				msg=NULL; /*once queued, lose the pointer. Memory is freed by sender.*/

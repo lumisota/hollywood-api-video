@@ -39,7 +39,9 @@
 #include <stdlib.h>
 #include <sys/time.h>
 
-#define TCP_OODELIVERY 27
+#ifndef __APPLE__
+    #define TCP_OODELIVERY 27
+#endif
 
 /* Message queue functions */
 int add_message(hlywd_sock *socket, uint8_t *data, size_t len);
