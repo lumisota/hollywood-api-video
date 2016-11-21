@@ -67,7 +67,7 @@ struct hlywd_message{
 	unsigned char * message; 
 	uint64_t msg_size; 
 	bool stream_complete; 
-   int depends_on;
+    int depends_on;
  	int framing_ms; 
 	int lifetime_ms;
 	struct hlywd_message * next; 
