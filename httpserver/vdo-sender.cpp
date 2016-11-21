@@ -170,7 +170,7 @@ int add_msg_to_queue( struct hlywd_message * msg, struct parse_attr * p)
 int mp4_send_mdat(struct parse_attr * p )
 {
 	int bytes_read;
-	int lastkey; 
+	int lastkey, keynow;
 	struct mp4_i * m = &p->m;
 	unsigned int lastdur=m->decodetime;
 	struct hlywd_message * msg;
@@ -197,27 +197,34 @@ int mp4_send_mdat(struct parse_attr * p )
 					return -1;  
 				}
 				msg->framing_ms = (double)(lastdur)*1000/(double)m->timescale;/*timestamp of the msg*/
-				msg->lifetime_ms = (double)((*ii).second.stable[i].sdur)*1000/(double)m->timescale;
-				if((*ii).second.stable[i].key>0)
+                
+                keynow = (*ii).second.stable[i].key;
+   
+				if(keynow>0)
 				{
+                    msg->lifetime_ms = (double)(keynow)*1000/(double)m->timescale;
+
 					msg->depends_on = 0; /*value will be added to own seq # at the time of queueing*/
-					lastkey = round((double)((*ii).second.stable[i].key)/(double)((*ii).second.stable[i].sdur)); 
+					lastkey = 0;
 				}
 				else 
 				{
-					msg->depends_on = -(lastkey); 
+                    /*not a key frame, relevant only for its own duration*/
+                    msg->lifetime_ms = (double)((*ii).second.stable[i].sdur)*1000/(double)m->timescale;
+					msg->depends_on = --lastkey;
 				}
 				lastdur += (*ii).second.stable[i].sdur;
-#ifdef TRASH
-                printf("Frame real values: sdur %u ; lastdur %u ; key %u timescale %u \n",((*ii).second.stable[i].sdur), lastdur, ((*ii).second.stable[i].key,m->timescale));
-                printf("Frame # TS: %d ; Lifetime: %d ; Depends_on: %d\n", msg->framing_ms, msg->lifetime_ms, msg->depends_on);
+
+#ifdef DEBUG
+
                 cout<<"youtubeevent13\t"<<(*ii).second.handler<<"\t"<<(*ii).first<<"\t"<<(*ii).second.stable[i].stime<<"\t"<<(*ii).second.stable[i].chunk<<"\t"\
                 <<(*ii).second.stable[i].size<<"\t"<< (*ii).second.stable[i].sdur<<"\t"<<(*ii).second.stable[i].offset<<"\t"<<(*ii).second.stable[i].key<<endl;fflush(stdout);
-                
+                printf("Frame # TS: %d ; Lifetime: %d ; Depends_on: %d\n", msg->framing_ms, msg->lifetime_ms, msg->depends_on);
+                fflush(stdout);
 #endif
+
                 add_msg_to_queue(msg, p);
 				msg=NULL; /*once queued, lose the pointer. Memory is freed by sender.*/
-				lastkey--; 
 
 			}
 			delete [] (*ii).second.stable;
@@ -324,6 +331,7 @@ void * send_message(void * a)
 {
 	struct hlywd_attr * h = (struct hlywd_attr *) a; 
 	struct hlywd_message * msg;
+    uint16_t depends_on;
 	h->seq=0; 
 	int msg_len; 
 
@@ -378,8 +386,13 @@ void * send_message(void * a)
 		}
 
 #else
-		msg_len = send_message_time(&h->hlywd_socket, msg->message, msg->msg_size, 0, h->seq, msg->depends_on, msg->lifetime_ms);
-		printf("Sending message number %d (length: %d)..\n", h->seq, msg_len);
+        if ( msg->depends_on!=0)
+            depends_on = h->seq + msg->depends_on;
+        else
+            depends_on = 0; 
+        msg_len = send_message_time(&h->hlywd_socket, msg->message, msg->msg_size, 0, h->seq, depends_on, msg->lifetime_ms);
+		printf("Sending message number %d (length: %d)..depends on : %u , lifetime : %u \n", h->seq, msg_len, depends_on, msg->lifetime_ms );
+        fflush(stdout);
 		h->seq++;
 		if (msg_len == -1) {
 			printf("Unable to send message\n");
