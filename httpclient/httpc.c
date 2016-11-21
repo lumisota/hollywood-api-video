@@ -117,7 +117,8 @@ int send_get_request(int fd, char * host, char * filename)
 
 int check_arguments(int argc, char* argv[], char * port, char * host, char * file)
 {
-    for(int i=1; i<argc; i++)
+    int i;
+    for(i=1; i<argc; i++)
     {
         if(strcmp(argv[i], "--port")==0)
         {

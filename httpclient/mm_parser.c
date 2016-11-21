@@ -97,7 +97,8 @@ int mm_parser(struct metrics * m) {
 
 	int videoStreamIdx = -1;
 	int audioStreamIdx = -1;
-	for (unsigned int i = 0; i < fmt_ctx->nb_streams; i++) {
+	unsigned int i;
+	for (i = 0; i < fmt_ctx->nb_streams; i++) {
 		if (fmt_ctx->streams[i]->codec->codec_type == AVMEDIA_TYPE_VIDEO) {
 			videoStreamIdx = i;
 		} else if (fmt_ctx->streams[i]->codec->codec_type == AVMEDIA_TYPE_AUDIO) {
@@ -188,7 +189,8 @@ void checkstall(int end, struct metrics * metric)
     //	if(metric->numofstreams > 1)
     //	{
     metric->TSnow= metric->TSlist[0];
-    for(int i=1; i<NUMOFSTREAMS; i++)
+    int i;
+    for(i=1; i<NUMOFSTREAMS; i++)
     {
         if(metric->TSnow>metric->TSlist[i])
             metric->TSnow=metric->TSlist[i];
