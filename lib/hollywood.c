@@ -82,6 +82,7 @@ int hollywood_socket(int fd, hlywd_sock *socket, int oo) {
 	socket->message_q_head = NULL;
 	socket->message_q_tail = NULL;
 	socket->message_count = 0;
+	socket->oo = oo;
 
 	socket->current_sequence_num = 0;
 
@@ -121,7 +122,7 @@ ssize_t send_message_sub(hlywd_sock *socket, const void *buf, size_t len, int fl
 	/* send, returning sent size to application */
 	return send(socket->sock_fd, encoded_message, encoded_len+3, flags);
 }
-
+ 
 /* Sends a time-lined message */
 ssize_t send_message_time(hlywd_sock *socket, const void *buf, size_t len, int flags, uint16_t sequence_num, uint16_t depends_on, int lifetime_ms) {
 	/* Add sub-stream ID (2) to start of unencoded data */
@@ -196,15 +197,15 @@ ssize_t recv_message(hlywd_sock *socket, void *buf, size_t len, int flags, uint8
 		if (segment_len <= 0) {
 			return segment_len;
 		}
-		#ifdef TCP_OODELIVERY
-		if (segment_len >= sizeof(tcp_seq)) {
-			memcpy(&sequence_num, segment+(segment_len-4), 4);
-			segment_len -= 4;
-		}
-		#else
+		if (socket->oo) {
+			if (segment_len >= sizeof(tcp_seq)) {
+				memcpy(&sequence_num, segment+(segment_len-4), 4);
+				segment_len -= 4;
+			}
+		} else {
 			sequence_num = socket->current_sequence_num;
 			socket->current_sequence_num += segment_len;
-		#endif
+		}
 		parse_segment(socket, segment, segment_len, sequence_num);
 	}
 	return dequeue_message(socket, (uint8_t *)buf, substream_id);
