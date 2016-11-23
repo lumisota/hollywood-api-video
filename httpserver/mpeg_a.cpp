@@ -23,12 +23,13 @@ int mp4_read_sidx(unsigned char * stream, int len, struct mp4_i * m)
 	uint16_t refct=0;
 	unsigned char * tmp;
 	int ret =len;
+    uint32_t earliest_presentation_time;
 	/*Check encoding to know the number of bytes for the datasize*/
 	if(m->tocopy<0 || m->header!=NULL)
 	{
 		if(SIZESIDX>m->li.size0)
 		{
-			fprintf(stderr, "mp4_read_sidx: sidx has less bytes than the sidx header size, header: %d, size %lu\n",SIZESIDX,m->li.size0);
+			fprintf(stderr, "mp4_read_sidx: sidx has less bytes than the sidx header size, header: %d, size %llu\n",SIZESIDX,m->li.size0);
 			return -1;
 		}
 		m->header = new unsigned char [SIZESIDX];
@@ -54,12 +55,16 @@ int mp4_read_sidx(unsigned char * stream, int len, struct mp4_i * m)
 		{
 			memcpy(m->header+m->index, stream, m->tocopy);
 			m->timescale = atouint32 ((char *)m->header+8, endianness);
+            earliest_presentation_time = atouint32 ((char *)m->header+12, endianness);
 			refct = atouint16 ((char *)m->header+22, endianness);
 			m->index=0;
 			tmp = stream+m->tocopy;
 			len-=m->tocopy;
 			m->tocopy =SIDXENTRYSIZE*refct; /*each sidx entry has 16 bytes. 4 for refsize, and 4 for sample duration, 4 for sap delta time*/
 			m->table = new unsigned char [m->tocopy];
+#ifdef MP4DEBUGA
+            printf("Sidx entries : Timescale : %d\n", m->timescale);
+#endif
 		}
 		else
 		{
@@ -88,6 +93,7 @@ int mp4_read_sidx(unsigned char * stream, int len, struct mp4_i * m)
 			cout<<m->ss[i].sapdelta<<"\t";
 			cout<<m->timescale<<"\t";
 			cout<<timegone<<"\t";
+            cout<<earliest_presentation_time<<"\t"; 
 			cout<<m->ss[i].ssdur/m->timescale<<endl;
 		}
 		else
@@ -139,10 +145,14 @@ int mp4_read_ftyp(unsigned char * stream, int len, struct mp4_i * m)
 	{
 		m->ftyp = MP42;
 	}
-	else  if(strstr((char *)m->header, "dash")!=NULL)
-	{
-		m->ftyp = DASH;
-	}
+    else  if(strstr((char *)m->header, "dash")!=NULL)
+    {
+        m->ftyp = DASH;
+    }
+    else  if(strstr((char *)m->header, "iso5")!=NULL)
+    {
+        m->ftyp = ISO5;
+    }
 	else
 	{
 		m->ftyp = MUNKNOWNF;
@@ -319,8 +329,8 @@ int mp4_read_tfhd(unsigned char * stream, int len, struct mp4_i * m)
 	/* In mpgdash, the chunks/subsegments have same track ID, so erase the old info before proceeding. */
 	if((m->tracks[m->currtrakid].stable!=NULL))
 	{
-		m->defsampledur=0;
-		m->defsamplesize = 0;
+	//	m->defsampledur=0; /*These don't need to be erased, if there are new values, they will be overwritten*/
+	//	m->defsamplesize = 0;
 		delete [] m->tracks[m->currtrakid].stable;
 		m->tracks[m->currtrakid].stable=NULL;
 	}
@@ -342,14 +352,14 @@ int mp4_read_tfhd(unsigned char * stream, int len, struct mp4_i * m)
 	{
 		/*sample duration is present*/
 		m->defsampledur = atouint32 ((char *)m->header+offset, endianness);
-	//	cout<<"sample duration is "<<m->defsampledur<<endl;
+		cout<<"sample duration is "<<m->defsampledur<<endl;
 		offset+=4;
 	}
 	if(flags & 0x10)
 	{
 		/*sample size is present*/
 		m->defsamplesize =atouint32 ((char *)m->header+offset, endianness);
-	//	cout<<"sample size is "<<m->defsamplesize<<endl;
+		cout<<"sample size is "<<m->defsamplesize<<endl;
 		offset+=4;
 
 	}
@@ -378,6 +388,109 @@ int mp4_read_tfhd(unsigned char * stream, int len, struct mp4_i * m)
 
 
 }
+
+int mp4_read_mehd(unsigned char * stream, int len, struct mp4_i * m)
+{
+    uint32_t entries=0;
+    uint32_t flags=0;
+    int ret =len;
+    //cout<<"length is"<<len<<endl;
+    int offset;
+    /*Check encoding to know the number of bytes for the datasize*/
+    if(m->tocopy<0 || m->header==NULL)
+    {
+        m->header = new unsigned char [m->li.size2];
+        m->tocopy=m->li.size2;
+        m->index=0;
+    }
+    
+    /*if m->header is incomplete*/
+    if (len<m->tocopy)
+    {
+        if(m->table==NULL)
+            memcpy(m->header+m->index, stream, len);
+        m->index+=len;
+        m->tocopy-=len;
+        m->li.size2-=ret;
+        //	printf("Not enough data, returning %d, m->tocopy %d \n", ret, m->tocopy);fflush(stdout);
+        return ret;
+    }
+    memcpy(m->header+m->index, stream, m->tocopy);
+    m->tocopy = -1;
+    m->index = 0;
+    delete [] m->header;
+    m->table = NULL;
+    cout<<"FINISHED READING MEHD total size "<< m->li.size2<<"bytes"<<endl;
+    
+    ret = m->li.size2;
+#ifdef DEBUG
+    //printf("DEBUG: Datasize = %d\n", size);fflush(stdout);
+#endif
+    m->li.size2=0;
+    checkmp4level(m);
+    m->mp4state=MREADSIZE;
+    return ret;
+    
+    
+}
+
+
+int mp4_read_trex(unsigned char * stream, int len, struct mp4_i * m)
+{
+    uint32_t entries=0;
+    uint32_t flags=0;
+    int ret =len;
+    //cout<<"length is"<<len<<endl;
+    int offset;
+    /*Check encoding to know the number of bytes for the datasize*/
+    if(m->tocopy<0 || m->header==NULL)
+    {
+        m->header = new unsigned char [m->li.size2];
+        m->tocopy=m->li.size2;
+        m->index=0;
+    }
+    
+    /*if m->header is incomplete*/
+    if (len<m->tocopy)
+    {
+        if(m->table==NULL)
+            memcpy(m->header+m->index, stream, len);
+        m->index+=len;
+        m->tocopy-=len;
+        m->li.size2-=ret;
+        //	printf("Not enough data, returning %d, m->tocopy %d \n", ret, m->tocopy);fflush(stdout);
+        return ret;
+    }
+    memcpy(m->header+m->index, stream, m->tocopy);
+    
+    uint32_t track_ID = atouint32 ((char *)m->header, endianness);
+    uint32_t default_sample_description_index= atouint32 ((char *)m->header+4, endianness);
+    m->defsampledur= atouint32 ((char *)m->header+8, endianness);
+    m->defsamplesize= atouint32 ((char *)m->header+12, endianness);
+    uint32_t default_sample_flags= atouint32 ((char *)m->header+16, endianness);
+    
+    cout<<"TREX track ID"<<track_ID<<"\nsampledescindex "<<default_sample_description_index<<"\nsampleduration "<<m->defsampledur<<"\nsamplesize "
+        <<m->defsamplesize<<"\nsampleflags "<<default_sample_flags<<endl;
+    m->tocopy = -1;
+    m->index = 0;
+    delete [] m->header;
+    m->table = NULL;
+    cout<<"FINISHED READING TREX total size "<< m->li.size2<<"bytes"<<endl;
+
+    ret = m->li.size2;
+#ifdef DEBUG
+    //printf("DEBUG: Datasize = %d\n", size);fflush(stdout);
+#endif
+    m->li.size2=0;
+    checkmp4level(m);
+    m->mp4state=MREADSIZE;
+    return ret;
+    
+    
+}
+
+
+
 /*
  * Within the track Track fragment Fragment boxBox, there are zero or more track Track run Run boxesBoxes.  If the duration-is-empty flag is set in the tf_flags , there are no track runs. A track run documents a contiguous set of samples for a track.
 The following flags are defined:
@@ -412,6 +525,7 @@ aligned(8) class TrackRunBox
 	}[ sample-count ]
  *
  */
+
 
 
 int mp4_read_trun(unsigned char * stream, int len, struct mp4_i * m)
@@ -462,18 +576,23 @@ int mp4_read_trun(unsigned char * stream, int len, struct mp4_i * m)
 		m->tracks[m->currtrakid].stable=new tts [entries];
 		memzero(m->tracks[m->currtrakid].stable, sizeof(tts)*entries);
 	}
+    //cout<<"***************************TRUN***********************************"<<endl;
+    //cout<<"Number of entries"<<entries<<" and the flags "<<flags<<endl;
 	for(unsigned int i=0; i<entries; i++)
 	{
 		if(flags & 0x100)
 		{
 			m->tracks[m->currtrakid].stable[i].sdur = atouint32 ((char *)m->header+offset, endianness);
 			offset+=4;
+          //  cout<<"\t ActDuration "<<m->tracks[m->currtrakid].stable[i].sdur;
+
 		}
 		else
-		{
+        {
 			m->tracks[m->currtrakid].stable[i].sdur = m->defsampledur;
+           // cout<<"\t DefDuration "<<m->defsampledur;
+
 		}
-	//	cout<<"Duration "<<m->tracks[m->currtrakid].stable[i].sdur;
 		if(flags & 0x200)
 		{
 			m->tracks[m->currtrakid].stable[i].size = atouint32 ((char *)m->header+offset, endianness);
@@ -483,12 +602,12 @@ int mp4_read_trun(unsigned char * stream, int len, struct mp4_i * m)
 		else
 		{
 			m->tracks[m->currtrakid].stable[i].size = m->defsamplesize;
-		//	cout<<"\t DefSize "<<m->tracks[m->currtrakid].stable[i].size<<endl;
+			//cout<<"\t DefSize "<<m->tracks[m->currtrakid].stable[i].size<<endl;
 		}
 
 		if(flags & 0x400)
 		{
-		//	cout<<" sample flags present "<<atouint32 ((char *)m->header+offset, endianness)<<endl;
+			//cout<<" sample flags present "<<atouint32 ((char *)m->header+offset, endianness)<<endl;
 			offset+=4;
 		}
 
@@ -501,6 +620,7 @@ int mp4_read_trun(unsigned char * stream, int len, struct mp4_i * m)
 
 
 	}
+  //  cout<<"******************************************************************"<<endl;
 
 	m->tocopy = -1;
 	m->index = 0;

@@ -39,7 +39,9 @@
 #include <stdlib.h>
 #include <sys/time.h>
 
-#define TCP_OODELIVERY 27
+#ifndef __APPLE__
+    #define TCP_OODELIVERY 27
+#endif
 
 /* Message queue functions */
 int add_message(hlywd_sock *socket, uint8_t *data, size_t len);
@@ -312,7 +314,8 @@ void parse_segment(hlywd_sock *socket, uint8_t *segment, size_t segment_len, tcp
 
 void print_data(uint8_t *data, size_t len) {
 	printf("[");
-	for (int i = 0; i < len; i++) {
+	int i;
+	for (i = 0; i < len; i++) {
 		if (data[i] == '\0') {
 			printf("0");
 		} else {
@@ -336,7 +339,8 @@ void print_sbuffer_entry(sparsebuffer_entry *sb_entry) {
 		printf("NULL\n");
 	} else {
 		printf("[%u, len: %zu] (", sb_entry->sequence_num, sb_entry->len);
-		for (int i = 0; i < sb_entry->len; i++) {
+		int i;
+		for (i = 0; i < sb_entry->len; i++) {
 			if (sb_entry->data[i] == '\0') {
 				printf("0");
 			} else {

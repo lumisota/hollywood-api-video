@@ -29,46 +29,36 @@
 
 #include "vdo-sender.h"
 //#define NOSEND
+int mickey = 0;
 
-int lex_luther=0; 
-int dropped_frames=0; 
-bool endianness = false;
-bool Mp4Model=true; 
-metrics metric;
-pthread_t p_tid; /*thread id of the parser thread*/
-pthread_t h_tid; /*thread id of the tcp hollywood sender thread*/ 
-pthread_cond_t msg_ready; /*indicates whether a full message is ready to be sent*/ 
+bool            endianness = false;
+bool            Mp4Model=true;
+metrics         metric;
+pthread_t       p_tid; /*thread id of the parser thread*/
+pthread_t       h_tid; /*thread id of the tcp hollywood sender thread*/
+pthread_cond_t  msg_ready; /*indicates whether a full message is ready to be sent*/
 pthread_mutex_t msg_mutex; /*mutex of the hlywd_message*/
 
+static uint32_t offset = 0; /*offset added to last 4 bytes of the message*/
 
 
-int main(int argc, char *argv[]) 
+int send_video(int fd, const char * filename)
 {
-   struct hlywd_attr * h = (struct hlywd_attr * )malloc (sizeof(struct hlywd_attr)); 
-	struct parse_attr * p = (struct parse_attr *)malloc (sizeof(struct parse_attr));
+    struct hlywd_attr   * h = (struct hlywd_attr * )malloc (sizeof(struct hlywd_attr));
+	struct parse_attr   * p = (struct parse_attr *)malloc (sizeof(struct parse_attr));
+    
 	memzero(p, sizeof(struct parse_attr));
 	memzero(h, sizeof(struct hlywd_attr));
-	if(h->hlywd_msg==NULL)
-		printf("Queue initialized to NULL\n"); fflush(stdout); 
+    
 	pthread_attr_t attr;
-	int fd=-1; /*socket file descriptor*/
 	p-> fptr = NULL; /*file pointer for reading mp4 file*/
 	p->m= mp4_initialize(); /*initialize the mp4 file parser instance*/ 
-	p->h = h; 
-	
-	/* Check for hostname parameter */
-	if (argc != 3) {
-		printf("Usage: %s <hostname> <file-to-send>\n", argv[0]);
-		return 1; 
-	}
+	p->h = h;
 
 	endianness = hostendianness();  	/*initialize endianness*/
 	atexit(on_exit);  /*register exit function*/
-#ifndef NOSEND 
-	fd = initialize_socket(argv[1]); /*initialize socket*/
-	if(fd<0)
-		return 2; 
-
+    
+#ifndef NOSEND
 
 	/*Initialize the hollywood socket*/ 
 	if (hollywood_socket(fd, &(h->hlywd_socket), 1) != 0) {
@@ -77,14 +67,13 @@ int main(int argc, char *argv[])
 	}
 
 	set_playout_delay(&(h->hlywd_socket), 100); /* Set the playout delay to 100ms */
-#endif 
+#endif
+    
 	h->seq = 0; /*Start the sequence numbers*/
 
-
-	/*Initialize the file pointer*/ 
-	/*Open file*/ 
-	p->fptr=fopen(argv[2],"rb");
-   if (!p->fptr)
+	/*Open file*/
+	p->fptr=fopen(filename,"rb");
+    if (!p->fptr)
 	{
 		perror ("Error opening file:");
 		return 7;
@@ -95,22 +84,21 @@ int main(int argc, char *argv[])
 	pthread_mutex_init(&msg_mutex, NULL);
 
 	/*Initialize the threads, creating joinable for portability ref: https://computing.llnl.gov/tutorials/pthreads/#ConditionVariables*/
+    
    pthread_attr_init(&attr);
    pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_JOINABLE);
 
-	int err =pthread_create(&(p_tid), &attr, &parse_mp4file, (void *)p); 
+	int err =pthread_create(&(p_tid), &attr, &parse_mp4file, (void *)p);
+    
 	if(err!=0)
 		printf("\ncan't create parser thread :[%s]", strerror(err));
 	err =pthread_create(&(h_tid), &attr, &send_message, (void *)h); 
 	if(err!=0)
 		printf("\ncan't create hollywood sender thread :[%s]", strerror(err));
 	
-
 	/*wait for threads to end*/
 	pthread_join(p_tid, NULL);
-	printf("Parsing thread ended\n");
 	pthread_join(h_tid, NULL);
-	printf("Hollywood thread ended\n");
 
 	END: 
 
@@ -125,9 +113,9 @@ int main(int argc, char *argv[])
 	/*free the structures*/
 	mp4_destroy(&p->m); 
 	free(h);
-	free(p); 
-
-
+	free(p);
+    
+    offset = 0;
 	/*destroy the attr, mutex & condition*/
 	pthread_attr_destroy(&attr);
 	pthread_cond_destroy (&msg_ready); 
@@ -139,19 +127,23 @@ int main(int argc, char *argv[])
 /* Add message to the queue of messages*/
 int add_msg_to_queue( struct hlywd_message * msg, struct parse_attr * p)
 {
-	pthread_mutex_lock(&msg_mutex);
-	/* if MAXQLEN is reached, wait for it to empty*/
-//	printf("\nParser: Queue length is %d \n", p->h->qlen);fflush(stdout);
-//	printf("Queuing message of len: %d : %x\n", msg->msg_size, msg->message); fflush(stdout);  
+    uint32_t tmp =htonl(offset);
+    memcpy(msg->message+msg->msg_size, &tmp, sizeof(uint32_t));
+    //printf("HOLLYWOOD: %llu : %u : %u\n", msg->msg_size, offset, tmp);
 
+    offset+=msg->msg_size;
+    msg->msg_size+=sizeof(uint32_t);
+
+        
+	pthread_mutex_lock(&msg_mutex);
+    
+	/* if MAXQLEN is reached, wait for it to empty*/
 	while (p->h->qlen>=MAXQLEN)
 		pthread_cond_wait(&msg_ready, &msg_mutex);
-	if(p->h->qlen==0 && p->h->hlywd_msg != NULL)
-		printf("Yet again!!/n"); fflush(stdout); 
+
 	if(p->h->hlywd_msg == NULL)
 	{
-	//	printf("Adding the first message to queue\n"); fflush(stdout); 		
-		p->h->hlywd_msg = msg; 
+		p->h->hlywd_msg = msg;
 	}
 	else
 	{
@@ -163,15 +155,14 @@ int add_msg_to_queue( struct hlywd_message * msg, struct parse_attr * p)
 			qlen++;  
 
 		}
-//		printf("Adding the %dth message to queue\n", qlen); fflush(stdout); 
-		tmp->next = msg; 
+		tmp->next = msg;
 	}
-	printf("Queued message of len: %d : %x\n", p->h->hlywd_msg->msg_size, p->h->hlywd_msg->message); fflush(stdout);  
 
-	p->h->qlen++; 	
+	p->h->qlen++;
+    
 	/* if the queue was empty, send signal to wake up any sleeping send thread*/
 	pthread_cond_signal(&msg_ready);
-   pthread_mutex_unlock(&msg_mutex);
+    pthread_mutex_unlock(&msg_mutex);
 	return 1; 
 	
 }
@@ -179,7 +170,7 @@ int add_msg_to_queue( struct hlywd_message * msg, struct parse_attr * p)
 int mp4_send_mdat(struct parse_attr * p )
 {
 	int bytes_read;
-	int lastkey; 
+	int lastkey, keynow;
 	struct mp4_i * m = &p->m;
 	unsigned int lastdur=m->decodetime;
 	struct hlywd_message * msg;
@@ -195,43 +186,45 @@ int mp4_send_mdat(struct parse_attr * p )
 			unsigned int i;
 			for( i=0; i< (*ii).second.entries; i++)
 			{
-
-	  			lex_luther++; 
-				cout<<lex_luther<<endl; 
 				msg = (struct hlywd_message *) malloc(sizeof(struct hlywd_message));
 				memzero(msg, sizeof(struct hlywd_message)); 
 				msg->msg_size=(*ii).second.stable[i].size;
-				msg->message = (unsigned char *) malloc(msg->msg_size);
+				msg->message = (unsigned char *) malloc(msg->msg_size+sizeof(uint32_t));
 				bytes_read = fread(msg->message, sizeof(char), msg->msg_size, p->fptr);
 				if(bytes_read!=msg->msg_size)
 				{
 					printf("Error reading file in Mdat\n");
 					return -1;  
 				}
-				if(lex_luther%500==0) 
-				{
-
-					memset(msg->message, 0, msg->msg_size); 
-					dropped_frames++; 
-				}
 				msg->framing_ms = (double)(lastdur)*1000/(double)m->timescale;/*timestamp of the msg*/
-				msg->lifetime_ms = (double)((*ii).second.stable[i].sdur)*1000/(double)m->timescale;
-				if((*ii).second.stable[i].key>0)
+                
+                keynow = (*ii).second.stable[i].key;
+   
+				if(keynow>0)
 				{
+                    msg->lifetime_ms = (double)(keynow)*1000/(double)m->timescale;
+
 					msg->depends_on = 0; /*value will be added to own seq # at the time of queueing*/
-					lastkey = round((double)((*ii).second.stable[i].key)/(double)((*ii).second.stable[i].sdur)); 
+					lastkey = 0;
 				}
 				else 
 				{
-					msg->depends_on = -(lastkey); 
+                    /*not a key frame, relevant only for its own duration*/
+                    msg->lifetime_ms = (double)((*ii).second.stable[i].sdur)*1000/(double)m->timescale;
+					msg->depends_on = --lastkey;
 				}
 				lastdur += (*ii).second.stable[i].sdur;
-				/*Send the message*/
-				printf("Sending message of len: %d : %x\n", msg->msg_size, msg->message); fflush(stdout); 
-//				cout<<"youtubeevent13\t"<<(*ii).second.stable[i].stime<<"\t"<<(*ii).second.stable[i].size<<"\t"<< (*ii).second.stable[i].sdur<<"\t"<<(*ii).second.stable[i].key<<"\t"<<msg->framing_ms<<"\t"<<msg->lifetime_ms<<"\t"<<msg->depends_on<<endl;
-				add_msg_to_queue(msg, p); 
+
+#ifdef DEBUG
+
+                cout<<"youtubeevent13\t"<<(*ii).second.handler<<"\t"<<(*ii).first<<"\t"<<(*ii).second.stable[i].stime<<"\t"<<(*ii).second.stable[i].chunk<<"\t"\
+                <<(*ii).second.stable[i].size<<"\t"<< (*ii).second.stable[i].sdur<<"\t"<<(*ii).second.stable[i].offset<<"\t"<<(*ii).second.stable[i].key<<endl;fflush(stdout);
+                printf("Frame # TS: %d ; Lifetime: %d ; Depends_on: %d\n", msg->framing_ms, msg->lifetime_ms, msg->depends_on);
+                fflush(stdout);
+#endif
+
+                add_msg_to_queue(msg, p);
 				msg=NULL; /*once queued, lose the pointer. Memory is freed by sender.*/
-				lastkey--; 
 
 			}
 			delete [] (*ii).second.stable;
@@ -239,8 +232,7 @@ int mp4_send_mdat(struct parse_attr * p )
 		}
 
 	}
-	printf("FINISHED MDAT\n"); fflush(stdout); 
-	return 1; 
+	return 1;
 }
 
 void * parse_mp4file(void * a)
@@ -277,26 +269,24 @@ void * parse_mp4file(void * a)
 		if(header[4]=='m' && header[5]=='d' && header[6]=='a' && header[7]=='t')
 		{
 			/*if mdat we will just send the header now and send the frames later. */
-//			printf("Curr postions: %d, MDAT: %d, New position: %d\n", ftell( p->fptr), msg->msg_size, ftell( p->fptr)+msg->msg_size); 
+
 			msg->msg_size = headerlen; 
-			msg->message = (unsigned char *) malloc(msg->msg_size);
+			msg->message = (unsigned char *) malloc(msg->msg_size+sizeof(uint32_t));
 			readlen = msg->msg_size;
 			bytes_read = fread(msg->message, sizeof(char), readlen, p->fptr);
 			if(bytes_read!=readlen)
-				goto FILEERROR; ; 
-//			printf("Sending message of len: %d : %x\n", msg->msg_size, msg->message); fflush(stdout);  
-			add_msg_to_queue(msg, p); 
+				goto FILEERROR; ;
+            add_msg_to_queue(msg, p);
 			msg=NULL; /*once queued, lose the pointer. Memory is freed by sender.*/
 			/*Now send the frames*/
 			if (mp4_send_mdat(p)<0)
 				break; 
-//			printf("Returning to sending metadata\n");  
 
 		}
 		else 
 		{
 			/*It's just metadata, read the full message and send*/ 
-			msg->message = (unsigned char *) malloc(msg->msg_size);
+			msg->message = (unsigned char *) malloc(msg->msg_size+sizeof(uint32_t));
 			readlen = msg->msg_size;
 			bytes_read = fread(msg->message, sizeof(char), readlen, p->fptr);
 			if(bytes_read!=readlen)
@@ -318,9 +308,8 @@ void * parse_mp4file(void * a)
 	pthread_mutex_lock(&msg_mutex);
 	p->h->file_complete = true; 
 	pthread_cond_signal(&msg_ready);
-   pthread_mutex_unlock(&msg_mutex); 
-	printf("Dropped frames %d \n", dropped_frames); 
-	return NULL; 
+    pthread_mutex_unlock(&msg_mutex);
+	return NULL;
 
 	FILEERROR:
 	if (feof(p->fptr)) 
@@ -342,6 +331,7 @@ void * send_message(void * a)
 {
 	struct hlywd_attr * h = (struct hlywd_attr *) a; 
 	struct hlywd_message * msg;
+    uint16_t depends_on;
 	h->seq=0; 
 	int msg_len; 
 
@@ -349,7 +339,7 @@ void * send_message(void * a)
 	char filename[256]="saved_output2.mp4";
 	FILE *fptr;
 	printf("Saving to file: %s\n", filename); fflush(stdout);
-   fptr=fopen(filename,"wb");
+    fptr=fopen(filename,"wb");
 	if (fptr==NULL)
 	{
 		perror ("Error opening file:");
@@ -360,8 +350,6 @@ void * send_message(void * a)
 	while(1)
 	{
 		pthread_mutex_lock(&msg_mutex);
-//		printf("\nSender: Queue length is %d \n", h->qlen);fflush(stdout);
-
 			
 		/* if queue is empty wait for more messages*/
 		while (h->qlen==0 && !h->file_complete)
@@ -386,7 +374,6 @@ void * send_message(void * a)
 		h->qlen--; 	
 
 #ifdef NOSEND
-		printf("Sender: Writing to file\n"); fflush(stdout); 
 		if(fwrite (msg->message,sizeof(unsigned char), msg->msg_size, fptr)!=msg->msg_size)
 		{
 			if (ferror (fptr))
@@ -399,9 +386,14 @@ void * send_message(void * a)
 		}
 
 #else
-		msg_len = send_message_time(&h->hlywd_socket, msg->message, msg->msg_size, 0, h->seq, msg->depends_on, msg->lifetime_ms);
-		printf("Sending message number %d (length: %d)..\n", h->seq, msg_len);
-		h->seq++; 
+        if ( msg->depends_on!=0)
+            depends_on = h->seq + msg->depends_on;
+        else
+            depends_on = 0; 
+        msg_len = send_message_time(&h->hlywd_socket, msg->message, msg->msg_size, 0, h->seq, depends_on, msg->lifetime_ms);
+		printf("Sending message number %d (length: %d)..depends on : %u , lifetime : %u \n", h->seq, msg_len, depends_on, msg->lifetime_ms );
+        fflush(stdout);
+		h->seq++;
 		if (msg_len == -1) {
 			printf("Unable to send message\n");
 			free(msg->message); 
@@ -410,8 +402,7 @@ void * send_message(void * a)
 			break; 
 		}
 #endif
-		printf("Sender: Unlocking mutex \n"); fflush(stdout); 
-		free(msg->message); 
+		free(msg->message);
 		free(msg); 
 		pthread_mutex_unlock(&msg_mutex);
 
