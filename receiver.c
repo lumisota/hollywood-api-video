@@ -67,7 +67,7 @@ int main(int argc, char *argv[]) {
 	char buffer[1000];
 	ssize_t read_len;
 	uint8_t substream_id;
-	struct timeval *elapsed[1000] = {NULL};
+	//struct timeval *elapsed[1000] = {NULL};
 
 	if (argc < 2) {
 		printf("Usage: receiver [1|0]\n");
@@ -116,20 +116,19 @@ int main(int argc, char *argv[]) {
 		memcpy(&message_num, buffer, sizeof(int));
 		memcpy(&send_time, (buffer+sizeof(int)), sizeof(struct timeval));
 		gettimeofday(&recv_time, NULL);
-		if (elapsed[message_num] == NULL) {
-			elapsed[message_num] = (struct timeval *) malloc(sizeof(struct timeval));
-			timeval_subtract(elapsed[message_num], &recv_time, &send_time);
-		}
+		printf("%ld.%06ld %d\n", recv_time.tv_sec, recv_time.tv_usec, message_num);
+		//if (elapsed[message_num] == NULL) {
+		//	elapsed[message_num] = (struct timeval *) malloc(sizeof(struct timeval));
+		//	timeval_subtract(elapsed[message_num], &recv_time, &send_time);
+		//}
 	}
 
 	/* Close connection */
 	close(cfd);
 	close(fd);
 
-	for (int i = 0; i < 1000; i++) {
-		printf("%d %ld.%06ld\n", i, elapsed[i]->tv_sec, elapsed[i]->tv_usec);
-		free(elapsed[i]);
-	}
+	//for (int i = 0; i < 1000; i++) {
+	//	printf("%d %ld.%06ld\n", i, elapsed[i]->tv_sec, elapsed[i]->tv_usec;
 
 	return 0;
 }
