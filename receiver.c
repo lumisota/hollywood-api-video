@@ -117,18 +117,20 @@ int main(int argc, char *argv[]) {
 		memcpy(&send_time, (buffer+sizeof(int)), sizeof(struct timeval));
 		gettimeofday(&recv_time, NULL);
 		printf("%ld.%06ld %d\n", recv_time.tv_sec, recv_time.tv_usec, message_num);
-		//if (elapsed[message_num] == NULL) {
-		//	elapsed[message_num] = (struct timeval *) malloc(sizeof(struct timeval));
-		//	timeval_subtract(elapsed[message_num], &recv_time, &send_time);
-		//}
+		if (elapsed[message_num] == NULL) {
+			elapsed[message_num] = (struct timeval *) malloc(sizeof(struct timeval));
+			timeval_subtract(elapsed[message_num], &recv_time, &send_time);
+		}
 	}
 
 	/* Close connection */
 	close(cfd);
 	close(fd);
 
-	//for (int i = 0; i < 1000; i++) {
-	//	printf("%d %ld.%06ld\n", i, elapsed[i]->tv_sec, elapsed[i]->tv_usec;
+	for (int i = 0; i < 1000; i++) {
+		printf("%d %ld.%06ld\n", i, elapsed[i]->tv_sec, elapsed[i]->tv_usec);
+		free(elapsed[i]);
+	}
 
 	return 0;
 }
