@@ -67,7 +67,7 @@ int main(int argc, char *argv[]) {
 	char buffer[1000];
 	ssize_t read_len;
 	uint8_t substream_id;
-	struct timeval *elapsed[1000] = {NULL};
+	struct timeval *elapsed[6000] = {NULL};
 
 	if (argc < 2) {
 		printf("Usage: receiver [1|0]\n");
@@ -127,7 +127,7 @@ int main(int argc, char *argv[]) {
 	close(cfd);
 	close(fd);
 
-	for (int i = 0; i < 1000; i++) {
+	for (int i = 0; i < 6000; i++) {
 		printf("%d %ld.%06ld\n", i, elapsed[i]->tv_sec, elapsed[i]->tv_usec);
 		free(elapsed[i]);
 	}
