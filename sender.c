@@ -44,8 +44,8 @@ int main(int argc, char *argv[]) {
 	char *buffer = malloc(200);
 
 	/* Check for hostname parameter */
-	if (argc != 2) {
-		printf("Usage: %s <hostname>\n", argv[0]);
+	if (argc != 3) {
+		printf("Usage: %s <hostname> <playout>\n", argv[0]);
 		return 1;
 	}
 
@@ -79,13 +79,13 @@ int main(int argc, char *argv[]) {
 	}
 
 	/* Set the playout delay to 100ms */
-	set_playout_delay(&hlywd_socket, 100);
+	set_playout_delay(&hlywd_socket, atoi(argv[2]));
 
 	/* Send 6000 messages */
 	for (i = 0; i < 6000; i++) {
 		memcpy(buffer, &i, sizeof(int));
 		gettimeofday((struct timeval *) (buffer+sizeof(int)), NULL);
-		msg_len = send_message_time(&hlywd_socket, buffer, 160, 0, i, i, 160);
+		msg_len = send_message_time(&hlywd_socket, buffer, 160, 0, i, i, 150);
 		printf("Sending message number %d (length: %d)..\n", i, msg_len);
 		if (msg_len == -1) {
 			printf("Unable to send message\n");
