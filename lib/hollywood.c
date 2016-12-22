@@ -102,32 +102,11 @@ void set_playout_delay(hlywd_sock *socket, int pd_ms) {
 
 #ifdef TCP_PRELIABILITY
 /* Sends a non-time-lined message */
-ssize_t send_message_sub(hlywd_sock *socket, const void *buf, size_t len, int flags, uint8_t substream_id) {
-	if (substream_id < 3) {
-		return 0;
-	}
-	/* Add sub-stream ID to start of unencoded data */
-	uint8_t *preencode_buf = (uint8_t *) malloc(len+1);
-	memcpy(preencode_buf, &substream_id, 1);
-	memcpy(preencode_buf+1, buf, len);
-	len++;
-	/* max overhead of COBS is 0.4%, plus the leading and trailing \0 bytes */
-	size_t max_encoded_len = ceil(2 + 1.04*len);
-	uint8_t encoded_message[max_encoded_len+1];
-	/* add the leading \0, encoded message, and trailing \0 */
-	encoded_message[1] = '\0';
-	size_t encoded_len = cobs_encode(preencode_buf, len, encoded_message+2);
-	encoded_message[encoded_len+2] = '\0';
-	/* add unencoded sub-stream ID, for use by kernel */
-	encoded_message[0] = substream_id;
-	/* free pre-encoding buffer */
-	free(preencode_buf);
-	/* send, returning sent size to application */
-	return send(socket->sock_fd, encoded_message, encoded_len+3, flags);
-}
- 
-/* Sends a time-lined message */
 ssize_t send_message_time(hlywd_sock *socket, const void *buf, size_t len, int flags, uint16_t sequence_num, uint16_t depends_on, int lifetime_ms) {
+	//int rtt_est;
+	//socklen_t rtt_est_size = sizeof(int);
+	//getsockopt(socket->sock_fd, TCP_HLYWD_RTT, (void *) &rtt_est, &rtt_est_size);
+	printf("value of TCP_HLYWD_RTT: %d\n", TCP_HLYWD_RTT);
 	/* Add sub-stream ID (2) to start of unencoded data */
 	uint8_t substream_id = 2;
 	uint8_t *preencode_buf = (uint8_t *) malloc(len+1);
@@ -138,20 +117,22 @@ ssize_t send_message_time(hlywd_sock *socket, const void *buf, size_t len, int f
 	size_t max_encoded_len = ceil(2 + 1.04*len);
 	uint8_t encoded_message[max_encoded_len+5+2*sizeof(time_t)+2*sizeof(suseconds_t)];
 	/* add the leading \0, encoded message, and trailing \0 */
-	encoded_message[5+5+2*sizeof(time_t)+2*sizeof(suseconds_t)] = '\0';
-	size_t encoded_len = cobs_encode(preencode_buf, len, encoded_message+5+2*sizeof(time_t)+2*sizeof(suseconds_t)+1);
-	encoded_message[encoded_len+5+2*sizeof(time_t)+2*sizeof(suseconds_t)+1] = '\0';
+	encoded_message[0] = '\0';
+	size_t encoded_len = cobs_encode(preencode_buf, len, encoded_message+1);
+	encoded_message[encoded_len+1] = '\0';
+	size_t metadata_start = encoded_len+2;
 	/* add partial reliability metadata */
-	encoded_message[0] = 2;
-	memcpy(encoded_message+1, &sequence_num, 2);
-	memcpy(encoded_message+3, &depends_on, 2);
+	encoded_message[metadata_start] = 2;
+	memcpy(encoded_message+metadata_start+1, &sequence_num, 2);
+	memcpy(encoded_message+metadata_start+3, &depends_on, 2);
 	struct timespec lifetime;
-	lifetime.tv_sec = (lifetime_ms) / 1000;
-	lifetime.tv_usec = (lifetime_ms * 1000000) % 1000000000;
-	memcpy(encoded_message+5, &lifetime, sizeof(struct timespec));
-	memcpy(encoded_message+5+sizeof(struct timespec), &socket->playout_delay, sizeof(struct timespec));
+	lifetime.tv_sec = (lifetime_ms * 1000000) / 1000000000;
+	lifetime.tv_nsec = (lifetime_ms * 1000000) % 1000000000;
+	memcpy(encoded_message+metadata_start+5, &lifetime, sizeof(struct timespec));
+	memcpy(encoded_message+metadata_start+5+sizeof(struct timespec), &socket->playout_delay, sizeof(struct timespec));
 	/* free pre-encoding buffer */
 	free(preencode_buf);
+	printf("sub-stream id: %c\n", encoded_message[metadata_start]);
 	/* send, returning sent size to application */
 	return send(socket->sock_fd, encoded_message, encoded_len+5+2*sizeof(struct timespec)+2, flags);
 }
