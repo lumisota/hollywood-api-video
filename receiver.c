@@ -101,7 +101,7 @@ void *playout(void *delay) {
 	        printf("[%ld.%06ld] Undelivered %d\n", current_time.tv_sec, current_time.tv_usec, i);
         }
 	    pthread_mutex_unlock(&printf_mutex);
-	    usleep(20200);
+	    usleep(20150);
 	}
 	pthread_mutex_lock(&printf_mutex);
 	printf("[%ld.%06ld] Playout finished!\n", current_time.tv_sec, current_time.tv_usec);
