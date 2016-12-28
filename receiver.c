@@ -101,7 +101,7 @@ void *playout(void *delay) {
 	        printf("[%ld.%06ld] Undelivered %d\n", current_time.tv_sec, current_time.tv_usec, i);
         }
 	    pthread_mutex_unlock(&printf_mutex);
-	    usleep(20135);
+	    usleep(20130);
 	}
 	pthread_mutex_lock(&printf_mutex);
 	printf("[%ld.%06ld] Playout finished!\n", current_time.tv_sec, current_time.tv_usec);
@@ -117,7 +117,6 @@ int main(int argc, char *argv[]) {
 	char buffer[1000];
 	ssize_t read_len;
 	uint8_t substream_id;
-	struct timeval *elapsed[6000] = {NULL};
 
 	if (argc < 3) {
 		printf("Usage: receiver [1|0] <playout delay>\n");
@@ -172,12 +171,14 @@ int main(int argc, char *argv[]) {
 	while ((read_len = recv_message(&h_sock, buffer, 1000, 0, &substream_id)) > 0) {
 		struct timeval *send_time = (struct timeval *) malloc(sizeof(struct timeval));
 		struct timeval *recv_time = (struct timeval *) malloc(sizeof(struct timeval));
+		struct timeval *elapsed_time = (struct timeval *) malloc(sizeof(struct timeval)); 
 		int message_num = 0;
 		memcpy(&message_num, buffer, sizeof(int));
 		memcpy(send_time, (buffer+sizeof(int)), sizeof(struct timeval));
 		gettimeofday(recv_time, NULL);
+        timeval_subtract(elapsed_time, recv_time, send_time);
 		pthread_mutex_lock(&printf_mutex);
-		printf("[%ld.%06ld] Received message %d\n", recv_time->tv_sec, recv_time->tv_usec, message_num);
+		printf("[%ld.%06ld] Received message %d (elapsed %ld.%06ld)\n", recv_time->tv_sec, recv_time->tv_usec, message_num, elapsed_time->tv_sec, elapsed_time->tv_usec);
 		pthread_mutex_unlock(&printf_mutex);
 		pthread_mutex_lock(&sent_mutex);
 		if (sent[message_num] == NULL) {
@@ -185,6 +186,7 @@ int main(int argc, char *argv[]) {
 		}
 		pthread_mutex_unlock(&sent_mutex);
 		free(recv_time);
+		free(elapsed_time);
 	}
 
 	/* Close connection */
