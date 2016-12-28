@@ -85,6 +85,8 @@ int main(int argc, char *argv[]) {
 	for (i = 0; i < 6000; i++) {
 		memcpy(buffer, &i, sizeof(int));
 		gettimeofday((struct timeval *) (buffer+sizeof(int)), NULL);
+		/* Wait for 20ms before sending the message */
+		usleep(20000);
 		msg_len = send_message_time(&hlywd_socket, buffer, 160, 0, i, i, 150);
 		printf("Sending message number %d (length: %d)..\n", i, msg_len);
 		if (msg_len == -1) {
@@ -93,8 +95,6 @@ int main(int argc, char *argv[]) {
 			close(fd);
 			return 6;
 		}
-		/* Wait for 20ms before sending the next message */
-		usleep(20000);
 	}
 
 	/* Free message buffer */

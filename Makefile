@@ -10,7 +10,7 @@ sender: sender.c lib/cobs.c lib/hollywood.c
 	$(CC) -g -lm -o sender sender.c lib/cobs.c lib/hollywood.c
 
 receiver: receiver.c lib/cobs.c lib/hollywood.c
-	$(CC) -g -lm -o receiver receiver.c lib/cobs.c lib/hollywood.c
+	$(CC) -g -lm -lpthread -o receiver receiver.c lib/cobs.c lib/hollywood.c
 
 httpclient/httpc: 
 	cd httpclient && $(MAKE)
