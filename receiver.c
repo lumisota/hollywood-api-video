@@ -163,12 +163,12 @@ int main(int argc, char *argv[]) {
 
 	int pd_ms = atoi(argv[2]);
 	pthread_t playout_thread;
-	if (pthread_create(&playout_thread, NULL, playout, (void *) pd_ms) != 0) {
-	    printf("Unable to create playout thread\n");
-	}
 
 	/* Receive message loop */
 	while ((read_len = recv_message(&h_sock, buffer, 1000, 0, &substream_id)) > 0) {
+		if (pthread_create(&playout_thread, NULL, playout, (void *) pd_ms) != 0) {
+	    		printf("Unable to create playout thread\n");
+		}
 		struct timeval *send_time = (struct timeval *) malloc(sizeof(struct timeval));
 		struct timeval *recv_time = (struct timeval *) malloc(sizeof(struct timeval));
 		struct timeval *elapsed_time = (struct timeval *) malloc(sizeof(struct timeval)); 
