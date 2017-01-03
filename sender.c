@@ -78,7 +78,7 @@ int main(int argc, char *argv[]) {
 		return 5;
 	}
 
-	/* Set the playout delay to 100ms */
+	/* Set the playout delay */
 	set_playout_delay(&hlywd_socket, atoi(argv[2]));
 
 	/* Send 6000 messages */
@@ -86,7 +86,7 @@ int main(int argc, char *argv[]) {
 		memcpy(buffer, &i, sizeof(int));
 		gettimeofday((struct timeval *) (buffer+sizeof(int)), NULL);
 		/* Wait for 20ms before sending the message */
-		usleep(20000);
+		usleep(19700);
 		msg_len = send_message_time(&hlywd_socket, buffer, 160, 0, i, i, 150);
 		printf("Sending message number %d (length: %d)..\n", i, msg_len);
 		if (msg_len == -1) {
