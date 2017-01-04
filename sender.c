@@ -44,8 +44,8 @@ int main(int argc, char *argv[]) {
 	char *buffer = malloc(200);
 
 	/* Check for hostname parameter */
-	if (argc != 3) {
-		printf("Usage: %s <hostname> <playout>\n", argv[0]);
+	if (argc != 4) {
+		printf("Usage: %s <hostname> <playout> [0|1]\n", argv[0]);
 		return 1;
 	}
 
@@ -72,7 +72,7 @@ int main(int argc, char *argv[]) {
 	}
 
 	/* Create Hollywood socket */
-	if (hollywood_socket(fd, &hlywd_socket, 1) != 0) {
+	if (hollywood_socket(fd, &hlywd_socket, 1, atoi(argv[3])) != 0) {
 		printf("Unable to create Hollywood socket\n");
 		close(fd);
 		return 5;
