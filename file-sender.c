@@ -85,7 +85,7 @@ int main(int argc, char *argv[]) {
 	}
 
 	/* Create Hollywood socket */
-	if (hollywood_socket(fd, &hlywd_socket, 1) != 0) {
+	if (hollywood_socket(fd, &hlywd_socket, 1, 0) != 0) {
 		printf("Unable to create Hollywood socket\n");
 		close(fd);
 		return 5;

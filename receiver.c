@@ -153,7 +153,7 @@ int main(int argc, char *argv[]) {
 
 	/* Create a Hollywood socket */
 	int oo = atoi(argv[1]);
-	if (hollywood_socket(cfd, &h_sock, oo) != 0) {
+	if (hollywood_socket(cfd, &h_sock, oo, 0) != 0) {
 		printf("Unable to create Hollywood socket\n");
 		return 2;
 	}

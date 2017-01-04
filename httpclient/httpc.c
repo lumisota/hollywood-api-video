@@ -22,7 +22,7 @@ int receive_video_over_hlywd (int fd, struct metrics * metric)
     metric->Hollywood = 1;
     /* Create a Hollywood socket */
     /*TODO: What is the third argument?, need to make it user assigned*/
-    if (hollywood_socket(fd, &(metric->h_sock), 0) != 0) {
+    if (hollywood_socket(fd, &(metric->h_sock), 0, 0) != 0) {
         printf("Unable to create Hollywood socket\n");
         return -1;
     }
