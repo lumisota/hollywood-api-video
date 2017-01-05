@@ -36,6 +36,17 @@
 #include <netdb.h>
 #include <string.h>
 #include <unistd.h>
+#include <time.h>
+
+void timespec_cmp(struct timespec *a, struct timespec *b, struct timespec *res) {
+    if ((b->tv_nsec - a->tv_nsec) < 0) {
+        res->tv_sec = b->tv_sec - a->tv_sec - 1;
+        res->tv_nsec = b->tv_nsec - a->tv_nsec + 1000000000;
+    } else {
+        res->tv_sec = b->tv_sec - a->tv_sec;
+        res->tv_nsec = b->tv_nsec - a->tv_nsec;
+    }
+}
 
 int main(int argc, char *argv[]) {
 	struct addrinfo hints, *serveraddr;
@@ -81,14 +92,37 @@ int main(int argc, char *argv[]) {
 	/* Set the playout delay */
 	set_playout_delay(&hlywd_socket, atoi(argv[2]));
 
+    struct timespec ts_prev;
+    struct timespec ts_now;
+    struct timespec ts_diff;
+    int prev_set = 0;
+	clock_gettime(CLOCK_MONOTONIC, &ts_now);
+
+    uint64_t target = 0;
+    uint64_t last_sleep = 0;
+    
 	/* Send 6000 messages */
 	for (i = 0; i < 6000; i++) {
-		memcpy(buffer, &i, sizeof(int));
+        /* sleep duration */
+        clock_gettime(CLOCK_MONOTONIC, &ts_now);
+    	if (prev_set == 0) {
+    	    ts_prev.tv_sec = ts_now.tv_sec;
+            ts_prev.tv_nsec = ts_now.tv_nsec;
+            prev_set = 1;
+            timespec_cmp(&ts_prev, &ts_now, &ts_diff);
+        } else {
+            timespec_cmp(&ts_prev, &ts_now, &ts_diff);
+            last_sleep = (ts_diff.tv_sec*1000000 + ts_diff.tv_nsec/1000);
+        }
+        ts_prev.tv_sec = ts_now.tv_sec;
+        ts_prev.tv_nsec = ts_now.tv_nsec;
+        target = 20000 - (last_sleep-target);
+        /* sleep */
+		usleep(target);
+        memcpy(buffer, &i, sizeof(int));
 		gettimeofday((struct timeval *) (buffer+sizeof(int)), NULL);
-		/* Wait for 20ms before sending the message */
-		usleep(19700);
 		msg_len = send_message_time(&hlywd_socket, buffer, 160, 0, i, i, 150);
-		printf("Sending message number %d (length: %d)..\n", i, msg_len);
+		printf("[%lld.%.9ld] Sending message number %d (length: %d)..\n", (long long) ts_now.tv_sec, ts_now.tv_nsec, i, msg_len);
 		if (msg_len == -1) {
 			printf("Unable to send message\n");
 			free(buffer);
@@ -104,4 +138,8 @@ int main(int argc, char *argv[]) {
 	close(fd);
 
 	return 0;
+}
+
+uint64_t timespec_u(struct timespec *ts) {
+    return (useconds_t) 1000*ts->tv_nsec + ts->tv_sec/1000000;
 }

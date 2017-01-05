@@ -63,6 +63,16 @@ int timeval_subtract (struct timeval *result, struct timeval *x, struct timeval 
   return x->tv_sec < y->tv_sec;
 }
 
+void timespec_cmp(struct timespec *a, struct timespec *b, struct timespec *res) {
+    if ((b->tv_nsec - a->tv_nsec) < 0) {
+        res->tv_sec = b->tv_sec - a->tv_sec - 1;
+        res->tv_nsec = b->tv_nsec - a->tv_nsec + 1000000000;
+    } else {
+        res->tv_sec = b->tv_sec - a->tv_sec;
+        res->tv_nsec = b->tv_nsec - a->tv_nsec;
+    }
+}
+
 void *playout(void *delay) {
     int pd_ms = (int) delay;
     struct timeval current_time;
@@ -75,7 +85,18 @@ void *playout(void *delay) {
 	pthread_mutex_lock(&printf_mutex);
 	printf("[%ld.%06ld] Playout started!\n", current_time.tv_sec, current_time.tv_usec);
 	pthread_mutex_unlock(&printf_mutex);
+	
     int i = 0;
+    
+    struct timespec ts_prev;
+    struct timespec ts_now;
+    struct timespec ts_diff;
+    int prev_set = 0;
+	clock_gettime(CLOCK_MONOTONIC, &ts_now);
+
+    uint64_t target = 0;
+    uint64_t last_sleep = 0;
+
     for (i = 0; i < 6000; i++) {
         gettimeofday(&current_time, NULL);
         struct timeval *sent_time = (struct timeval *) malloc(sizeof(struct timeval));
@@ -101,7 +122,21 @@ void *playout(void *delay) {
 	        printf("[%ld.%06ld] Undelivered %d\n", current_time.tv_sec, current_time.tv_usec, i);
         }
 	    pthread_mutex_unlock(&printf_mutex);
-	    usleep(20000);
+	    clock_gettime(CLOCK_MONOTONIC, &ts_now);
+    	if (prev_set == 0) {
+    	    ts_prev.tv_sec = ts_now.tv_sec;
+            ts_prev.tv_nsec = ts_now.tv_nsec;
+            prev_set = 1;
+            timespec_cmp(&ts_prev, &ts_now, &ts_diff);
+        } else {
+            timespec_cmp(&ts_prev, &ts_now, &ts_diff);
+            last_sleep = (ts_diff.tv_sec*1000000 + ts_diff.tv_nsec/1000);
+        }
+        printf("[%lld.%.9ld] send!\n", (long long) ts_now.tv_sec, ts_now.tv_nsec);
+        ts_prev.tv_sec = ts_now.tv_sec;
+        ts_prev.tv_nsec = ts_now.tv_nsec;
+        target = 20000 - (last_sleep-target);
+        usleep(target);
 	}
 	pthread_mutex_lock(&printf_mutex);
 	printf("[%ld.%06ld] Playout finished!\n", current_time.tv_sec, current_time.tv_usec);
