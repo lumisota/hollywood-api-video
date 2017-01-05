@@ -40,18 +40,6 @@
 static pthread_mutex_t printf_mutex, sent_mutex;
 struct timeval *sent[6000] = {NULL};
 
-int msleep(unsigned long milisec)
-{
-    struct timespec req={0};
-    time_t sec=(int)(milisec/1000);
-    milisec=milisec-(sec*1000);
-    req.tv_sec=sec;
-    req.tv_nsec=milisec*1000000L;
-    while(nanosleep(&req,&req)==-1)
-         continue;
-    return 1;
-}
-
 /* from https://www.gnu.org/software/libc/manual/html_node/Elapsed-Time.html */
 int timeval_subtract (struct timeval *result, struct timeval *x, struct timeval *y) {
   /* Perform the carry for the later subtraction by updating y. */
