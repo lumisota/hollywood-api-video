@@ -40,6 +40,18 @@
 static pthread_mutex_t printf_mutex, sent_mutex;
 struct timeval *sent[6000] = {NULL};
 
+int msleep(unsigned long milisec)
+{
+    struct timespec req={0};
+    time_t sec=(int)(milisec/1000);
+    milisec=milisec-(sec*1000);
+    req.tv_sec=sec;
+    req.tv_nsec=milisec*1000000L;
+    while(nanosleep(&req,&req)==-1)
+         continue;
+    return 1;
+}
+
 /* from https://www.gnu.org/software/libc/manual/html_node/Elapsed-Time.html */
 int timeval_subtract (struct timeval *result, struct timeval *x, struct timeval *y) {
   /* Perform the carry for the later subtraction by updating y. */
@@ -88,14 +100,9 @@ void *playout(void *delay) {
 	
     int i = 0;
     
-    struct timespec ts_prev;
     struct timespec ts_now;
-    struct timespec ts_diff;
-    int prev_set = 0;
 	clock_gettime(CLOCK_MONOTONIC, &ts_now);
-
-    uint64_t target = 0;
-    uint64_t last_sleep = 0;
+    uint64_t clock_start = (ts_now.tv_sec*1000000 + ts_now.tv_nsec/1000);
 
     for (i = 0; i < 6000; i++) {
         gettimeofday(&current_time, NULL);
@@ -122,21 +129,13 @@ void *playout(void *delay) {
 	        printf("[%ld.%06ld] Undelivered %d\n", current_time.tv_sec, current_time.tv_usec, i);
         }
 	    pthread_mutex_unlock(&printf_mutex);
-	    clock_gettime(CLOCK_MONOTONIC, &ts_now);
-    	if (prev_set == 0) {
-    	    ts_prev.tv_sec = ts_now.tv_sec;
-            ts_prev.tv_nsec = ts_now.tv_nsec;
-            prev_set = 1;
-            timespec_cmp(&ts_prev, &ts_now, &ts_diff);
-        } else {
-            timespec_cmp(&ts_prev, &ts_now, &ts_diff);
-            last_sleep = (ts_diff.tv_sec*1000000 + ts_diff.tv_nsec/1000);
+        //printf("[%lld.%.9ld] send!\n", (long long) ts_now.tv_sec, ts_now.tv_nsec);
+        clock_gettime(CLOCK_MONOTONIC, &ts_now);
+        uint64_t wake_time = clock_start + (20000*(i+1));
+        uint64_t time_now = (ts_now.tv_sec*1000000 + ts_now.tv_nsec/1000);
+        if (wake_time > time_now) {
+            usleep(wake_time-time_now);
         }
-        printf("[%lld.%.9ld] send!\n", (long long) ts_now.tv_sec, ts_now.tv_nsec);
-        ts_prev.tv_sec = ts_now.tv_sec;
-        ts_prev.tv_nsec = ts_now.tv_nsec;
-        target = 20000 - (last_sleep-target);
-        usleep(target);
 	}
 	pthread_mutex_lock(&printf_mutex);
 	printf("[%ld.%06ld] Playout finished!\n", current_time.tv_sec, current_time.tv_usec);

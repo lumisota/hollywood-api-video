@@ -38,16 +38,6 @@
 #include <unistd.h>
 #include <time.h>
 
-void timespec_cmp(struct timespec *a, struct timespec *b, struct timespec *res) {
-    if ((b->tv_nsec - a->tv_nsec) < 0) {
-        res->tv_sec = b->tv_sec - a->tv_sec - 1;
-        res->tv_nsec = b->tv_nsec - a->tv_nsec + 1000000000;
-    } else {
-        res->tv_sec = b->tv_sec - a->tv_sec;
-        res->tv_nsec = b->tv_nsec - a->tv_nsec;
-    }
-}
-
 int main(int argc, char *argv[]) {
 	struct addrinfo hints, *serveraddr;
 	hlywd_sock hlywd_socket;
@@ -92,35 +82,30 @@ int main(int argc, char *argv[]) {
 	/* Set the playout delay */
 	set_playout_delay(&hlywd_socket, atoi(argv[2]));
 
-    struct timespec ts_prev;
     struct timespec ts_now;
-    struct timespec ts_diff;
-    int prev_set = 0;
 	clock_gettime(CLOCK_MONOTONIC, &ts_now);
-
-    uint64_t target = 0;
-    uint64_t last_sleep = 0;
+    uint64_t clock_start = (ts_now.tv_sec*1000000 + ts_now.tv_nsec/1000);
     
 	/* Send 6000 messages */
 	for (i = 0; i < 6000; i++) {
-        /* sleep duration */
-        clock_gettime(CLOCK_MONOTONIC, &ts_now);
-    	if (prev_set == 0) {
-    	    ts_prev.tv_sec = ts_now.tv_sec;
-            ts_prev.tv_nsec = ts_now.tv_nsec;
-            prev_set = 1;
-            timespec_cmp(&ts_prev, &ts_now, &ts_diff);
-        } else {
-            timespec_cmp(&ts_prev, &ts_now, &ts_diff);
-            last_sleep = (ts_diff.tv_sec*1000000 + ts_diff.tv_nsec/1000);
-        }
-        ts_prev.tv_sec = ts_now.tv_sec;
-        ts_prev.tv_nsec = ts_now.tv_nsec;
-        target = 20000 - (last_sleep-target);
         /* sleep */
-		usleep(target);
+        clock_gettime(CLOCK_MONOTONIC, &ts_now);
+        uint64_t wake_time = clock_start + (20000*(i+1));
+        uint64_t time_now = (ts_now.tv_sec*1000000 + ts_now.tv_nsec/1000);
+        if (wake_time > time_now) {
+            usleep(wake_time-time_now);
+        }
+        /* */
+        struct timeval current_time;
+        gettimeofday(&current_time, NULL);
         memcpy(buffer, &i, sizeof(int));
-		gettimeofday((struct timeval *) (buffer+sizeof(int)), NULL);
+        if (current_time.tv_usec < 20000) {
+            current_time.tv_usec = 999999-20000;
+            current_time.tv_sec = current_time.tv_sec - 1;
+        } else {
+            current_time.tv_usec = current_time.tv_usec - 20000;
+        }
+        memcpy(buffer+sizeof(int), &current_time, sizeof(struct timeval));
 		msg_len = send_message_time(&hlywd_socket, buffer, 160, 0, i, i, 150);
 		printf("[%lld.%.9ld] Sending message number %d (length: %d)..\n", (long long) ts_now.tv_sec, ts_now.tv_nsec, i, msg_len);
 		if (msg_len == -1) {
