@@ -1,6 +1,6 @@
 CC=gcc
-CCFLAGS=-c -g -DCORO_SJLJ -I/usr/local/include
-LDFLAGS=-L/usr/local/lib -lcurl -lavformat -lavcodec -lavutil
+CCFLAGS=-c -g -I/usr/local/include
+LDFLAGS=-L/usr/local/lib -lavformat -lavcodec -lavutil
 
 ALL_OBJ=helper.o mm_parser.o httpc.o 
 ALL_SRC=helper.c mm_parser.c httpc.c 

@@ -5,7 +5,7 @@
 
 #define DEBUG
 
-#define MAX_BUFFER_SIZE 100*1024
+#define MAX_BUFFER_SIZE 10*1024*1024
 
 #define DIV_ROUND_CLOSEST(x, divisor)(                  \
 {                                                       \
@@ -18,9 +18,74 @@
 #define SEC2PICO UINT64_C(1000000000000)
 //#define SEC2NANO 1000000000
 #define SEC2MILI 1000
+#define MAX_OUTOFORDER_PACKETS 100
 
 static uint minbuffer = MIN_PREBUFFER;
+pthread_t       p_tid; /*thread id of the parser thread*/
+pthread_cond_t  msg_ready;
+pthread_mutex_t msg_mutex;
 
+struct mm_queue {
+    uint8_t * queue[100];
+    uint32_t lowest_seq_num;
+};
+
+struct mm_buffer {
+    uint8_t buffer[MAX_BUFFER_SIZE];
+    uint8_t * queue[100];
+    int size[100];
+    uint32_t lowest_seq_num;
+};
+
+void * mm_read(void * opaque)
+{
+    struct mm_buffer * mm_buf =((struct mm_buffer *) opaque);
+    int last_seq_num;
+    uint8_t tmp_buf[10*1024];
+    int buf_size = 10*1024;
+    pthread_mutex_lock(&msg_mutex);
+    while(read_len>0)
+    {
+        read_len = recv_message(&(m->h_sock), tmp_buf, buf_size, 0, &substream_id);
+        if(read_len<=0)
+            continue;
+        if(last_seq_num-h_sock.current_sequence_num==1)
+        {
+            mm_buf->lowest_seq_num=h_sock.current_sequence_num;
+            pthread_cond_signal(&msg_ready);
+            
+        }
+        else if(last_seq_num-h_sock.current_sequence_num>1)
+        {
+            /*received out of order packet, store and wait for more */
+
+        }
+        else
+        {
+            printf("Unexpected sequence number\n");
+            pthread_mutex_unlock(&msg_mutex);
+            return NULL;
+        }
+        pthread_mutex_unlock(&msg_mutex);
+}
+
+static int read_packet(void *opaque, uint8_t *buf, int buf_size)
+{
+    struct mm_buffer * mm_buf =((struct mm_buffer *) opaque);
+    if(m->Hollywood)
+    {
+        pthread_mutex_lock(&msg_mutex);
+        
+    }
+    else
+    {
+        read_len = recv(m->sock, buf, buf_size, 0);
+    }
+    
+    m->totalbytes[STREAM_VIDEO] += read_len;
+    return read_len;
+
+}
 
 static int read_packet(void *opaque, uint8_t *buf, int buf_size) {
     static uint32_t offset = 0;
@@ -35,17 +100,18 @@ static int read_packet(void *opaque, uint8_t *buf, int buf_size) {
         if(read_len<=0)
             return read_len;
         read_len-=4;
-        uint32_t tmp;
-        memcpy(&tmp,buf+read_len, sizeof(uint32_t));
-        tmp = ntohl(tmp);
-        if(offset<tmp)
+        uint32_t rxoffset;
+        memcpy(&rxoffset,buf+read_len, sizeof(uint32_t));
+        rxoffset = ntohl(rxoffset);
+        if(offset<rxoffset)
         {
-            printf("Dropped frame size: %d, offset : %u\n", tmp-offset, offset);
-            if(read_len+(tmp-offset)>MAX_BUFFER_SIZE)
+            
+            printf("Dropped frame size: %d, offset : %u\n", rxoffset-offset, offset);
+            if(read_len+(rxoffset-offset)>MAX_BUFFER_SIZE)
                 return -1;
-            memcpy(buf+(tmp-offset), buf, read_len);
-            memzero(buf, tmp-offset);
-            read_len+=(tmp-offset);
+            memcpy(buf+(rxoffset-offset), buf, read_len);
+            memzero(buf, rxoffset-offset);
+            read_len+=(rxoffset-offset);
         }
         offset+=read_len;
         
@@ -135,7 +201,7 @@ int mm_parser(struct metrics * m) {
 		if (pkt.stream_index == videoStreamIdx) {
 			if (pkt.dts > 0) {
                 m->TSlist[STREAM_VIDEO] = (pkt.dts * vtb) / (SEC2PICO / SEC2MILI);
-                printf("TS now: %llu\n",  m->TSlist[STREAM_VIDEO]);
+                printf("TS now: %llu, frame type: %d\n",  m->TSlist[STREAM_VIDEO], pkt.flags&AV_PKT_FLAG_KEY?1:0);
 				/*SA-10214- checkstall should be called after the TS is updated for each stream, instead of when new packets 
 				  arrive, this ensures that we know exactly what time the playout would stop and stall would occur*/
 				checkstall(0, m);

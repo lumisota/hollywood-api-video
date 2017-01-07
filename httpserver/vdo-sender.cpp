@@ -29,6 +29,12 @@
 
 #include "vdo-sender.h"
 //#define NOSEND
+
+#define FRAMESONLY 1
+#ifdef FRAMESONLY
+FILE * fptr = NULL;
+#endif
+
 int mickey = 0;
 
 bool            endianness = false;
@@ -130,7 +136,8 @@ int add_msg_to_queue( struct hlywd_message * msg, struct parse_attr * p)
     uint32_t tmp =htonl(offset);
     memcpy(msg->message+msg->msg_size, &tmp, sizeof(uint32_t));
     //printf("HOLLYWOOD: %llu : %u : %u\n", msg->msg_size, offset, tmp);
-
+    
+    
     offset+=msg->msg_size;
     msg->msg_size+=sizeof(uint32_t);
 
@@ -174,6 +181,21 @@ int mp4_send_mdat(struct parse_attr * p )
 	struct mp4_i * m = &p->m;
 	unsigned int lastdur=m->decodetime;
 	struct hlywd_message * msg;
+#ifdef FRAMESONLY
+    if(fptr==NULL)
+    {
+        char filename[256]="saved_output2.mp4";
+        
+        printf("Saving to file: %s\n", filename); fflush(stdout);
+        fptr=fopen(filename,"wb");
+        if (fptr==NULL)
+        {
+            perror ("Error opening file:");
+            return -1;
+        }
+    }
+#endif
+
 	if (m->samplemap.size()==0)
 	{
 		for( map<uint32_t, struct tinfo>::iterator ii=m->tracks.begin(); ii!=m->tracks.end(); ii++)
@@ -196,6 +218,15 @@ int mp4_send_mdat(struct parse_attr * p )
 					printf("Error reading file in Mdat\n");
 					return -1;  
 				}
+#ifdef FRAMESONLY
+                if(fwrite (msg->message,sizeof(unsigned char), msg->msg_size, fptr)!=msg->msg_size)
+                {
+                    if (ferror (fptr))
+                    printf ("Error Writing to file\n");
+                    perror("The following error occured\n");
+                }
+#endif
+                
 				msg->framing_ms = (double)(lastdur)*1000/(double)m->timescale;/*timestamp of the msg*/
                 
                 keynow = (*ii).second.stable[i].key;
@@ -213,7 +244,8 @@ int mp4_send_mdat(struct parse_attr * p )
                     msg->lifetime_ms = (double)((*ii).second.stable[i].sdur)*1000/(double)m->timescale;
 					msg->depends_on = --lastkey;
 				}
-				lastdur += (*ii).second.stable[i].sdur;
+
+                lastdur += (*ii).second.stable[i].sdur;
 
 #ifdef DEBUG
 
@@ -232,6 +264,7 @@ int mp4_send_mdat(struct parse_attr * p )
 		}
 
 	}
+
 	return 1;
 }
 
@@ -345,6 +378,7 @@ void * send_message(void * a)
 		perror ("Error opening file:");
 		return NULL; 
 	}
+    
 #endif
 
 	while(1)
@@ -358,6 +392,10 @@ void * send_message(void * a)
 		{
 			printf("Sending complete\n"); 
 			pthread_mutex_unlock(&msg_mutex);
+#ifdef FRAMESONLY
+            fclose(fptr);
+            fptr = NULL;
+#endif
 			break; 
 		}
 		msg = h->hlywd_msg; 
