@@ -67,7 +67,7 @@ int send_video(int fd, const char * filename)
 #ifndef NOSEND
 
 	/*Initialize the hollywood socket*/ 
-	if (hollywood_socket(fd, &(h->hlywd_socket), 1) != 0) {
+	if (hollywood_socket(fd, &(h->hlywd_socket), 1, 0) != 0) {
 		printf("Unable to create Hollywood socket\n");
 		return 5;
 	}

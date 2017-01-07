@@ -36,6 +36,7 @@
 #include <netdb.h>
 #include <string.h>
 #include <unistd.h>
+#include <time.h>
 
 int main(int argc, char *argv[]) {
 	struct addrinfo hints, *serveraddr;
@@ -44,8 +45,8 @@ int main(int argc, char *argv[]) {
 	char *buffer = malloc(200);
 
 	/* Check for hostname parameter */
-	if (argc != 2) {
-		printf("Usage: %s <hostname>\n", argv[0]);
+	if (argc != 4) {
+		printf("Usage: %s <hostname> <playout> [0|1]\n", argv[0]);
 		return 1;
 	}
 
@@ -72,29 +73,47 @@ int main(int argc, char *argv[]) {
 	}
 
 	/* Create Hollywood socket */
-	if (hollywood_socket(fd, &hlywd_socket, 1) != 0) {
+	if (hollywood_socket(fd, &hlywd_socket, 1, atoi(argv[3])) != 0) {
 		printf("Unable to create Hollywood socket\n");
 		close(fd);
 		return 5;
 	}
 
-	/* Set the playout delay to 100ms */
-	set_playout_delay(&hlywd_socket, 100);
+	/* Set the playout delay */
+	set_playout_delay(&hlywd_socket, atoi(argv[2]));
 
-	/* Send 1000 messages */
-	for (i = 0; i < 1000; i++) {
-		memcpy(buffer, &i, sizeof(int));
-		gettimeofday((struct timeval *) (buffer+sizeof(int)), NULL);
-		msg_len = send_message_time(&hlywd_socket, buffer, 160, 0, i, i, 160);
-		printf("Sending message number %d (length: %d)..\n", i, msg_len);
+    struct timespec ts_now;
+	clock_gettime(CLOCK_MONOTONIC, &ts_now);
+    uint64_t clock_start = (ts_now.tv_sec*1000000 + ts_now.tv_nsec/1000);
+    
+	/* Send 6000 messages */
+	for (i = 0; i < 6000; i++) {
+        /* sleep */
+        clock_gettime(CLOCK_MONOTONIC, &ts_now);
+        uint64_t wake_time = clock_start + (20000*(i+1));
+        uint64_t time_now = (ts_now.tv_sec*1000000 + ts_now.tv_nsec/1000);
+        if (wake_time > time_now) {
+            usleep(wake_time-time_now);
+        }
+        /* */
+        struct timeval current_time;
+        gettimeofday(&current_time, NULL);
+        memcpy(buffer, &i, sizeof(int));
+        if (current_time.tv_usec < 20000) {
+            current_time.tv_usec = 999999-20000;
+            current_time.tv_sec = current_time.tv_sec - 1;
+        } else {
+            current_time.tv_usec = current_time.tv_usec - 20000;
+        }
+        memcpy(buffer+sizeof(int), &current_time, sizeof(struct timeval));
+		msg_len = send_message_time(&hlywd_socket, buffer, 160, 0, i, i, 150);
+		printf("[%lld.%.9ld] Sending message number %d (length: %d)..\n", (long long) ts_now.tv_sec, ts_now.tv_nsec, i, msg_len);
 		if (msg_len == -1) {
 			printf("Unable to send message\n");
 			free(buffer);
 			close(fd);
 			return 6;
 		}
-		/* Wait for 20ms before sending the next message */
-		usleep(20000);
 	}
 
 	/* Free message buffer */
@@ -104,4 +123,8 @@ int main(int argc, char *argv[]) {
 	close(fd);
 
 	return 0;
+}
+
+uint64_t timespec_u(struct timespec *ts) {
+    return (useconds_t) 1000*ts->tv_nsec + ts->tv_sec/1000000;
 }

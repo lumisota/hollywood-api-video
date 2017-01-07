@@ -90,7 +90,7 @@ int main(int argc, char *argv[]) {
 	}
 
 	/* Create a Hollywood socket */
-	if (hollywood_socket(cfd, &h_sock, 1) != 0) {
+	if (hollywood_socket(cfd, &h_sock, 1, 0) != 0) {
 		printf("Unable to create Hollywood socket\n");
 		return 2;
 	}

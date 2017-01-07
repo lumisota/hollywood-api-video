@@ -73,9 +73,12 @@ typedef struct hlywd_sock {
 	
 	/* Current sequence number, when OO_DELIVERY not enabled */
 	tcp_seq current_sequence_num;
+
+	int oo;
+	int pr;
 } hlywd_sock;
 
-int hollywood_socket(int fd, hlywd_sock *socket, int oo);
+int hollywood_socket(int fd, hlywd_sock *socket, int oo, int pr);
 
 void set_playout_delay(hlywd_sock *socket, int pd_ms);
 

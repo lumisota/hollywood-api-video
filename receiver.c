@@ -35,6 +35,10 @@
 #include <unistd.h>
 #include <string.h>
 #include <stdlib.h>
+#include <pthread.h>
+
+static pthread_mutex_t printf_mutex, sent_mutex;
+struct timeval *sent[6000] = {NULL};
 
 /* from https://www.gnu.org/software/libc/manual/html_node/Elapsed-Time.html */
 int timeval_subtract (struct timeval *result, struct timeval *x, struct timeval *y) {
@@ -59,6 +63,74 @@ int timeval_subtract (struct timeval *result, struct timeval *x, struct timeval 
   return x->tv_sec < y->tv_sec;
 }
 
+void timespec_cmp(struct timespec *a, struct timespec *b, struct timespec *res) {
+    if ((b->tv_nsec - a->tv_nsec) < 0) {
+        res->tv_sec = b->tv_sec - a->tv_sec - 1;
+        res->tv_nsec = b->tv_nsec - a->tv_nsec + 1000000000;
+    } else {
+        res->tv_sec = b->tv_sec - a->tv_sec;
+        res->tv_nsec = b->tv_nsec - a->tv_nsec;
+    }
+}
+
+void *playout(void *delay) {
+    int pd_ms = (int) delay;
+    struct timeval current_time;
+    gettimeofday(&current_time, NULL);
+    pthread_mutex_lock(&printf_mutex);
+	printf("[%ld.%06ld] Playout thread started - playout starting in %dms\n", current_time.tv_sec, current_time.tv_usec, pd_ms);
+	pthread_mutex_unlock(&printf_mutex);
+	usleep(pd_ms*1000);
+    gettimeofday(&current_time, NULL);
+	pthread_mutex_lock(&printf_mutex);
+	printf("[%ld.%06ld] Playout started!\n", current_time.tv_sec, current_time.tv_usec);
+	pthread_mutex_unlock(&printf_mutex);
+	
+    int i = 0;
+    
+    struct timespec ts_now;
+	clock_gettime(CLOCK_MONOTONIC, &ts_now);
+    uint64_t clock_start = (ts_now.tv_sec*1000000 + ts_now.tv_nsec/1000);
+
+    for (i = 0; i < 6000; i++) {
+        gettimeofday(&current_time, NULL);
+        struct timeval *sent_time = (struct timeval *) malloc(sizeof(struct timeval));
+        pthread_mutex_lock(&sent_mutex);
+        if (sent[i] == NULL) {
+            free(sent_time);
+            sent_time = NULL;
+        } else {
+            memcpy(sent_time, sent[i], sizeof(struct timeval));
+        }
+        pthread_mutex_unlock(&sent_mutex);
+        struct timeval *elapsed_time = NULL;
+        if (sent_time != NULL) {
+            elapsed_time = (struct timeval *) malloc(sizeof(struct timeval));
+            timeval_subtract(elapsed_time, &current_time, sent_time);
+        }
+        pthread_mutex_lock(&printf_mutex);
+        if (elapsed_time != NULL && (elapsed_time->tv_sec == 0 && elapsed_time->tv_usec <= 150000)) {
+	        printf("[%ld.%06ld] Played %d (%ld.%06ld since sending)\n", current_time.tv_sec, current_time.tv_usec, i, elapsed_time->tv_sec, elapsed_time->tv_usec);
+	    } else if (elapsed_time != NULL) {
+	        printf("[%ld.%06ld] Expired %d (%ld.%06ld since sending)\n", current_time.tv_sec, current_time.tv_usec, i, elapsed_time->tv_sec, elapsed_time->tv_usec);
+	    } else {
+	        printf("[%ld.%06ld] Undelivered %d\n", current_time.tv_sec, current_time.tv_usec, i);
+        }
+	    pthread_mutex_unlock(&printf_mutex);
+        //printf("[%lld.%.9ld] send!\n", (long long) ts_now.tv_sec, ts_now.tv_nsec);
+        clock_gettime(CLOCK_MONOTONIC, &ts_now);
+        uint64_t wake_time = clock_start + (20000*(i+1));
+        uint64_t time_now = (ts_now.tv_sec*1000000 + ts_now.tv_nsec/1000);
+        if (wake_time > time_now) {
+            usleep(wake_time-time_now);
+        }
+	}
+	pthread_mutex_lock(&printf_mutex);
+	printf("[%ld.%06ld] Playout finished!\n", current_time.tv_sec, current_time.tv_usec);
+	pthread_mutex_unlock(&printf_mutex);
+    return 0;
+}
+
 int main(int argc, char *argv[]) {
 	hlywd_sock h_sock;
 	int fd, cfd;
@@ -67,10 +139,9 @@ int main(int argc, char *argv[]) {
 	char buffer[1000];
 	ssize_t read_len;
 	uint8_t substream_id;
-	struct timeval *elapsed[1000] = {NULL};
 
-	if (argc < 2) {
-		printf("Usage: receiver [1|0]\n");
+	if (argc < 3) {
+		printf("Usage: receiver [1|0] <playout delay>\n");
 		return 1;
 	}
 
@@ -103,32 +174,54 @@ int main(int argc, char *argv[]) {
 	}
 
 	/* Create a Hollywood socket */
-	if (hollywood_socket(cfd, &h_sock, (int) *argv[1]) != 0) {
+	int oo = atoi(argv[1]);
+	if (hollywood_socket(cfd, &h_sock, oo, 0) != 0) {
 		printf("Unable to create Hollywood socket\n");
 		return 2;
 	}
+	
+	pthread_mutex_init(&printf_mutex, NULL);
+	pthread_mutex_init(&sent_mutex, NULL);
 
+	int pd_ms = atoi(argv[2]);
+	pthread_t playout_thread;
+	int pt_started = 0;
 	/* Receive message loop */
 	while ((read_len = recv_message(&h_sock, buffer, 1000, 0, &substream_id)) > 0) {
-		struct timeval send_time, recv_time;
+		if (pt_started == 0 && pthread_create(&playout_thread, NULL, playout, (void *) pd_ms) != 0) {
+	    		printf("Unable to create playout thread\n");
+		} else {
+			pt_started = 1;
+		}
+		struct timeval *send_time = (struct timeval *) malloc(sizeof(struct timeval));
+		struct timeval *recv_time = (struct timeval *) malloc(sizeof(struct timeval));
+		struct timeval *elapsed_time = (struct timeval *) malloc(sizeof(struct timeval)); 
 		int message_num = 0;
 		memcpy(&message_num, buffer, sizeof(int));
-		memcpy(&send_time, (buffer+sizeof(int)), sizeof(struct timeval));
-		gettimeofday(&recv_time, NULL);
-		if (elapsed[message_num] == NULL) {
-			elapsed[message_num] = (struct timeval *) malloc(sizeof(struct timeval));
-			timeval_subtract(elapsed[message_num], &recv_time, &send_time);
+		memcpy(send_time, (buffer+sizeof(int)), sizeof(struct timeval));
+		gettimeofday(recv_time, NULL);
+        timeval_subtract(elapsed_time, recv_time, send_time);
+		pthread_mutex_lock(&printf_mutex);
+		printf("[%ld.%06ld] Received message %d (elapsed %ld.%06ld)\n", recv_time->tv_sec, recv_time->tv_usec, message_num, elapsed_time->tv_sec, elapsed_time->tv_usec);
+		pthread_mutex_unlock(&printf_mutex);
+		pthread_mutex_lock(&sent_mutex);
+		if (sent[message_num] == NULL) {
+		    sent[message_num] = send_time;
 		}
+		pthread_mutex_unlock(&sent_mutex);
+		free(recv_time);
+		free(elapsed_time);
 	}
 
 	/* Close connection */
 	close(cfd);
 	close(fd);
 
-	for (int i = 0; i < 1000; i++) {
-		printf("%d %ld.%06ld\n", i, elapsed[i]->tv_sec, elapsed[i]->tv_usec);
-		free(elapsed[i]);
+    pthread_join(playout_thread, NULL);
+    
+	for (int i = 0; i < 6000; i++) {
+		free(sent[i]);
 	}
 
-	return 0;
+    pthread_exit(NULL);
 }
