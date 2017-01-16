@@ -97,7 +97,7 @@ int main(int argc, char *argv[]) {
 
 	/* Receive message loop */
 	while ((read_len = recv_message(&h_sock, buffer, BUFLEN, 0, &substream_id)) > 0) {
-		printf("Message received (substream %u) of len %d:%d\n", substream_id, read_len, h_sock.current_sequence_num);
+		printf("Message received (substream %u) of len %zd:%d\n", substream_id, read_len, h_sock.current_sequence_num);
 		if(fwrite (buffer , sizeof(char), read_len, fptr)!=read_len)
 		{
 			if (ferror (fptr))

@@ -136,7 +136,7 @@ int mm_parser(struct metrics * m) {
 		if (pkt.stream_index == videoStreamIdx) {
 			if (pkt.dts > 0) {
                 m->TSlist[STREAM_VIDEO] = (pkt.dts * vtb) / (SEC2PICO / SEC2MILI);
-                printf("TS now: %llu\n",  m->TSlist[STREAM_VIDEO]);
+                printf("TS now: %" PRIu64" \n",  m->TSlist[STREAM_VIDEO]);
 				/*SA-10214- checkstall should be called after the TS is updated for each stream, instead of when new packets 
 				  arrive, this ensures that we know exactly what time the playout would stop and stall would occur*/
 				checkstall(0, m);
@@ -212,7 +212,7 @@ void checkstall(int end, struct metrics * metric)
         metric->Tmin = -1;
         metric->TS0 = metric->TSnow;
 #ifdef DEBUG
-        printf("Stall has occured at TS: %llu and Time: %lld\n", metric->TSnow, metric->Tmin0); //calculate stall duration
+        printf("Stall has occured at TS: %" PRIu64 " and Time: %lld\n", metric->TSnow, metric->Tmin0); //calculate stall duration
 #endif
         
     }
@@ -224,7 +224,7 @@ void checkstall(int end, struct metrics * metric)
         {
             metric->Tmin = timenow;
 #ifdef DEBUG
-            printf("Min prebuffer has occured at TS: %llu and Time: %lld, start time %lld \n", metric->TSnow, timenow, metric->T0);
+            printf("Min prebuffer has occured at TS: %" PRIu64 "and Time: %" PRIu64 ", start time %lld \n", metric->TSnow, timenow, metric->T0);
             
 #endif
             if(metric->initialprebuftime<0)
@@ -243,7 +243,7 @@ void checkstall(int end, struct metrics * metric)
         }
 #ifdef DEBUG
         else
-            printf("Prebuffered time %llu, TSnow %llu, TS0 %llu \n",metric->TSnow-metric->TS0, metric->TSnow, metric->TS0); fflush(stdout);
+            printf("Prebuffered time %" PRIu64 ", TSnow %" PRIu64 ", TS0 %" PRIu64 "\n",metric->TSnow-metric->TS0, metric->TSnow, metric->TS0); fflush(stdout);
 #endif
         
     }

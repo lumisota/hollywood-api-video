@@ -73,8 +73,8 @@ void timespec_cmp(struct timespec *a, struct timespec *b, struct timespec *res) 
     }
 }
 
-void *playout(void *delay) {
-    int pd_ms = (int) delay;
+void *playout(void *delay_ptr) {
+    int pd_ms = *((int *) delay_ptr);
     struct timeval current_time;
     gettimeofday(&current_time, NULL);
     pthread_mutex_lock(&printf_mutex);
@@ -188,7 +188,7 @@ int main(int argc, char *argv[]) {
 	int pt_started = 0;
 	/* Receive message loop */
 	while ((read_len = recv_message(&h_sock, buffer, 1000, 0, &substream_id)) > 0) {
-		if (pt_started == 0 && pthread_create(&playout_thread, NULL, playout, (void *) pd_ms) != 0) {
+		if (pt_started == 0 && pthread_create(&playout_thread, NULL, playout, (void *) &pd_ms) != 0) {
 	    		printf("Unable to create playout thread\n");
 		} else {
 			pt_started = 1;
