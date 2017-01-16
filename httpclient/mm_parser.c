@@ -212,7 +212,7 @@ void checkstall(int end, struct metrics * metric)
         metric->Tmin = -1;
         metric->TS0 = metric->TSnow;
 #ifdef DEBUG
-        printf("Stall has occured at TS: %llu and Time: %lld\n", metric->TSnow, metric->Tmin0); //calculate stall duration
+        printf("Stall has occured at TS: %" PRIu64 " and Time: %lld\n", metric->TSnow, metric->Tmin0); //calculate stall duration
 #endif
         
     }
