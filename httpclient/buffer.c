@@ -122,7 +122,7 @@ int pop_contiguous_msg(char * msg, int bufsize, int force)
         readlen = m->saved_readlen[0];
         if (readlen >= bufsize)
         {
-            printf("Buffer Error: Message pop failed due to insufficient buffer size\n")'
+            printf("Buffer Error: Message pop failed due to insufficient buffer size\n");
             return -1;
         }
    //     printf("buffer dimensions %d - %d (%d-%d)---", m->start, m->end, m->first_byte[0], readlen);
@@ -165,7 +165,7 @@ int pop_contiguous_msg(char * msg, int bufsize, int force)
                     readlen = (m->first_byte[i]+(MAX_BUFFER_SIZE - m->start)) + m->saved_readlen[i];
                 if (readlen >= bufsize)
                 {
-                    printf("Buffer Error: Message pop failed due to insufficient buffer size\n")'
+                    printf("Buffer Error: Message pop failed due to insufficient buffer size\n");
                     return -1;
                 }
 
