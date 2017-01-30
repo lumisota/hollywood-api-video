@@ -30,6 +30,7 @@
 #include "vdo-sender.h"
 //#define NOSEND
 
+#define HLYWD_MSG_TRAILER 4+4 /*sizeof(uint32)*2 offset+seq*/
 #define FRAMESONLY 1
 #ifdef FRAMESONLY
 FILE * fptr = NULL;
@@ -46,6 +47,7 @@ pthread_cond_t  msg_ready; /*indicates whether a full message is ready to be sen
 pthread_mutex_t msg_mutex; /*mutex of the hlywd_message*/
 
 static uint32_t offset = 0; /*offset added to last 4 bytes of the message*/
+static uint32_t seq = 0;
 
 
 int send_video(int fd, const char * filename)
@@ -133,14 +135,17 @@ int send_video(int fd, const char * filename)
 /* Add message to the queue of messages*/
 int add_msg_to_queue( struct hlywd_message * msg, struct parse_attr * p)
 {
-    uint32_t tmp =htonl(offset);
+    uint32_t tmp = htonl(offset);
     memcpy(msg->message+msg->msg_size, &tmp, sizeof(uint32_t));
+    tmp = htonl(seq);
+    memcpy(msg->message+msg->msg_size+sizeof(uint32_t), &tmp, sizeof(uint32_t));
     //printf("HOLLYWOOD: %llu : %u : %u\n", msg->msg_size, offset, tmp);
     
     
     offset+=msg->msg_size;
-    msg->msg_size+=sizeof(uint32_t);
-
+    msg->msg_size+=HLYWD_MSG_TRAILER;
+    
+    ++seq;
         
 	pthread_mutex_lock(&msg_mutex);
     
@@ -211,7 +216,7 @@ int mp4_send_mdat(struct parse_attr * p )
 				msg = (struct hlywd_message *) malloc(sizeof(struct hlywd_message));
 				memzero(msg, sizeof(struct hlywd_message)); 
 				msg->msg_size=(*ii).second.stable[i].size;
-				msg->message = (unsigned char *) malloc(msg->msg_size+sizeof(uint32_t));
+				msg->message = (unsigned char *) malloc(msg->msg_size+HLYWD_MSG_TRAILER);
 				bytes_read = fread(msg->message, sizeof(char), msg->msg_size, p->fptr);
 				if(bytes_read!=msg->msg_size)
 				{
@@ -304,7 +309,7 @@ void * parse_mp4file(void * a)
 			/*if mdat we will just send the header now and send the frames later. */
 
 			msg->msg_size = headerlen; 
-			msg->message = (unsigned char *) malloc(msg->msg_size+sizeof(uint32_t));
+			msg->message = (unsigned char *) malloc(msg->msg_size+HLYWD_MSG_TRAILER);
 			readlen = msg->msg_size;
 			bytes_read = fread(msg->message, sizeof(char), readlen, p->fptr);
 			if(bytes_read!=readlen)
@@ -319,7 +324,7 @@ void * parse_mp4file(void * a)
 		else 
 		{
 			/*It's just metadata, read the full message and send*/ 
-			msg->message = (unsigned char *) malloc(msg->msg_size+sizeof(uint32_t));
+			msg->message = (unsigned char *) malloc(msg->msg_size+HLYWD_MSG_TRAILER);
 			readlen = msg->msg_size;
 			bytes_read = fread(msg->message, sizeof(char), readlen, p->fptr);
 			if(bytes_read!=readlen)

@@ -8,6 +8,7 @@
 #include <sys/socket.h>
 #include "helper.h"
 #include "../lib/hollywood.h"
+#include "buffer.h"
 
 
 #define MIN_PREBUFFER 2000 /* in millisecond*/
@@ -24,6 +25,9 @@ struct metrics {
     int sock;
     FILE * fptr;
     hlywd_sock h_sock;
+    struct mm_buffer mm_buf;
+    uint8_t packets_queued;
+    uint32_t lowest_seq_num;
     
     /*vidoe metrics*/
     long long htime; /*unix timestamp when test began*/
@@ -44,8 +48,9 @@ struct metrics {
     
 };
 
+int stall_imminent(struct metrics * metric);
 void printmetric(struct metrics metric);
 int mm_parser(struct metrics * m);
 void checkstall(int end, struct metrics * metric);
-void init_metrics(struct metrics *metric);
+int init_metrics(struct metrics *metric);
 #endif

@@ -3,9 +3,9 @@ CCFLAGS=-c -g -I/usr/local/include
 LDFLAGS=-L/usr/local/lib -lavformat -lavcodec -lavutil
 
 
-ALL_OBJ=helper.o mm_parser.o httpc.o 
-ALL_SRC=helper.c mm_parser.c httpc.c 
-ALL_HDR=helper.h mm_parser.h 
+ALL_OBJ=helper.o mm_parser.o httpc.o buffer.o
+ALL_SRC=helper.c mm_parser.c httpc.c buffer.c
+ALL_HDR=helper.h mm_parser.h buffer.h
 LIB_SRC=hollywood.c cobs.c
 LIB_HDR=hollywood.h cobs.h
 LIB_OBJ=hollywood.o cobs.o

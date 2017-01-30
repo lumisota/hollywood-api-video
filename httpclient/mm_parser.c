@@ -5,7 +5,6 @@
 
 #define DEBUG
 
-#define MAX_BUFFER_SIZE 10*1024*1024
 
 #define DIV_ROUND_CLOSEST(x, divisor)(                  \
 {                                                       \
@@ -18,127 +17,119 @@
 #define SEC2PICO UINT64_C(1000000000000)
 //#define SEC2NANO 1000000000
 #define SEC2MILI 1000
-#define MAX_OUTOFORDER_PACKETS 100
-
+#define HLYWD_MSG_TRAILER 4+4 /*sizeof(uint32)*2 offset+seq*/
 static uint minbuffer = MIN_PREBUFFER;
-pthread_t       p_tid; /*thread id of the parser thread*/
-pthread_cond_t  msg_ready;
-pthread_mutex_t msg_mutex;
 
-struct mm_queue {
-    uint8_t * queue[100];
-    uint32_t lowest_seq_num;
-};
 
-struct mm_buffer {
-    uint8_t buffer[MAX_BUFFER_SIZE];
-    uint8_t * queue[100];
-    int size[100];
-    uint32_t lowest_seq_num;
-};
-
-void * mm_read(void * opaque)
+static int mm_read(void * opaque, uint8_t *buf, int buf_size)
 {
-    struct mm_buffer * mm_buf =((struct mm_buffer *) opaque);
-    int last_seq_num;
-    uint8_t tmp_buf[10*1024];
-    int buf_size = 10*1024;
-    pthread_mutex_lock(&msg_mutex);
-    while(read_len>0)
-    {
-        read_len = recv_message(&(m->h_sock), tmp_buf, buf_size, 0, &substream_id);
-        if(read_len<=0)
-            continue;
-        if(last_seq_num-h_sock.current_sequence_num==1)
-        {
-            mm_buf->lowest_seq_num=h_sock.current_sequence_num;
-            pthread_cond_signal(&msg_ready);
-            
-        }
-        else if(last_seq_num-h_sock.current_sequence_num>1)
-        {
-            /*received out of order packet, store and wait for more */
-
-        }
-        else
-        {
-            printf("Unexpected sequence number\n");
-            pthread_mutex_unlock(&msg_mutex);
-            return NULL;
-        }
-        pthread_mutex_unlock(&msg_mutex);
-}
-
-static int read_packet(void *opaque, uint8_t *buf, int buf_size)
-{
-    struct mm_buffer * mm_buf =((struct mm_buffer *) opaque);
+    static uint32_t offset = 0;
+    uint8_t substream_id;
+    struct metrics * m = ((struct metrics *) opaque);
+    int ret, read_len;
+    uint32_t rxoffset;
+    uint32_t seq_num;
+    
     if(m->Hollywood)
     {
-        pthread_mutex_lock(&msg_mutex);
+        ret = pop_contiguous_msg (buf, buf_size, stall_imminent(m));
+        if (ret > 0)
+        {
+            if(fwrite (buf , sizeof(char), ret, m->fptr)!=ret)
+            {
+                if (ferror (m->fptr))
+                    printf ("Error Writing to file\n");
+                perror("The following error occured\n");
+                return -1;
+            }
+            m->totalbytes[STREAM_VIDEO] += ret;
+            return ret;
+        }
+        
+        read_len = recv_message(&(m->h_sock), buf, buf_size, 0, &substream_id);
+        if(read_len<=0)
+            return read_len;
+        read_len-=HLYWD_MSG_TRAILER;
+        memcpy(&rxoffset,buf+read_len, sizeof(uint32_t));
+        memcpy(&seq_num,buf+read_len+sizeof(uint32_t), sizeof(uint32_t));
+        rxoffset = ntohl(rxoffset);
+        seq_num = ntohl(seq_num);
+        
+        ret = new_packet(seq_num, buf, read_len, buf_size, rxoffset);
         
     }
     else
     {
-        read_len = recv(m->sock, buf, buf_size, 0);
+        ret = recv(m->sock, buf, buf_size, 0);
     }
     
-    m->totalbytes[STREAM_VIDEO] += read_len;
-    return read_len;
-
-}
-
-static int read_packet(void *opaque, uint8_t *buf, int buf_size) {
-    static uint32_t offset = 0;
-	struct metrics * m = ((struct metrics *) opaque);
-    int read_len;
-    uint8_t substream_id;
-
-    if(m->Hollywood)
+    /*Write buffer to file for later use*/
+    if(ret>0)
     {
-        /* Receive message loop */
-        read_len = recv_message(&(m->h_sock), buf, buf_size, 0, &substream_id);
-        if(read_len<=0)
-            return read_len;
-        read_len-=4;
-        uint32_t rxoffset;
-        memcpy(&rxoffset,buf+read_len, sizeof(uint32_t));
-        rxoffset = ntohl(rxoffset);
-        if(offset<rxoffset)
-        {
-            
-            printf("Dropped frame size: %d, offset : %u\n", rxoffset-offset, offset);
-            if(read_len+(rxoffset-offset)>MAX_BUFFER_SIZE)
-                return -1;
-            memcpy(buf+(rxoffset-offset), buf, read_len);
-            memzero(buf, rxoffset-offset);
-            read_len+=(rxoffset-offset);
-        }
-        offset+=read_len;
-        
-        /*Write buffer to file for later use*/
-        if(fwrite (buf , sizeof(char), read_len, m->fptr)!=read_len)
+        if(fwrite (buf , sizeof(char), ret, m->fptr)!=ret)
         {
             if (ferror (m->fptr))
                 printf ("Error Writing to file\n");
             perror("The following error occured\n");
             return -1;
         }
-
     }
-    else
-    {
-        read_len = recv(m->sock, buf, buf_size, 0);
-    }
-
-    m->totalbytes[STREAM_VIDEO] += read_len;
-	return read_len;
+    m->totalbytes[STREAM_VIDEO] += ret;
+    return ret;
+    
 }
 
+//static int read_packet(void *opaque, uint8_t *buf, int buf_size) {
+//    static uint32_t offset = 0;
+//	struct metrics * m = ((struct metrics *) opaque);
+//    int read_len;
+//    uint8_t substream_id;
+//
+//    if(m->Hollywood)
+//    {
+//        /* Receive message loop */
+//        read_len = recv_message(&(m->h_sock), buf, buf_size, 0, &substream_id);
+//        if(read_len<=0)
+//            return read_len;
+//        read_len-=4;
+//        uint32_t rxoffset;
+//        memcpy(&rxoffset,buf+read_len, sizeof(uint32_t));
+//        rxoffset = ntohl(rxoffset);
+//        if(offset<rxoffset)
+//        {
+//            printf("Dropped frame size: %d, offset : %u\n", rxoffset-offset, offset);
+//            if(read_len+(rxoffset-offset)>MAX_BUFFER_SIZE)
+//                return -1;
+//            memcpy(buf+(rxoffset-offset), buf, read_len);
+//            memzero(buf, rxoffset-offset);
+//            read_len+=(rxoffset-offset);
+//        }
+//        offset+=read_len;
+//        
+//        /*Write buffer to file for later use*/
+//        if(fwrite (buf , sizeof(char), read_len, m->fptr)!=read_len)
+//        {
+//            if (ferror (m->fptr))
+//                printf ("Error Writing to file\n");
+//            perror("The following error occured\n");
+//            return -1;
+//        }
+//
+//    }
+//    else
+//    {
+//        read_len = recv(m->sock, buf, buf_size, 0);
+//    }
+//
+//    m->totalbytes[STREAM_VIDEO] += read_len;
+//	return read_len;
+//}
+//
 int mm_parser(struct metrics * m) {
     av_register_all();
-	void *buff = av_malloc(MAX_BUFFER_SIZE);
+	void *buff = av_malloc(100*1024);
 	AVIOContext *avio = avio_alloc_context(buff, MAX_BUFFER_SIZE, 0,
-			m, read_packet, NULL, NULL);
+			m, mm_read, NULL, NULL);
 	if (avio == NULL) {
         fprintf(stderr, "Could not alloc avio context\n\n");
         return -1;
@@ -226,7 +217,7 @@ int mm_parser(struct metrics * m) {
 }
 
 
-void init_metrics(struct metrics *metric)
+int init_metrics(struct metrics *metric)
 {
     memzero(metric, sizeof(*metric));
     metric->Tmin=-1;
@@ -236,7 +227,27 @@ void init_metrics(struct metrics *metric)
     metric->initialprebuftime = -1;
     /*if this value is set to 0, the whole file is requested. */
     metric->playout_buffer_seconds=0;
-    
+    if(init_mmbuffer()<0)
+    {
+        printf("Buffer initialization failed\n");
+        return -1;
+    }
+    return 0;
+}
+
+int stall_imminent(struct metrics * metric)
+{
+    long long timenow = gettimelong();
+    /* check if there is less than 50ms of video left in buffer. Tmin is the start of playout.
+     * if Tmin is -1 this playout has not started so no need to check
+    */
+    if(metric->Tmin >= 0 && ((double)(metric->TSnow-metric->TS0)*1000)-(timenow-metric->Tmin)<=50000)
+    {
+        return 1;
+    }
+    else
+        return 0;
+
 }
 
 
