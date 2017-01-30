@@ -29,7 +29,7 @@ int mp4_read_sidx(unsigned char * stream, int len, struct mp4_i * m)
 	{
 		if(SIZESIDX>m->li.size0)
 		{
-			fprintf(stderr, "mp4_read_sidx: sidx has less bytes than the sidx header size, header: %d, size %llu\n",SIZESIDX,m->li.size0);
+			fprintf(stderr, "mp4_read_sidx: sidx has less bytes than the sidx header size, header: %d, size %" PRIu64 "\n",SIZESIDX,m->li.size0);
 			return -1;
 		}
 		m->header = new unsigned char [SIZESIDX];

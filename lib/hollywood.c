@@ -39,10 +39,8 @@
 #include <stdlib.h>
 #include <sys/time.h>
 
-#ifndef __APPLE__
-    #define TCP_OODELIVERY 27
-    #define TCP_PRELIABILITY 28
-#endif
+#define TCP_OODELIVERY 27
+#define TCP_PRELIABILITY 28
 
 /* Message queue functions */
 int add_message(hlywd_sock *socket, uint8_t *data, size_t len);
@@ -67,17 +65,19 @@ sparsebuffer_entry *add_entry(sparsebuffer *sb, tcp_seq sequence_num, size_t len
 int hollywood_socket(int fd, hlywd_sock *socket, int oo, int pr) {
 	int flag = 1;
 
-	/* Disable Nagle's algorithm (TCP_NODELAY = 1) */
+	/* Disable Nagle's algorithm (TCP_ NODELAY = 1) */
 	int result = setsockopt(fd, IPPROTO_TCP, TCP_NODELAY, (char *) &flag, sizeof(int));
 
 	/* Enable out-of-order delivery, if available */
 	#ifdef TCP_OODELIVERY
+	printf("setting TCP_OODELIVERY to %d..\n", oo);
 	result = setsockopt(fd, IPPROTO_TCP, TCP_OODELIVERY, (char *) &oo, sizeof(int));
 	#endif
 
 	/* Enable partial reliability, if available */
 	#ifdef TCP_PRELIABILITY
-	result = setsockopt(fd, IPPROTO_TCP, TCP_PRELIABILITY, (char *) &flag, sizeof(int));
+	printf("setting TCP_PRELIABILITY to %d..\n", pr);
+	result = setsockopt(fd, IPPROTO_TCP, TCP_PRELIABILITY, (char *) &pr, sizeof(int));
 	#endif
 
 	/* Initialise Hollywood socket metadata */
@@ -113,7 +113,7 @@ ssize_t send_message_time(hlywd_sock *socket, const void *buf, size_t len, int f
 	    len++;
 	    /* max overhead of COBS is 0.4%, plus the leading and trailing \0 bytes */
 	    size_t max_encoded_len = ceil(2 + 1.04*len);
-	    uint8_t encoded_message[max_encoded_len+5+2*sizeof(time_t)+2*sizeof(suseconds_t)];
+	    uint8_t encoded_message[max_encoded_len+5+2*sizeof(struct timespec)];
 	    /* add the leading \0, encoded message, and trailing \0 */
 	    encoded_message[0] = '\0';
 	    size_t encoded_len = cobs_encode(preencode_buf, len, encoded_message+1);
