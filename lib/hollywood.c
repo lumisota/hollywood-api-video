@@ -39,9 +39,10 @@
 #include <stdlib.h>
 #include <sys/time.h>
 
+#ifndef __APPLE__
 #define TCP_OODELIVERY 27
 #define TCP_PRELIABILITY 28
-
+#endif 
 /* Message queue functions */
 int add_message(hlywd_sock *socket, uint8_t *data, size_t len);
 size_t dequeue_message(hlywd_sock *socket, uint8_t *buf, uint8_t *substream_id);

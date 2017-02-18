@@ -29,7 +29,7 @@
 #include <pthread.h>
 #include <sys/wait.h>
 #include <stdlib.h>
-#include "vdo-sender.h"
+#include "media_sender.h"
 
 #define ISspace(x) isspace((int)(x))
 
@@ -158,7 +158,7 @@ void cat(int client, FILE *fptr)
     while(bytes_read==1024) {
         msg_len = send(client, buffer, bytes_read, 0);
         if (msg_len == -1) {
-            printf("Unable to send message\n");
+            printf("Unable to send message over TCP\n");
             return;
         }
         bytes_read = fread(buffer, 1,1024,fptr);
@@ -314,9 +314,9 @@ void serve_file(int client, const char *filename)
     {
         printf("Sending file : %s using %d\n", filename, Hollywood);
         headers(client, filename);
-        if(strstr(filename,".mp4")!=NULL && Hollywood==1)
+        if((strstr(filename,".mp4")!=NULL || strstr(filename,".ts")!=NULL || strstr(filename,".m4s")!=NULL) && Hollywood==1)
         {
-            send_video(client, filename);
+            send_media_over_hollywood(client, filename);
         }
         else
             cat(client, resource);

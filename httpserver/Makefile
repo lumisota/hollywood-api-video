@@ -1,10 +1,10 @@
-CC=g++
-CCFLAGS=-c -g -DCORO_SJLJ -I/usr/local/include
+CC=gcc
+CCFLAGS=-c -g -I/usr/local/include
 LDFLAGS=-L/usr/local/lib -lpthread
 
-ALL_OBJ=helper.o vdo-sender.o httpd.o mpeg.o mpeg_a.o 
-ALL_SRC=helper.c vdo-sender.c httpd.c  mpeg.c mpeg_a.c 
-ALL_HDR=helper.h vdo-sender.h mpeg.h mpeg_a.h 
+ALL_OBJ=media_sender.o httpd.o  
+ALL_SRC=media_sender.c httpd.c  
+ALL_HDR=media_sender.h  
 LIB_SRC=hollywood.c cobs.c
 LIB_HDR=hollywood.h cobs.h
 LIB_OBJ=hollywood.o cobs.o
