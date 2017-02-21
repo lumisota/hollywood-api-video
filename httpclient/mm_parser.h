@@ -10,24 +10,50 @@
 #include "../lib/hollywood.h"
 #include "buffer.h"
 
-
 #define MIN_PREBUFFER 2000 /* in millisecond*/
 #define MIN_STALLBUFFER 1000
 #define NUMOFSTREAMS 1
+#define MAX_DASH_INIT_SEGMENT_SIZE 1000
+#define MAX_SUPPORTED_BITRATE_LEVELS 24
+#define URLLISTSIZE 24
+
 
 enum stream_type {
     STREAM_VIDEO = 0,
     STREAM_AUDIO = 1
 };
 
-struct metrics {
-    int Hollywood;
+typedef struct
+{
+    uint8_t data[MAX_DASH_INIT_SEGMENT_SIZE];
+    uint32_t size;
+} dash_init_segment;
+
+
+typedef struct
+{
+    int bitrate;
+    char **segments;
+    dash_init_segment init;
+} manifest;
+
+
+struct metrics
+{
+    /*Hollywood params*/
+    uint8_t Hollywood;
     int sock;
     FILE * fptr;
     hlywd_sock h_sock;
     struct mm_buffer mm_buf;
     uint8_t packets_queued;
     uint32_t lowest_seq_num;
+    
+    /*DASH params*/
+    int num_of_segments;
+    int num_of_levels;
+    manifest bitrate_level[MAX_SUPPORTED_BITRATE_LEVELS];
+
     
     /*vidoe metrics*/
     long long htime; /*unix timestamp when test began*/
@@ -45,8 +71,8 @@ struct metrics {
     long long Tmin0; //microseconds when prebuffering started, Tmin0-Tmin should give you the time it took to prebuffer.
     long long T0; /*Unix timestamp when first packet arrived in microseconds*/
     int playout_buffer_seconds;
-    
 };
+
 
 int stall_imminent(struct metrics * metric);
 void printmetric(struct metrics metric);

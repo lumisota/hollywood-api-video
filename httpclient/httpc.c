@@ -9,7 +9,10 @@
 #include <ctype.h>
 #include <netdb.h>
 #include "mm_parser.h"
+#include "readmpd.h"
+#include "http_ops.h"
 
+#define PAGESIZE 500000
 
 
 
@@ -40,82 +43,10 @@ int receive_video_over_tcp (int fd, struct metrics * metric)
     return (mm_parser(metric));
 }
 
-/**********************************************************************/
-int get_html_headers(int sock, char *buf, int size)
-{
-    int i = 0;
-    char c = '\0';
-    int n;
-    
-    n = recv(sock, buf, 4, 0);
-    i=4;
-    
-    while ((i < size - 1) && strncmp(buf+i-4,"\r\n\r\n",4)!=0)
-    {
-        n = recv(sock, &c, 1, 0);
-        /* DEBUG printf("%02X\n", c); */
-        if (n > 0)
-        {
-            buf[i] = c;
-            i++;
-        }
-        else
-            break;
-    }
-    buf[i] = '\0';
-
-    return(i);
-}
 
 /**********************************************************************/
 
-int receive_response(int fd, struct metrics * metric)
-{
-    char buf[1024];
-    char response[25];
-    char unneeded[128];
-    int numchars;
-    int i, j;
-    
-    get_html_headers(fd, buf, 1024);
-
-    if(strstr(buf, "200 OK")==NULL)
-    {
-        printf("Request Failed: \n");
-        printf("%s",buf);
-        return -1;
-    }
-        
-    if(strstr(buf, "video/mp4")!=NULL)
-    {
-        return (receive_video_over_tcp(fd, metric));
-    }
-    else if(strstr(buf, "video/hlywd")!=NULL)
-    {
-        return receive_video_over_hlywd(fd, metric);
-    }
-    else
-        printf("No markers found"); 
-    
-    return -1; 
-}
-
-
-/**********************************************************************/
-
-int send_get_request(int fd, char * host, char * filename)
-{
-    char request[512]= "";
-    sprintf(request, "GET /%s HTTP/1.1\r\n\r\n", filename);
-    if(write(fd, request, strlen(request))<0)
-        return -1;
-    return 0;
-}
-
-
-/**********************************************************************/
-
-int check_arguments(int argc, char* argv[], char * port, char * host, char * file)
+int check_arguments(int argc, char* argv[], char * port, char * mpdlink, char * filename)
 {
     int i;
     for(i=1; i<argc; i++)
@@ -128,44 +59,83 @@ int check_arguments(int argc, char* argv[], char * port, char * host, char * fil
             else
             {
                 printf ("Invalid arguments\n");
-                printf("Usage : %s --port <port number> --host <hostname> --file <filename>\n", argv[0]);
+                printf("Usage : %s --port <port number> --mpd <mpd link/url> --out <output file>\n", argv[0]);
                 return -1;
             }
         }
-        else if(strcmp(argv[i], "--host")==0)
+        else if(strcmp(argv[i], "--mpd")==0)
         {
             ++i;
             if(i<argc)
-                strcpy(host, argv[i]);
+                strcpy(mpdlink, argv[i]);
             else
             {
                 printf ("Invalid arguments\n");
-                printf("Usage : %s --port <port number> --host <hostname> --file <filename>\n", argv[0]);
+                printf("Usage : %s --port <port number> --mpd <mpd link/url> --out <output file>\n", argv[0]);
                 return -1;
             }
         }
-        else if(strcmp(argv[i], "--file")==0)
+        else if(strcmp(argv[i], "--out")==0)
         {
             ++i;
             if(i<argc)
-                strcpy(file, argv[i]);
+                strcpy(filename, argv[i]);
             else
             {
                 printf ("Invalid arguments\n");
-                printf("Usage : %s --port <port number> --host <hostname> --file <filename>\n", argv[0]);
+                printf("Usage : %s --port <port number> --mpd <mpd link/url> --out <output file>\n", argv[0]);
                 return -1;
             }
         }
         else
         {
             printf ("Invalid arguments\n");
-            printf("Usage : %s --port <port number> --host <hostname> --file <filename>\n", argv[0]);
+            printf("Usage : %s --port <port number> --mpd <mpd link/url> --out <output file>\n", argv[0]);
             return -1;
             
         }
     }
     
     return 0;
+}
+
+/**********************************************************************/
+
+int fetch_manifest(int sockfd, char * mpdlink, struct metrics * metric)
+{
+    char buf[1024];
+    char memory[PAGESIZE];
+    int contentlen;
+    
+    send_get_request(sockfd, mpdlink, metric->Hollywood);
+
+    get_html_headers(sockfd, buf, 1024, metric->Hollywood);
+    
+    if(strstr(buf, "200 OK")==NULL)
+    {
+        printf("Request Failed: \n");
+        printf("%s",buf);
+        return -1;
+    }
+    
+    contentlen = get_content_length(buf);
+    
+    if (contentlen > PAGESIZE)
+        printf("Manifest file larger than alotted memory\n");
+    else if (contentlen == 0)
+        printf("Received no content length for manifest file \n");
+
+
+    if(write_to_memory (sockfd, memory, contentlen, metric->Hollywood)==0)
+    {
+        printf("Unable to receive mpd file \n");
+        return -1;
+    }
+    else
+        return read_mpddata(memory, mpdlink, metric);
+    
+    return -1;
+
 }
 
 /**********************************************************************/
@@ -177,18 +147,30 @@ int main(int argc, char *argv[])
     int len;
     struct addrinfo hints, *serveraddr;
     int result;
-    char host[] = "127.0.0.1";
-    char filename[128] = "despicableme-134.mp4";
+    char mpdlink[MAXURLLENGTH] = "www.itec.uni-klu.ac.at/ftp/datasets/DASHDataset2014/BigBuckBunny/4sec/BigBuckBunny_4s_simple_2014_05_09.mpd";
+    char filename[128] = "output.ts";
     char port[6] = "8808";
+    char path[380]  = "";
+    char host[128]  = "";
+    
+
     
     char ch = 'A';
     /* Check for hostname parameter */
     if (argc > 1) {
-        if((check_arguments(argc, argv, port, host, filename))<0)
+        if((check_arguments(argc, argv, port, mpdlink, filename))<0)
             return(0);
     }
     init_metrics(&metric);
+    
+ //   printf("Looking up host :%s port: %s\n", mpdlink, port );
 
+    if (separate_host_and_filepath (mpdlink, host, path)<0)
+    {
+        printf ("Unable to separate link and filepath of the MPD link\n");
+        return -1;
+    }
+    
     /* Lookup hostname */
     memset(&hints, 0, sizeof(hints));
     hints.ai_family = PF_UNSPEC;
@@ -218,14 +200,20 @@ int main(int argc, char *argv[])
     {
         perror ("Error opening file:");
         close(fd);
-        return 6;
+        return 5;
     }
  
     metric.stime = gettimelong();
 
-    send_get_request(fd, host, filename);
-    if(receive_response(fd, &metric)==0)
-        printf("Successfully received file\n");
+    if(fetch_manifest(fd, mpdlink, &metric)<0)
+        return 6;
+    
+    for (int i = 0; i < metric.num_of_levels ; i++)
+    {
+        printf(" BITRATE LEVEL : %d Presenting 1st and last URL\n", metric.bitrate_level[i].bitrate);
+        printf(" %s\n", metric.bitrate_level[i].segments[0]);
+        printf(" %s\n", metric.bitrate_level[i].segments[metric.num_of_segments-1]);
+    }
     
     fclose(metric.fptr);
     close(fd);
