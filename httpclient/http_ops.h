@@ -21,7 +21,7 @@
 #include <netdb.h>
 
 #define MAXURLLENGTH 512
-#define MAXREQUESTLENGTH 1024
+#define HTTPHEADERLEN 2048
 #define MAXHOSTLEN 128
 
 int get_content_length( char * buf);
@@ -35,6 +35,8 @@ int send_get_request(int fd, char * url, uint8_t hollywood);
 int separate_host_and_filepath(char * url, char * host, char * path);
 
 int write_to_memory (int sockfd, char * memory, int contentlen, uint8_t hollywood);
+
+int connect_tcp_port (char * host, char * port);
 
 
 #endif /* defined(____http_ops__) */

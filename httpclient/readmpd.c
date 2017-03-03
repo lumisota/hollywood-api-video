@@ -63,12 +63,10 @@ int get_base_url (char * link)
 }
 
 
-int read_mpddata(char * memory, char mpdlink[], struct metrics * metric)
+int read_mpddata(char * memory, char mpdlink[], manifest * m)
 {
-    int             v_index = 0;
     xmlDoc          *document;
     xmlNode         *root, *first_child, *node, *second_child, *node2, *third_child, *node3;
-    char            *filename;
     char            duration[25]="\0";
     xmlAttr         * attribute;
     float           dur, segdur=0, timescale=0;
@@ -163,10 +161,10 @@ int read_mpddata(char * memory, char mpdlink[], struct metrics * metric)
                                 attribute = attribute->next;
                             }
                             /* add 2 to include init segment*/
-                            metric->num_of_segments = ceil(dur/(segdur/timescale)) + 1;
+                            m->num_of_segments = ceil(dur/(segdur/timescale)) + 1;
                             //printf("Init segment : %s\n", init_url);
                             //printf("Timescale : %f, Seg duration : %f\n", timescale, segdur);
-                            //printf("Number of Segments = %d\n", metric->num_of_segments);
+                            //printf("Number of Segments = %d\n", m->num_of_segments);
                         }
                         
                         if(xmlStrcmp(node3->name, (const xmlChar *) "Representation")==0)
@@ -209,20 +207,20 @@ int read_mpddata(char * memory, char mpdlink[], struct metrics * metric)
 
     }
 
-    if( metric->num_of_segments < 0)
+    if( m->num_of_segments < 0)
     {
         printf("Number of rate levels / segments is negative, check mpd. \n");
         return -1;
     }
     
-    metric->num_of_levels = num_of_rates;
+    m->num_of_levels = num_of_rates;
     
     for (int j = 0; j < num_of_rates; j++)
     {
-        manifest * next_level = &metric->bitrate_level[j];
-        next_level->segments = malloc (metric->num_of_segments * sizeof(char *));
+        level * next_level = &m->bitrate_level[j];
+        next_level->segments = malloc (m->num_of_segments * sizeof(char *));
         
-        for (int k = 0; k < metric->num_of_segments ; k++)
+        for (int k = 0; k < m->num_of_segments ; k++)
             next_level->segments[k] = malloc ( MAXURLLENGTH * sizeof (char));
         
         next_level->bitrate = atoi(bandwidth[j]);
@@ -231,7 +229,7 @@ int read_mpddata(char * memory, char mpdlink[], struct metrics * metric)
         strcpy(next_level->segments[0], newurl);
         free(newurl);
 
-        for (int k = 1; k < metric->num_of_segments; k++)
+        for (int k = 1; k < m->num_of_segments; k++)
         {
             sprintf(segnum,"%d", k);
             tmp = str_replace(media_url, keyword_bw, bandwidth[j]);

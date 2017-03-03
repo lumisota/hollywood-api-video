@@ -10,5 +10,21 @@
 #define ____mm_download__
 
 #include <stdio.h>
+#include <pthread.h>
+
+#include "mm_parser.h"
+#include "http_ops.h"
+#include "readmpd.h"
+
+
+
+#define HOLLYWOOD_MSG_SIZE 1400
+
+
+
+
+int init_transport(transport * t);
+
+int play_video (struct metrics * metric, manifest * media_manifest , transport * media_transport);
 
 #endif /* defined(____mm_download__) */

@@ -59,6 +59,7 @@ int check_arguments(int argc, char* argv[], u_short * port);
 void * accept_request(void * a)
 {
     int client = *((int *)a);
+    int num_of_requests = 0;
     char buf[1024];
     int numchars;
     char method[255];
@@ -66,58 +67,65 @@ void * accept_request(void * a)
     char path[512];
     size_t i, j;
     struct stat st;
-
-    char *query_string = NULL;
-
-    numchars = get_line(client, buf, sizeof(buf));
-    i = 0; j = 0;
-    while (!ISspace(buf[j]) && (i < sizeof(method) - 1))
-    {
-        method[i] = buf[j];
-        i++; j++;
-    }
-    method[i] = '\0';
-
-    if (strcasecmp(method, "GET"))
-    {
-        unimplemented(client);
-        return NULL;
-    }
-
-    i = 0;
-    while (ISspace(buf[j]) && (j < sizeof(buf)))
-        j++;
-    while (!ISspace(buf[j]) && (i < sizeof(url) - 1) && (j < sizeof(buf)))
-    {
-        url[i] = buf[j];
-        i++; j++;
-    }
-    url[i] = '\0';
-
-    if (strcasecmp(method, "GET") == 0)
-    {
-        query_string = url;
-        while ((*query_string != '?') && (*query_string != '\0'))
-            query_string++;
-    }
-
-    sprintf(path, "testfiles%s", url);
-    if (path[strlen(path) - 1] == '/')
-        strcat(path, "index.html");
-    if (stat(path, &st) == -1)
-    {
-        while ((numchars > 0) && strcmp("\n", buf))  /* read & discard headers */
-            numchars = get_line(client, buf, sizeof(buf));
-        not_found(client);
-    }
-    else
-    {
-        if ((st.st_mode & S_IFMT) == S_IFDIR)
-            strcat(path, "/index.html");
-        serve_file(client, path);
-    }
     
+    while (num_of_requests < 100)
+    {
+        char *query_string = NULL;
 
+        numchars = get_line(client, buf, sizeof(buf));
+        
+        if (numchars == 0 )
+            break;
+        num_of_requests++;
+        i = 0; j = 0;
+        while (!ISspace(buf[j]) && (i < sizeof(method) - 1))
+        {
+            method[i] = buf[j];
+            i++; j++;
+        }
+        method[i] = '\0';
+
+        if (strcasecmp(method, "GET"))
+        {
+            unimplemented(client);
+            return NULL;
+        }
+
+        i = 0;
+        while (ISspace(buf[j]) && (j < sizeof(buf)))
+            j++;
+        while (!ISspace(buf[j]) && (i < sizeof(url) - 1) && (j < sizeof(buf)))
+        {
+            url[i] = buf[j];
+            i++; j++;
+        }
+        url[i] = '\0';
+
+        if (strcasecmp(method, "GET") == 0)
+        {
+            query_string = url;
+            while ((*query_string != '?') && (*query_string != '\0'))
+                query_string++;
+        }
+
+        sprintf(path, "testfiles%s", url);
+        if (path[strlen(path) - 1] == '/')
+            strcat(path, "index.html");
+        if (stat(path, &st) == -1)
+        {
+            while ((numchars > 0) && strcmp("\n", buf))  /* read & discard headers */
+                numchars = get_line(client, buf, sizeof(buf));
+            not_found(client);
+        }
+        else
+        {
+            if ((st.st_mode & S_IFMT) == S_IFDIR)
+                strcat(path, "/index.html");
+            serve_file(client, path);
+        }
+    
+    }
+    printf("Closing client connection \n");
     close(client);
     return NULL;
 }
@@ -169,7 +177,6 @@ void cat(int client, FILE *fptr)
         {
             msg_len = send(client, buffer, bytes_read, 0);
         }
-        printf ("End-of-File reached.\n");
     }
     else
         printf ("An error occured while reading the file.\n");
@@ -202,34 +209,34 @@ void error_die(const char *sc)
 /**********************************************************************/
 int get_line(int sock, char *buf, int size)
 {
- int i = 0;
- char c = '\0';
- int n;
+    int i = 0;
+    char c = '\0';
+    int n;
 
- while ((i < size - 1) && (c != '\n'))
- {
-  n = recv(sock, &c, 1, 0);
-  /* DEBUG printf("%02X\n", c); */
-  if (n > 0)
-  {
-   if (c == '\r')
-   {
-    n = recv(sock, &c, 1, MSG_PEEK);
-    /* DEBUG printf("%02X\n", c); */
-    if ((n > 0) && (c == '\n'))
-     recv(sock, &c, 1, 0);
-    else
-     c = '\n';
-   }
-   buf[i] = c;
-   i++;
-  }
-  else
-   c = '\n';
- }
- buf[i] = '\0';
+    while ((i < size - 1) && (c != '\n'))
+    {
+        n = recv(sock, &c, 1, 0);
+        /* DEBUG printf("%02X\n", c); */
+        if (n > 0)
+        {
+            if (c == '\r')
+            {
+                n = recv(sock, &c, 1, MSG_PEEK);
+                /* DEBUG printf("%02X\n", c); */
+                if ((n > 0) && (c == '\n'))
+                    recv(sock, &c, 1, 0);
+                else
+                    c = '\n';
+            }
+            buf[i] = c;
+            i++;
+        }
+        else
+            c = '\n';
+    }
+    buf[i] = '\0';
  
- return(i);
+    return(i);
 }
 
 /**********************************************************************/
@@ -245,19 +252,30 @@ int get_line(int sock, char *buf, int size)
 void headers(int client, const char *filename)
 {
     char buf[1024];
-    (void)filename;  /* could use filename to determine file type */
+    int ret;
+    struct stat st;
+    int size;
+
     
     strcpy(buf, "HTTP/1.0 200 OK\r\n");
-    send(client, buf, strlen(buf), 0);
+    ret = send(client, buf, strlen(buf), 0);
+
     strcpy(buf, SERVER_STRING);
+    ret = send(client, buf, strlen(buf), 0);
+
+    stat(filename, &st);
+    size = st.st_size;
+    sprintf(buf, "Content-Length: %d\r\n", size);
     send(client, buf, strlen(buf), 0);
     
     if(Hollywood)
         sprintf(buf, "Content-Type: video/hlywd\r\n");
     else
         sprintf(buf, "Content-Type: video/mp4\r\n");
-    
+
     send(client, buf, strlen(buf), 0);
+    
+
     strcpy(buf, "\r\n");
     send(client, buf, strlen(buf), 0);
 }

@@ -9,6 +9,41 @@
 #include "http_ops.h"
 
 
+
+/**********************************************************************/
+
+
+int connect_tcp_port (char * host, char * port)
+{
+    struct addrinfo hints;
+    struct addrinfo *serveraddr;
+    int fd;
+    
+    /* Lookup hostname */
+    memset(&hints, 0, sizeof(hints));
+    hints.ai_family = PF_UNSPEC;
+    hints.ai_socktype = SOCK_STREAM;
+    if (getaddrinfo(host, port, &hints, &serveraddr) != 0) {
+        printf("Hostname lookup failed\n");
+        return -1;
+    }
+    
+    /* Create a socket */
+    if ((fd = socket(serveraddr->ai_family, serveraddr->ai_socktype, serveraddr->ai_protocol)) == -1) {
+        printf("Unable to create socket\n");
+        return -1;
+    }
+    
+    /* Connect to the receiver */
+    if (connect(fd, serveraddr->ai_addr, serveraddr->ai_addrlen) != 0) {
+        printf("Unable to connect to receiver\n");
+        close(fd);
+        return -1;
+    }
+    
+    return fd;
+}
+
 /**********************************************************************/
 
 int get_content_length( char * buf)
@@ -27,13 +62,11 @@ int get_html_headers(int sock, char *buf, int size, uint8_t hollywood)
 {
     int i = 0;
     char c = '\0';
-    char * tmp;
+    int retry = 0;
     int n;
     
-    n = recv(sock, buf, 4, 0);
-    i=4;
     
-    while ((i < size - 1) && strncmp(buf+i-4,"\r\n\r\n",4)!=0)
+    while ((i < size - 1) && retry < 3)
     {
         n = recv(sock, &c, 1, 0);
         /* DEBUG printf("%02X\n", c); */
@@ -42,16 +75,29 @@ int get_html_headers(int sock, char *buf, int size, uint8_t hollywood)
             buf[i] = c;
             i++;
         }
-        else
+        else if (n==0)
+        {
+            printf("get_html_headers: socket disconnected\n");
             break;
+        }
+        else
+        {
+            perror("get_html_headers: an error occured when receiving\n");
+            break;
+        }
+        
+        if (i >= 4)
+            if (strncmp(buf+i-4,"\r\n\r\n",4)==0)
+                break;
     }
+    printf("get_html_headers: Read n bytes: %d", i);
     buf[i] = '\0';
     
     return(i);
 }
 
 /**********************************************************************/
-/*
+/**
 int receive_response(int fd, struct metrics * metric, uint8_t hollywood)
 {
     char buf[1024];
@@ -65,25 +111,22 @@ int receive_response(int fd, struct metrics * metric, uint8_t hollywood)
         return -1;
     }
 
-    if(strstr(buf, "video/mp4")!=NULL)
+    if(strstr(buf, "video")!=NULL)
     {
-        return (receive_video_over_tcp(fd, metric));
+        return (receive_video(fd, metric, hollywood));
     }
-    else if(strstr(buf, "video/hlywd")!=NULL)
-    {
-        return receive_video_over_hlywd(fd, metric);
-    }
+
     return -1;
 }
-
- */
+*/
+ 
 
 
 /**********************************************************************/
 
 int send_get_request(int fd, char * url, uint8_t hollywood)
 {
-    char request[MAXREQUESTLENGTH]   = "";
+    char request[HTTPHEADERLEN]   = "";
     char host[MAXHOSTLEN]      = "";
     char filename[MAXURLLENGTH - MAXHOSTLEN]     = "";
     

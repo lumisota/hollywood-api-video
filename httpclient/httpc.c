@@ -11,37 +11,36 @@
 #include "mm_parser.h"
 #include "readmpd.h"
 #include "http_ops.h"
+#include "mm_download.h"
 
 #define PAGESIZE 500000
 
-
-
 #define ISspace(x) isspace((int)(x))
 /**********************************************************************/
-
-int receive_video_over_hlywd (int fd, struct metrics * metric)
-{
-    printf("Receiving file over TCP Hollywood\n");
-    metric->Hollywood = 1;
-    /* Create a Hollywood socket */
-    /*TODO: What is the third argument?, need to make it user assigned*/
-    if (hollywood_socket(fd, &(metric->h_sock), 0, 0) != 0) {
-        printf("Unable to create Hollywood socket\n");
-        return -1;
-    }
-    
-    return (mm_parser(metric));
-    
-}
-
-/**********************************************************************/
-
-int receive_video_over_tcp (int fd, struct metrics * metric)
-{
-    printf("Receiving file over TCP\n");
-    metric->Hollywood=0;
-    return (mm_parser(metric));
-}
+//
+//int receive_video_over_hlywd (int fd, struct metrics * metric)
+//{
+//    printf("Receiving file over TCP Hollywood\n");
+//    metric->Hollywood = 1;
+//    /* Create a Hollywood socket */
+//    /*TODO: What is the third argument?, need to make it user assigned*/
+//    if (hollywood_socket(fd, &(metric->h_sock), 0, 0) != 0) {
+//        printf("Unable to create Hollywood socket\n");
+//        return -1;
+//    }
+//    
+//    return (mm_parser(metric));
+//    
+//}
+//
+///**********************************************************************/
+//
+//int receive_video_over_tcp (int fd, struct metrics * metric)
+//{
+//    printf("Receiving file over TCP\n");
+//    metric->Hollywood=0;
+//    return (mm_parser(metric));
+//}
 
 
 /**********************************************************************/
@@ -101,19 +100,19 @@ int check_arguments(int argc, char* argv[], char * port, char * mpdlink, char * 
 
 /**********************************************************************/
 
-int fetch_manifest(int sockfd, char * mpdlink, struct metrics * metric)
+int fetch_manifest(int sockfd, char * mpdlink, uint8_t Hollywood, manifest * media_manifest )
 {
     char buf[1024];
     char memory[PAGESIZE];
     int contentlen;
     
-    send_get_request(sockfd, mpdlink, metric->Hollywood);
+    send_get_request(sockfd, mpdlink, Hollywood);
 
-    get_html_headers(sockfd, buf, 1024, metric->Hollywood);
+    get_html_headers(sockfd, buf, 1024, Hollywood);
     
     if(strstr(buf, "200 OK")==NULL)
     {
-        printf("Request Failed: \n");
+        printf("Manifest Request Failed: \n");
         printf("%s",buf);
         return -1;
     }
@@ -126,13 +125,13 @@ int fetch_manifest(int sockfd, char * mpdlink, struct metrics * metric)
         printf("Received no content length for manifest file \n");
 
 
-    if(write_to_memory (sockfd, memory, contentlen, metric->Hollywood)==0)
+    if(write_to_memory (sockfd, memory, contentlen, Hollywood)==0)
     {
         printf("Unable to receive mpd file \n");
         return -1;
     }
     else
-        return read_mpddata(memory, mpdlink, metric);
+        return read_mpddata(memory, mpdlink, media_manifest);
     
     return -1;
 
@@ -143,79 +142,59 @@ int fetch_manifest(int sockfd, char * mpdlink, struct metrics * metric)
 int main(int argc, char *argv[])
 {
     struct metrics metric;
-    int fd;
-    int len;
-    struct addrinfo hints, *serveraddr;
-    int result;
-    char mpdlink[MAXURLLENGTH] = "www.itec.uni-klu.ac.at/ftp/datasets/DASHDataset2014/BigBuckBunny/4sec/BigBuckBunny_4s_simple_2014_05_09.mpd";
+    manifest media_manifest     ={0};
+    transport media_transport;
+    int hollywood = 0;
+    char mpdlink[MAXURLLENGTH] = "127.0.0.1/BigBuckBunny/4sec/BigBuckBunny_4s_simple_2014_05_09.mpd";
     char filename[128] = "output.ts";
-    char port[6] = "8808";
     char path[380]  = "";
-    char host[128]  = "";
-    
+    init_metrics(&metric);
+    init_transport(&media_transport);
 
-    
-    char ch = 'A';
     /* Check for hostname parameter */
     if (argc > 1) {
-        if((check_arguments(argc, argv, port, mpdlink, filename))<0)
+        if((check_arguments(argc, argv, media_transport.port, mpdlink, filename))<0)
             return(0);
     }
-    init_metrics(&metric);
+
     
  //   printf("Looking up host :%s port: %s\n", mpdlink, port );
 
-    if (separate_host_and_filepath (mpdlink, host, path)<0)
+    if (separate_host_and_filepath (mpdlink, media_transport.host, path)<0)
     {
         printf ("Unable to separate link and filepath of the MPD link\n");
         return -1;
     }
     
-    /* Lookup hostname */
-    memset(&hints, 0, sizeof(hints));
-    hints.ai_family = PF_UNSPEC;
-    hints.ai_socktype = SOCK_STREAM;
-    if (getaddrinfo(host, port, &hints, &serveraddr) != 0) {
-        printf("Hostname lookup failed\n");
-        return 2;
-    }
-    
-    /* Create a socket */
-    if ((fd = socket(serveraddr->ai_family, serveraddr->ai_socktype, serveraddr->ai_protocol)) == -1) {
-        printf("Unable to create socket\n");
-        return 3;
-    }
-    
-    /* Connect to the receiver */
-    if (connect(fd, serveraddr->ai_addr, serveraddr->ai_addrlen) != 0) {
-        printf("Unable to connect to receiver\n");
-        close(fd);
-        return 4;
-    }
-    
-    metric.sock = fd;
-    metric.fptr=fopen(filename,"wb");
+    if((media_transport.sock = connect_tcp_port (media_transport.host, media_transport.port))<0)
+        return -1;
+        
+    media_transport.fptr=fopen(filename,"wb");
 
-    if (metric.fptr==NULL)
+    if (media_transport.fptr==NULL)
     {
         perror ("Error opening file:");
-        close(fd);
+        close(media_transport.sock);
         return 5;
     }
  
     metric.stime = gettimelong();
+    metric.t = &media_transport;
 
-    if(fetch_manifest(fd, mpdlink, &metric)<0)
+    if(fetch_manifest(media_transport.sock, mpdlink, hollywood, &media_manifest)<0)
         return 6;
     
-    for (int i = 0; i < metric.num_of_levels ; i++)
+    for (int i = 0; i < media_manifest.num_of_levels ; i++)
     {
-        printf(" BITRATE LEVEL : %d Presenting 1st and last URL\n", metric.bitrate_level[i].bitrate);
-        printf(" %s\n", metric.bitrate_level[i].segments[0]);
-        printf(" %s\n", metric.bitrate_level[i].segments[metric.num_of_segments-1]);
+        printf(" BITRATE LEVEL : %d Presenting 1st and last URL\n", media_manifest.bitrate_level[i].bitrate);
+        printf(" %s\n", media_manifest.bitrate_level[i].segments[0]);
+        printf(" %s\n", media_manifest.bitrate_level[i].segments[media_manifest.num_of_segments-1]);
     }
     
-    fclose(metric.fptr);
-    close(fd);
+    if(play_video(&metric, &media_manifest, &media_transport)==0)
+        printmetric(metric); 
+    
+    fclose(media_transport.fptr);
+    close(media_transport.sock);
     return 0;
 }

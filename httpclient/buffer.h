@@ -16,7 +16,9 @@
 #include "helper.h"
 
 #define MAX_OUTOFORDER_MSGS 10
-#define MAX_BUFFER_SIZE 10*100*1024
+
+/*Buffer size of 50MB, would hold for instance 50 seconds of a 8Mbps video*/
+#define MAX_BUFFER_SIZE 50*1024*1024
 
 
 

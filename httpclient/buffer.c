@@ -199,7 +199,7 @@ int pop_contiguous_msg(char * msg, int bufsize, int force)
 
 int save_new_msg(uint32_t curr_seq_num, char * msg, int readlen, int bufsize, uint32_t curr_offset )
 {
-    int relative_seq, first_byte, freespace;
+    int relative_seq, first_byte;
     
     if (m->first_offset!=0)
         relative_seq = curr_seq_num - m->last_parsed_seqnum - 1;
