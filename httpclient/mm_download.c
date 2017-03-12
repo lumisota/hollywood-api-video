@@ -12,6 +12,8 @@ pthread_t       av_tid;          /*thread id of the av parser thread*/
 
 
 
+
+
 int download_segments_tcp( manifest * m, transport * t )
 {
     char buf[HTTPHEADERLEN];
@@ -20,13 +22,18 @@ int download_segments_tcp( manifest * m, transport * t )
     int bytes_rx                    = 0;
     int contentlen                  = 0;
     int curr_segment                = 0;
-    int curr_bitrate_level          = 1;
+    int curr_bitrate_level          = 0;
     char * curr_url                 = NULL;
     int http_resp_len               = 0;
 
     while (curr_segment != m->num_of_segments )
     {
-        printf("Finished request for segment %d. Content len: %d, bytes rx: %d\n", curr_segment - 1, contentlen, bytes_rx); fflush(stdout);
+        printf("Finished request for segment %d. Content len: %d, bytes rx: %d at level : %d\n", curr_segment - 1, contentlen, bytes_rx, curr_bitrate_level); fflush(stdout);
+        
+//        if (curr_segment % 5 == 0 && curr_bitrate_level > 14)
+//            curr_bitrate_level--;
+        
+        
         bytes_rx = 0;
         curr_url = m->bitrate_level[curr_bitrate_level].segments[curr_segment];
 
@@ -34,10 +41,10 @@ int download_segments_tcp( manifest * m, transport * t )
 
         while (http_resp_len==0)
         {
-            if( send_get_request ( t->sock, curr_url, 0) < 0 )
+            if( send_get_request ( &t->sock, curr_url, 0) < 0 )
                 break;
         
-            http_resp_len = get_html_headers(t->sock, buf, HTTPHEADERLEN, t->Hollywood);
+            http_resp_len = get_html_headers(&t->sock, buf, HTTPHEADERLEN, t->Hollywood);
             if( http_resp_len == 0 )
             {
                 close(t->sock);
@@ -108,6 +115,7 @@ int download_segments_tcp( manifest * m, transport * t )
     
     if( t->rx_buf != NULL)
         pthread_cond_wait( &t->msg_ready, &t->msg_mutex );
+    
     t->stream_complete = 1;
     
     pthread_cond_signal(&t->msg_ready);
@@ -167,3 +175,4 @@ int play_video (struct metrics * metric, manifest * media_manifest , transport *
 
 
 }
+

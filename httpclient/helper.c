@@ -30,17 +30,17 @@ char *str_replace(char *orig, char *rep, char *with) {
 
     if (!orig)
     {
-//    	cout<<" not found "<<endl;
+       // printf(" not found 1\n");
         return NULL;
     }
     if (!rep || !(len_rep = strlen(rep)))
     {
-//    	cout<<" not found "<<endl;
+      //  printf(" not found 2 \n");
         return NULL;
     }
     if (!(ins = strstr(orig, rep)))
     {
-//    	cout<<" not found "<<endl;
+       // printf(" not found 3\n");
         return NULL;
     }
     if (!with)
@@ -61,7 +61,7 @@ char *str_replace(char *orig, char *rep, char *with) {
 
     if (!result)
     {
-//    	cout<<" not found "<<endl;
+    	//printf(" not found \n");
         return NULL;
     }
     while (count--) {

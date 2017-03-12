@@ -13,15 +13,12 @@
 #include <pthread.h>
 
 #include "mm_parser.h"
-#include "http_ops.h"
+#include "../common/http_ops.h"
 #include "readmpd.h"
 
 
 
 #define HOLLYWOOD_MSG_SIZE 1400
-
-
-
 
 int init_transport(transport * t);
 

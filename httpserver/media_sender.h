@@ -23,9 +23,8 @@
 #include <math.h>
 
 #define MAXQLEN 10 
-#define HOLLYWOOD_MSG_SIZE 1400
 #define HLYWD_MSG_TRAILER 8 /*sizeof(uint32)*2 offset+seq*/
-
+#define HOLLYWOOD_MSG_SIZE 1400 
 /* Only one message is passed to queue at a time
  next message will only be parsed once this message is sent
  */
@@ -52,7 +51,7 @@ struct parse_attr {
     struct hlywd_attr * h;
 };
 
-int send_media_over_hollywood(int fd, const char * filename);
+int send_media_over_hollywood(void * sock, const char * filename);
 
 /* function that parses an mp4 file and creates hollywood messages
 	it is called as a thread. and parse_attr is to be passed as argument */

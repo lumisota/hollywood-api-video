@@ -15,7 +15,7 @@
 #include <math.h>
 #include <libxml/parser.h>
 #include "helper.h"
-#include "http_ops.h"
+#include "../common/http_ops.h"
 
 
 #define MAX_SUPPORTED_BITRATE_LEVELS 24

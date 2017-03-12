@@ -10,10 +10,8 @@
 #include <netdb.h>
 #include "mm_parser.h"
 #include "readmpd.h"
-#include "http_ops.h"
+#include "../common/http_ops.h"
 #include "mm_download.h"
-
-#define PAGESIZE 500000
 
 #define ISspace(x) isspace((int)(x))
 /**********************************************************************/
@@ -41,11 +39,9 @@
 //    metric->Hollywood=0;
 //    return (mm_parser(metric));
 //}
-
-
 /**********************************************************************/
 
-int check_arguments(int argc, char* argv[], char * port, char * mpdlink, char * filename)
+int check_arguments(int argc, char* argv[], char * port, char * mpdlink, char * filename, uint8_t * hollywood)
 {
     int i;
     for(i=1; i<argc; i++)
@@ -86,6 +82,8 @@ int check_arguments(int argc, char* argv[], char * port, char * mpdlink, char * 
                 return -1;
             }
         }
+        else if(strcmp(argv[i], "--hollywood")==0)
+            *hollywood=1;
         else
         {
             printf ("Invalid arguments\n");
@@ -105,10 +103,11 @@ int fetch_manifest(int sockfd, char * mpdlink, uint8_t Hollywood, manifest * med
     char buf[1024];
     char memory[PAGESIZE];
     int contentlen;
+    printf("Hollywood is %d\n", Hollywood);
     
-    send_get_request(sockfd, mpdlink, Hollywood);
+    send_get_request(&sockfd, mpdlink, Hollywood);
 
-    get_html_headers(sockfd, buf, 1024, Hollywood);
+    get_html_headers(&sockfd, buf, 1024, Hollywood);
     
     if(strstr(buf, "200 OK")==NULL)
     {
@@ -125,7 +124,7 @@ int fetch_manifest(int sockfd, char * mpdlink, uint8_t Hollywood, manifest * med
         printf("Received no content length for manifest file \n");
 
 
-    if(write_to_memory (sockfd, memory, contentlen, Hollywood)==0)
+    if(read_to_memory (&sockfd, memory, contentlen, Hollywood)==0)
     {
         printf("Unable to receive mpd file \n");
         return -1;
@@ -144,7 +143,7 @@ int main(int argc, char *argv[])
     struct metrics metric;
     manifest media_manifest     ={0};
     transport media_transport;
-    int hollywood = 0;
+    uint8_t hollywood = 0;
     char mpdlink[MAXURLLENGTH] = "127.0.0.1/BigBuckBunny/4sec/BigBuckBunny_4s_simple_2014_05_09.mpd";
     char filename[128] = "output.ts";
     char path[380]  = "";
@@ -153,7 +152,7 @@ int main(int argc, char *argv[])
 
     /* Check for hostname parameter */
     if (argc > 1) {
-        if((check_arguments(argc, argv, media_transport.port, mpdlink, filename))<0)
+        if((check_arguments(argc, argv, media_transport.port, mpdlink, filename, &hollywood))<0)
             return(0);
     }
 
@@ -169,15 +168,16 @@ int main(int argc, char *argv[])
     if((media_transport.sock = connect_tcp_port (media_transport.host, media_transport.port))<0)
         return -1;
         
-    media_transport.fptr=fopen(filename,"wb");
+    media_transport.fptr=fopen( filename, "wb" );
 
     if (media_transport.fptr==NULL)
     {
-        perror ("Error opening file:");
+        perror ( "Error opening file:" );
         close(media_transport.sock);
         return 5;
     }
  
+    media_transport.Hollywood = 1;
     metric.stime = gettimelong();
     metric.t = &media_transport;
 

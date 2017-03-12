@@ -38,8 +38,6 @@ void shift_all_indices(int index)
 }
 
 
-
-
 /*  return value :
  >0  : packet is valid, forward msg to the parser
  -1  : packet is old, just discard it.

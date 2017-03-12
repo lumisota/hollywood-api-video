@@ -177,9 +177,12 @@ size_t encoded_len(size_t len) {
 /* Receives a message */
 ssize_t recv_message(hlywd_sock *socket, void *buf, size_t len, int flags, uint8_t *substream_id) {
 	while (socket->message_count == 0) {
+        printf("Receiving again \n" ); fflush(stdout);
+
 		uint8_t segment[1500+sizeof(tcp_seq)];
 		tcp_seq sequence_num = 0;
 		ssize_t segment_len = recv(socket->sock_fd, segment, 1500+sizeof(tcp_seq), flags);
+        printf("Received %d\n", segment_len); fflush(stdout);
 		if (segment_len <= 0) {
 			return segment_len;
 		}

@@ -30,25 +30,21 @@
 #include <sys/wait.h>
 #include <stdlib.h>
 #include "media_sender.h"
+#include "../common/http_ops.h"
 
 #define ISspace(x) isspace((int)(x))
 
 #define SERVER_STRING "Server: jdbhttpd/0.1.0\r\n"
 
-int     Hollywood = 0;
+uint8_t     Hollywood = 0;
 
 void * accept_request(void * a);
 void bad_request(int);
-void cat(int, FILE *);
 void cannot_execute(int);
 void error_die(const char *);
 void execute_cgi(int, const char *, const char *, const char *);
-int get_line(int, char *, int);
-void headers(int, const char *);
-void not_found(int);
-void serve_file(int, const char *);
+void serve_file(void * sock, const char *filename);
 int startup(u_short *);
-void unimplemented(int);
 int check_arguments(int argc, char* argv[], u_short * port);
 
 /**********************************************************************/
@@ -58,9 +54,10 @@ int check_arguments(int argc, char* argv[], u_short * port);
 /**********************************************************************/
 void * accept_request(void * a)
 {
-    int client = *((int *)a);
+    void * sock;
+    hlywd_sock h_sock;
     int num_of_requests = 0;
-    char buf[1024];
+    char buf[HTTPHEADERLEN];
     int numchars;
     char method[255];
     char url[255];
@@ -68,11 +65,34 @@ void * accept_request(void * a)
     size_t i, j;
     struct stat st;
     
+    if(Hollywood)
+    {
+
+        int client = *((int *)a);
+        if (hollywood_socket(client, &h_sock, 1, 0) != 0) {
+            printf("Unable to create Hollywood socket\n");
+            return NULL;
+        }
+        printf("Hollywood socket initialized for %d\n", client); fflush(stdout);
+        uint8_t substream_id;
+
+
+        sock = &h_sock;
+        printf("Reading hollywood %d\n", recv_message( &h_sock, buf, HTTPHEADERLEN, 0, &substream_id)); fflush(stdout);
+        printf("%s", buf);
+        
+    }
+    else
+    {
+        sock = a ;
+    }
+    
     while (num_of_requests < 100)
     {
         char *query_string = NULL;
+        printf("Getting HTML headers\n"); fflush(stdout);
 
-        numchars = get_line(client, buf, sizeof(buf));
+        numchars = get_html_headers(sock, buf, HTTPHEADERLEN, Hollywood);
         
         if (numchars == 0 )
             break;
@@ -87,10 +107,11 @@ void * accept_request(void * a)
 
         if (strcasecmp(method, "GET"))
         {
-            unimplemented(client);
+            unimplemented(sock, Hollywood);
             return NULL;
         }
 
+        printf("received a GET request: \n %s \n", buf);
         i = 0;
         while (ISspace(buf[j]) && (j < sizeof(buf)))
             j++;
@@ -111,22 +132,21 @@ void * accept_request(void * a)
         sprintf(path, "testfiles%s", url);
         if (path[strlen(path) - 1] == '/')
             strcat(path, "index.html");
+        printf("Requested path is %s\n", path); fflush(stdout);
         if (stat(path, &st) == -1)
         {
-            while ((numchars > 0) && strcmp("\n", buf))  /* read & discard headers */
-                numchars = get_line(client, buf, sizeof(buf));
-            not_found(client);
+            not_found(sock, Hollywood);
         }
         else
         {
             if ((st.st_mode & S_IFMT) == S_IFDIR)
                 strcat(path, "/index.html");
-            serve_file(client, path);
+            serve_file(sock, path);
         }
     
     }
     printf("Closing client connection \n");
-    close(client);
+    close(*(int *)a);
     return NULL;
 }
 
@@ -150,38 +170,7 @@ void bad_request(int client)
  send(client, buf, sizeof(buf), 0);
 }
 
-/**********************************************************************/
-/* Put the entire contents of a file out on a socket.  This function
- * is named after the UNIX "cat" command, because it might have been
- * easier just to do something like pipe, fork, and exec("cat").
- * Parameters: the client socket descriptor
- *             FILE pointer for the file to cat */
-/**********************************************************************/
-void cat(int client, FILE *fptr)
-{
-    char    buffer[1024];
-    int     bytes_read, msg_len;
 
-    bytes_read = fread(buffer, 1, 1024, fptr);
-    while(bytes_read==1024) {
-        msg_len = send(client, buffer, bytes_read, 0);
-        if (msg_len == -1) {
-            printf("Unable to send message over TCP\n");
-            return;
-        }
-        bytes_read = fread(buffer, 1,1024,fptr);
-
-    }
-    if (feof(fptr)) {
-        if(bytes_read > 0)
-        {
-            msg_len = send(client, buffer, bytes_read, 0);
-        }
-    }
-    else
-        printf ("An error occured while reading the file.\n");
-
-}
 
 /**********************************************************************/
 /* Print out an error message with perror() (for system errors; based
@@ -194,119 +183,7 @@ void error_die(const char *sc)
  exit(1);
 }
 
-/**********************************************************************/
-/* Get a line from a socket, whether the line ends in a newline,
- * carriage return, or a CRLF combination.  Terminates the string read
- * with a null character.  If no newline indicator is found before the
- * end of the buffer, the string is terminated with a null.  If any of
- * the above three line terminators is read, the last character of the
- * string will be a linefeed and the string will be terminated with a
- * null character.
- * Parameters: the socket descriptor
- *             the buffer to save the data in
- *             the size of the buffer
- * Returns: the number of bytes stored (excluding null) */
-/**********************************************************************/
-int get_line(int sock, char *buf, int size)
-{
-    int i = 0;
-    char c = '\0';
-    int n;
 
-    while ((i < size - 1) && (c != '\n'))
-    {
-        n = recv(sock, &c, 1, 0);
-        /* DEBUG printf("%02X\n", c); */
-        if (n > 0)
-        {
-            if (c == '\r')
-            {
-                n = recv(sock, &c, 1, MSG_PEEK);
-                /* DEBUG printf("%02X\n", c); */
-                if ((n > 0) && (c == '\n'))
-                    recv(sock, &c, 1, 0);
-                else
-                    c = '\n';
-            }
-            buf[i] = c;
-            i++;
-        }
-        else
-            c = '\n';
-    }
-    buf[i] = '\0';
- 
-    return(i);
-}
-
-/**********************************************************************/
-/* Return the informational HTTP headers about a file. */
-/* Parameters: the socket to print the headers on
- *             the name of the file */
-/**********************************************************************/
-/**********************************************************************/
-/* Return the informational HTTP headers about a file. */
-/* Parameters: the socket to print the headers on
- *             the name of the file */
-/**********************************************************************/
-void headers(int client, const char *filename)
-{
-    char buf[1024];
-    int ret;
-    struct stat st;
-    int size;
-
-    
-    strcpy(buf, "HTTP/1.0 200 OK\r\n");
-    ret = send(client, buf, strlen(buf), 0);
-
-    strcpy(buf, SERVER_STRING);
-    ret = send(client, buf, strlen(buf), 0);
-
-    stat(filename, &st);
-    size = st.st_size;
-    sprintf(buf, "Content-Length: %d\r\n", size);
-    send(client, buf, strlen(buf), 0);
-    
-    if(Hollywood)
-        sprintf(buf, "Content-Type: video/hlywd\r\n");
-    else
-        sprintf(buf, "Content-Type: video/mp4\r\n");
-
-    send(client, buf, strlen(buf), 0);
-    
-
-    strcpy(buf, "\r\n");
-    send(client, buf, strlen(buf), 0);
-}
-
-
-/**********************************************************************/
-/* Give a client a 404 not found status message. */
-/**********************************************************************/
-void not_found(int client)
-{
- char buf[1024];
-
- sprintf(buf, "HTTP/1.0 404 NOT FOUND\r\n");
- send(client, buf, strlen(buf), 0);
- sprintf(buf, SERVER_STRING);
- send(client, buf, strlen(buf), 0);
- sprintf(buf, "Content-Type: text/html\r\n");
- send(client, buf, strlen(buf), 0);
- sprintf(buf, "\r\n");
- send(client, buf, strlen(buf), 0);
- sprintf(buf, "<HTML><TITLE>Not Found</TITLE>\r\n");
- send(client, buf, strlen(buf), 0);
- sprintf(buf, "<BODY><P>The server could not fulfill\r\n");
- send(client, buf, strlen(buf), 0);
- sprintf(buf, "your request because the resource specified\r\n");
- send(client, buf, strlen(buf), 0);
- sprintf(buf, "is unavailable or nonexistent.\r\n");
- send(client, buf, strlen(buf), 0);
- sprintf(buf, "</BODY></HTML>\r\n");
- send(client, buf, strlen(buf), 0);
-}
 
 /**********************************************************************/
 /* Send a regular file to the client.  Use headers, and report
@@ -315,29 +192,33 @@ void not_found(int client)
  *              file descriptor
  *             the name of the file to serve */
 /**********************************************************************/
-void serve_file(int client, const char *filename)
+void serve_file(void * sock, const char *filename)
 {
     FILE *resource = NULL;
     int numchars = 1;
     char buf[1024];
 
     buf[0] = 'A'; buf[1] = '\0';
-    while ((numchars > 0) && strcmp("\n", buf))  /* read & discard headers */
-        numchars = get_line(client, buf, sizeof(buf));
 
     resource = fopen(filename, "r");
     if (resource == NULL)
-        not_found(client);
+        not_found(sock, Hollywood);
     else
     {
         printf("Sending file : %s using %d\n", filename, Hollywood);
-        headers(client, filename);
+
+        if ( send_resp_headers(sock, filename, Hollywood) < 0)
+        {
+            printf("Failure sending response headers to client \n");
+            return;
+        }
+        
         if((strstr(filename,".mp4")!=NULL || strstr(filename,".ts")!=NULL || strstr(filename,".m4s")!=NULL) && Hollywood==1)
         {
-            send_media_over_hollywood(client, filename);
+            send_media_over_hollywood(sock, filename);
         }
         else
-            cat(client, resource);
+            cat(sock, resource, Hollywood);
     }
     fclose(resource);
 }
@@ -376,32 +257,6 @@ int startup(u_short *port)
     return(httpd);
 }
 
-/**********************************************************************/
-/* Inform the client that the requested web method has not been
- * implemented.
- * Parameter: the client socket */
-/**********************************************************************/
-void unimplemented(int client)
-{
- char buf[1024];
-
- sprintf(buf, "HTTP/1.0 501 Method Not Implemented\r\n");
- send(client, buf, strlen(buf), 0);
- sprintf(buf, SERVER_STRING);
- send(client, buf, strlen(buf), 0);
- sprintf(buf, "Content-Type: text/html\r\n");
- send(client, buf, strlen(buf), 0);
- sprintf(buf, "\r\n");
- send(client, buf, strlen(buf), 0);
- sprintf(buf, "<HTML><HEAD><TITLE>Method Not Implemented\r\n");
- send(client, buf, strlen(buf), 0);
- sprintf(buf, "</TITLE></HEAD>\r\n");
- send(client, buf, strlen(buf), 0);
- sprintf(buf, "<BODY><P>HTTP request method not supported.\r\n");
- send(client, buf, strlen(buf), 0);
- sprintf(buf, "</BODY></HTML>\r\n");
- send(client, buf, strlen(buf), 0);
-}
 
 /**********************************************************************/
 
@@ -467,6 +322,7 @@ int main(int argc, char *argv[])
                        &client_name_len);
         if (client_sock == -1)
             error_die("accept");
+        printf("Accepting request for socket %d (from %d)\n", client_sock, server_sock); fflush(stdout); 
         /* accept_request(client_sock); */
         if (pthread_create(&newthread , NULL, accept_request, &client_sock) != 0)
             perror("pthread_create");

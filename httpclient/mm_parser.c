@@ -4,7 +4,7 @@
 #include <libavcodec/avcodec.h>
 
 #define DEBUG
-
+#define DECODE
 
 #define DIV_ROUND_CLOSEST(x, divisor)(                  \
 {                                                       \
@@ -74,7 +74,8 @@ static int decode_packet(int *got_frame, int cached)
                 return -1;
             }
             
-            printf("video_frame%s n:%d coded_n:%d ts:%lld\n",
+            if(video_frame_count%1000==0)
+                printf("video_frame%s n:%d coded_n:%d ts:%lld\n",
                    cached ? "(cached)" : "",
                    video_frame_count++, frame->coded_picture_number, cached ? (pkt.pts * vtb) / (SEC2PICO / SEC2MILI) : (pkt.dts * vtb) / (SEC2PICO / SEC2MILI));
             
@@ -85,7 +86,7 @@ static int decode_packet(int *got_frame, int cached)
                           pix_fmt, width, height);
             
             /* write to rawvideo file */
-            fwrite(video_dst_data[0], 1, video_dst_bufsize, video_dst_file);
+          //  fwrite(video_dst_data[0], 1, video_dst_bufsize, video_dst_file);
         }
     } else if (pkt.stream_index == audio_stream_idx) {
         /* decode audio frame */
@@ -315,6 +316,7 @@ void * mm_parser(void * opaque)
     av_dump_format(fmt_ctx, 0, src_filename, 0);
     
     
+#ifdef DECODE
     if (video_stream_idx != -1) {
         int vnum = fmt_ctx->streams[video_stream_idx]->time_base.num;
         if (vnum > (int) (UINT64_MAX / SEC2PICO)) {
@@ -356,7 +358,7 @@ void * mm_parser(void * opaque)
         printf("Demuxing video from file '%s' into '%s'\n", src_filename, video_dst_filename);
     if (audio_stream)
         printf("Demuxing audio from file '%s' into '%s'\n", src_filename, audio_dst_filename);
-    
+
     /* read frames from the file */
     while (av_read_frame(fmt_ctx, &pkt) >= 0) {
         AVPacket orig_pkt = pkt;
@@ -408,6 +410,66 @@ void * mm_parser(void * opaque)
                fmt, n_channels, audio_dec_ctx->sample_rate,
                audio_dst_filename);
     }
+    
+    
+#else 
+    int videoStreamIdx = -1;
+    int audioStreamIdx = -1;
+    unsigned int i;
+    for (i = 0; i < fmt_ctx->nb_streams; i++) {
+        if (fmt_ctx->streams[i]->codec->codec_type == AVMEDIA_TYPE_VIDEO) {
+            videoStreamIdx = i;
+        } else if (fmt_ctx->streams[i]->codec->codec_type == AVMEDIA_TYPE_AUDIO) {
+            audioStreamIdx = i;
+        }
+    }
+    
+    unsigned long long vtb = 0;
+    if (videoStreamIdx != -1) {
+        int vnum = fmt_ctx->streams[videoStreamIdx]->time_base.num;
+        if (vnum > (int) (UINT64_MAX / SEC2PICO)) {
+            fprintf(stderr, "vnum exceeds max uint64 value\n");
+            goto end;
+        }
+        int vden = fmt_ctx->streams[videoStreamIdx]->time_base.den;
+        vtb = DIV_ROUND_CLOSEST(vnum * SEC2PICO, vden);
+    }
+    
+    unsigned long long atb = 0;
+    if (audioStreamIdx != -1) {
+        int anum = fmt_ctx->streams[audioStreamIdx]->time_base.num;
+        if (anum > (int) (UINT64_MAX / SEC2PICO)) {
+            fprintf(stderr, "anum exceeds max uint64 value\n");
+            goto end;
+        }
+        int aden = fmt_ctx->streams[audioStreamIdx]->time_base.den;
+        atb = DIV_ROUND_CLOSEST(anum * SEC2PICO, aden);
+    }
+    
+    AVPacket pkt;
+    av_init_packet(&pkt);
+    pkt.data = NULL;
+    pkt.size = 0;
+    while (av_read_frame(fmt_ctx, &pkt) >= 0) {
+        if (pkt.stream_index == videoStreamIdx) {
+            if (pkt.dts > 0) {
+                m->TSlist[STREAM_VIDEO] = (pkt.dts * vtb) / (SEC2PICO / SEC2MILI);
+                printf("TS now: %llu, frame type: %d\n",  m->TSlist[STREAM_VIDEO], pkt.flags&AV_PKT_FLAG_KEY?1:0);
+                /*SA-10214- checkstall should be called after the TS is updated for each stream, instead of when new packets
+                 arrive, this ensures that we know exactly what time the playout would stop and stall would occur*/
+                checkstall(0, m);
+            }
+        } else if (pkt.stream_index == audioStreamIdx) {
+            if (pkt.dts > 0) {
+                m->TSlist[STREAM_VIDEO] = (pkt.dts * atb) / (SEC2PICO / SEC2MILI);
+                /*SA-10214- checkstall should be called after the TS is updated for each stream, instead of when new packets
+                 arrive, this ensures that we know exactly what time the playout would stop and stall would occur*/
+                checkstall(0, m);
+            }
+        }
+        av_packet_unref(&pkt);
+    }
+#endif
     
 end:
     avcodec_close(video_dec_ctx);

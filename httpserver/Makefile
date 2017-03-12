@@ -2,9 +2,9 @@ CC=gcc
 CCFLAGS=-c -g -I/usr/local/include
 LDFLAGS=-L/usr/local/lib -lpthread
 
-ALL_OBJ=media_sender.o httpd.o  
-ALL_SRC=media_sender.c httpd.c  
-ALL_HDR=media_sender.h  
+ALL_OBJ=media_sender.o httpd.o ../common/http_ops.o
+ALL_SRC=media_sender.c httpd.c ../common/http_ops.c
+ALL_HDR=media_sender.h ../common/http_ops.h
 LIB_SRC=hollywood.c cobs.c
 LIB_HDR=hollywood.h cobs.h
 LIB_OBJ=hollywood.o cobs.o

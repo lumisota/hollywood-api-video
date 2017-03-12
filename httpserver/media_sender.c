@@ -236,8 +236,9 @@ void * write_to_hollywood(void * a)
 
 
 
-int send_media_over_hollywood(int fd, const char * filename)
+int send_media_over_hollywood(void * sock, const char * filename)
 {
+    int fd = *(int * )sock;
     struct hlywd_attr   * h = (struct hlywd_attr * ) malloc (sizeof(struct hlywd_attr));
     struct parse_attr   * p = (struct parse_attr * ) malloc (sizeof(struct parse_attr));
     
