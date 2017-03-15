@@ -38,6 +38,34 @@
 #include <unistd.h>
 #include <time.h>
 
+#ifdef __MACH__
+#include <mach/mach_time.h>
+
+
+#define ORWL_NANO (+1.0E-9)
+#define ORWL_GIGA UINT64_C(1000000000)
+
+
+static double orwl_timebase = 0.0;
+static uint64_t orwl_timestart = 0;
+
+struct timespec orwl_gettime(void) {
+    // be more careful in a multithreaded environement
+    if (!orwl_timestart) {
+        mach_timebase_info_data_t tb = { 0 };
+        mach_timebase_info(&tb);
+        orwl_timebase = tb.numer;
+        orwl_timebase /= tb.denom;
+        orwl_timestart = mach_absolute_time();
+    }
+    struct timespec t;
+    double diff = (mach_absolute_time() - orwl_timestart) * orwl_timebase;
+    t.tv_sec = diff * ORWL_NANO;
+    t.tv_nsec = diff - (t.tv_sec * ORWL_GIGA);
+    return t;
+}
+#endif
+
 int main(int argc, char *argv[]) {
 	struct addrinfo hints, *serveraddr;
 	hlywd_sock hlywd_socket;
@@ -83,13 +111,22 @@ int main(int argc, char *argv[]) {
 	set_playout_delay(&hlywd_socket, atoi(argv[2]));
 
     struct timespec ts_now;
+    
+#ifdef __MACH__ // OS X does not have clock_gettime, use clock_get_time
+    ts_now = orwl_gettime();
+#else
 	clock_gettime(CLOCK_MONOTONIC, &ts_now);
+#endif
     uint64_t clock_start = (ts_now.tv_sec*1000000 + ts_now.tv_nsec/1000);
     
 	/* Send 6000 messages */
-	for (i = 0; i < 6000; i++) {
+	for (i = 0; i < 1; i++) {
         /* sleep */
+#ifdef __MACH__ // OS X does not have clock_gettime, use clock_get_time
+        ts_now = orwl_gettime();
+#else
         clock_gettime(CLOCK_MONOTONIC, &ts_now);
+#endif
         uint64_t wake_time = clock_start + (20000*(i+1));
         uint64_t time_now = (ts_now.tv_sec*1000000 + ts_now.tv_nsec/1000);
         if (wake_time > time_now) {
@@ -106,7 +143,7 @@ int main(int argc, char *argv[]) {
             current_time.tv_usec = current_time.tv_usec - 20000;
         }
         memcpy(buffer+sizeof(int), &current_time, sizeof(struct timeval));
-		msg_len = send_message_time(&hlywd_socket, buffer, 160, 0, i, i, 150);
+		msg_len = send_message(&hlywd_socket, buffer, 160, 0);
 		printf("[%lld.%.9ld] Sending message number %d (length: %d)..\n", (long long) ts_now.tv_sec, ts_now.tv_nsec, i, msg_len);
 		if (msg_len == -1) {
 			printf("Unable to send message\n");

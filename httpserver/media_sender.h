@@ -10,6 +10,7 @@
 #define ____media_sender__
 
 #include "../lib/hollywood.h"
+#include "../common/http_ops.h"
 
 #include <stdlib.h>
 #include <stdio.h>
@@ -23,8 +24,7 @@
 #include <math.h>
 
 #define MAXQLEN 10 
-#define HLYWD_MSG_TRAILER 8 /*sizeof(uint32)*2 offset+seq*/
-#define HOLLYWOOD_MSG_SIZE 1400 
+
 /* Only one message is passed to queue at a time
  next message will only be parsed once this message is sent
  */
@@ -41,7 +41,7 @@ struct hlywd_message{
 struct hlywd_attr {
     int seq;
     int qlen; /*number of messages waiting to be sent*/
-    hlywd_sock hlywd_socket;
+    hlywd_sock * hlywd_socket;
     uint8_t file_complete;
     struct hlywd_message * hlywd_msg;
 };
@@ -51,7 +51,7 @@ struct parse_attr {
     struct hlywd_attr * h;
 };
 
-int send_media_over_hollywood(void * sock, const char * filename);
+int send_media_over_hollywood(hlywd_sock * sock, FILE * fptr, int seq);
 
 /* function that parses an mp4 file and creates hollywood messages
 	it is called as a thread. and parse_attr is to be passed as argument */

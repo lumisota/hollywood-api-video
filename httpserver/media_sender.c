@@ -18,44 +18,14 @@ static uint32_t offset = 0;     /*offset added to last 4 bytes of the message*/
 static uint32_t seq = 0;
 
 
-
-/* returns 0 on success, else the error code */
-int initialize_socket ( const char * hostname )
-{
-    int fd;
-    struct addrinfo hints, *serveraddr;
-    /* Lookup hostname */
-    memset(&hints, 0, sizeof(hints));
-    hints.ai_family = PF_UNSPEC;
-    hints.ai_socktype = SOCK_STREAM;
-    if (getaddrinfo(hostname, "8882", &hints, &serveraddr) != 0) {
-        printf("Hostname lookup failed\n");
-        return -1;
-    }
-    
-    /* Create a socket */
-    if ((fd = socket(serveraddr->ai_family, serveraddr->ai_socktype, serveraddr->ai_protocol)) == -1) {
-        printf("Unable to create socket\n");
-        return -1;
-    }
-    
-    /* Connect to the receiver */
-    if (connect(fd, serveraddr->ai_addr, serveraddr->ai_addrlen) != 0) {
-        printf("Unable to connect to receiver\n");
-        return -1;
-    }
-    return fd; 
-}
-
 /* Add message to the queue of messages*/
 int add_msg_to_queue ( struct hlywd_message * msg, struct parse_attr * p )
 {
 
-    uint32_t tmp    = htonl(offset);
-    
+//    uint32_t tmp    = htonl(offset);
+//    memcpy(msg->message+msg->msg_size, &tmp, sizeof(uint32_t));
+    uint32_t tmp = htonl(seq);
     memcpy(msg->message+msg->msg_size, &tmp, sizeof(uint32_t));
-    tmp = htonl(seq);
-    memcpy(msg->message+msg->msg_size+sizeof(uint32_t), &tmp, sizeof(uint32_t));
     //printf("HOLLYWOOD: %llu : %u : %u\n", msg->msg_size, offset, tmp);
     
     
@@ -139,6 +109,7 @@ void * fill_timing_info(void * a)
     p->h->file_complete = 1;
     pthread_cond_signal(&msg_ready);
     pthread_mutex_unlock(&msg_mutex);
+    printf("Ending read thread\n");
 
     return NULL;
 }
@@ -151,7 +122,7 @@ void * write_to_hollywood(void * a)
     uint16_t depends_on;
     int msg_len;
 
-    h->seq=                     0;
+//    h->seq=                     0;
     
 #ifdef NOSEND
     char filename[256]="saved_output2.mp4";
@@ -213,7 +184,7 @@ void * write_to_hollywood(void * a)
             depends_on = h->seq + msg->depends_on;
         else
             depends_on = 0;
-        msg_len = send_message_time(&h->hlywd_socket, msg->message, msg->msg_size, 0, h->seq, depends_on, msg->lifetime_ms);
+        msg_len = send_message_time(h->hlywd_socket, msg->message, msg->msg_size, 0, h->seq, depends_on, msg->lifetime_ms);
         printf("Sending message number %d (length: %d (size %d))..depends on : %u , lifetime : %u \n", h->seq, msg_len, msg->msg_size, depends_on, msg->lifetime_ms );
         fflush(stdout);
         h->seq++;
@@ -228,47 +199,47 @@ void * write_to_hollywood(void * a)
         pthread_mutex_unlock(&msg_mutex);
         
     }
-#ifdef NOSEND
-    fclose(fptr);
-#endif  
+    printf("Ending write thread\n");
     return NULL;  
 }
 
 
 
-int send_media_over_hollywood(void * sock, const char * filename)
+int send_media_over_hollywood(hlywd_sock * sock, FILE * fptr, int seq)
 {
-    int fd = *(int * )sock;
-    struct hlywd_attr   * h = (struct hlywd_attr * ) malloc (sizeof(struct hlywd_attr));
-    struct parse_attr   * p = (struct parse_attr * ) malloc (sizeof(struct parse_attr));
+//    struct hlywd_attr   * h = (struct hlywd_attr * ) malloc (sizeof(struct hlywd_attr));
+//    struct parse_attr   * p = (struct parse_attr * ) malloc (sizeof(struct parse_attr));
+//    
+//    memset(p, 0, sizeof(struct parse_attr));
+//    memset(h, 0, sizeof(struct hlywd_attr));
     
-    memset(p, 0, sizeof(struct parse_attr));
-    memset(h, 0, sizeof(struct hlywd_attr));
+    struct hlywd_attr h     = {0};
+    struct parse_attr p     = {0};
     
     pthread_attr_t attr;
-    p-> fptr = NULL; /*file pointer for reading mp4 file*/
-    p->h = h;
-    
+    p.fptr = fptr; /*file pointer for reading mp4 file*/
+    p.h = &h;
+    h.hlywd_socket = sock ;
 #ifndef NOSEND
     
-    /*Initialize the hollywood socket*/
-    if (hollywood_socket(fd, &(h->hlywd_socket), 1, 0) != 0) {
-        printf("Unable to create Hollywood socket\n");
-        return 5;
-    }
-    
-    set_playout_delay(&(h->hlywd_socket), 100); /* Set the playout delay to 100ms */
+//    /*Initialize the hollywood socket*/
+//    if (hollywood_socket(fd, &(h->hlywd_socket), 1, 0) != 0) {
+//        printf("Unable to create Hollywood socket\n");
+//        return 5;
+//    }
+//    
+    set_playout_delay(h.hlywd_socket, 100); /* Set the playout delay to 100ms */
 #endif
     
-    h->seq = 0; /*Start the sequence numbers*/
+    h.seq = seq; /*Start the sequence numbers*/
     
     /*Open file*/
-    p->fptr=fopen(filename,"rb");
-    if (!p->fptr)
-    {
-        perror ("Error opening file:");
-        return 7;
-    }
+//    p->fptr=fopen(filename,"rb");
+//    if (!p->fptr)
+//    {
+//        perror ("Error opening file:");
+//        return 7;
+//    }
     
     /*Initialize the condition and mutex*/
     pthread_cond_init(&msg_ready, NULL);
@@ -279,11 +250,11 @@ int send_media_over_hollywood(void * sock, const char * filename)
     pthread_attr_init(&attr);
     pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_JOINABLE);
     
-    int err =pthread_create(&(av_tid), &attr, &fill_timing_info, (void *)p);
+    int err =pthread_create(&(av_tid), &attr, &fill_timing_info, (void *)&p);
     
     if(err!=0)
         printf("\ncan't create parser thread :[%s]", strerror(err));
-    err =pthread_create(&(h_tid), &attr, &write_to_hollywood, (void *)h);
+    err =pthread_create(&(h_tid), &attr, &write_to_hollywood, (void *)&h);
     if(err!=0)
         printf("\ncan't create hollywood sender thread :[%s]", strerror(err));
     
@@ -292,23 +263,32 @@ int send_media_over_hollywood(void * sock, const char * filename)
     pthread_join(h_tid, NULL);
     
 END:
-    
+
     /*close the file*/
-    if(p->fptr)
-        fclose(p->fptr);
-    
-    /*close the socket*/
-    if(fd>-1)
-        close(fd);
+//    if(p->fptr)
+//    {
+//        printf("Closing file\n"); fflush(stdout);
+//        fclose(p->fptr);
+//    }
+    printf("Freeing everything\n");fflush(stdout); 
     
     /*free the structures*/
-    free(h);
-    free(p);
-    
+   // free(h);
+   // free(p);
+    seq = h.seq;
     offset = 0;
     /*destroy the attr, mutex & condition*/
     pthread_attr_destroy(&attr);
-    pthread_cond_destroy (&msg_ready); 
+    printf("Freeing everything\n");fflush(stdout);
+
+    pthread_cond_destroy (&msg_ready);
+    printf("Freeing everything\n");fflush(stdout);
+
     pthread_mutex_destroy(&msg_mutex);
-    pthread_exit(NULL);
+    printf("Freeing everything\n");fflush(stdout);
+
+    //pthread_exit(NULL);
+    
+    printf("Returning \n");fflush(stdout);
+    return seq;
 }

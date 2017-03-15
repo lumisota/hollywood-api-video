@@ -17,7 +17,6 @@
 #define SEC2PICO UINT64_C(1000000000000)
 //#define SEC2NANO 1000000000
 #define SEC2MILI 1000
-#define HLYWD_MSG_TRAILER 4+4 /*sizeof(uint32)*2 offset+seq*/
 static uint minbuffer = MIN_PREBUFFER;
 static AVCodecContext *video_dec_ctx = NULL, *audio_dec_ctx;
 static int width, height;

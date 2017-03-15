@@ -98,16 +98,27 @@ int check_arguments(int argc, char* argv[], char * port, char * mpdlink, char * 
 
 /**********************************************************************/
 
-int fetch_manifest(int sockfd, char * mpdlink, uint8_t Hollywood, manifest * media_manifest )
+int fetch_manifest(transport * t, char * mpdlink, manifest * media_manifest )
 {
-    char buf[1024];
+    char buf[HTTPHEADERLEN];
     char memory[PAGESIZE];
     int contentlen;
-    printf("Hollywood is %d\n", Hollywood);
+    void * sock;
+    printf("Hollywood is %d\n", t->Hollywood);
     
-    send_get_request(&sockfd, mpdlink, Hollywood);
-
-    get_html_headers(&sockfd, buf, 1024, Hollywood);
+    if ( t->Hollywood)
+    {
+        sock = &(t->h_sock);
+    }
+    else
+    {
+        sock = &(t->sock);
+    }
+    
+    send_get_request(sock, mpdlink, t->Hollywood);
+        
+    get_html_headers(sock, buf, HTTPHEADERLEN, t->Hollywood);
+    
     
     if(strstr(buf, "200 OK")==NULL)
     {
@@ -123,8 +134,7 @@ int fetch_manifest(int sockfd, char * mpdlink, uint8_t Hollywood, manifest * med
     else if (contentlen == 0)
         printf("Received no content length for manifest file \n");
 
-
-    if(read_to_memory (&sockfd, memory, contentlen, Hollywood)==0)
+    if(read_to_memory (sock, memory, contentlen, t->Hollywood)==0)
     {
         printf("Unable to receive mpd file \n");
         return -1;
@@ -164,10 +174,17 @@ int main(int argc, char *argv[])
         printf ("Unable to separate link and filepath of the MPD link\n");
         return -1;
     }
-    
-    if((media_transport.sock = connect_tcp_port (media_transport.host, media_transport.port))<0)
-        return -1;
-        
+    if(hollywood)
+    {
+        if((media_transport.sock = connect_tcp_port (media_transport.host, media_transport.port, hollywood, &media_transport.h_sock))<0)
+            return -1;
+    }
+    else
+    {
+        if((media_transport.sock = connect_tcp_port (media_transport.host, media_transport.port, hollywood, &media_transport.sock ))<0)
+            return -1;
+    }
+
     media_transport.fptr=fopen( filename, "wb" );
 
     if (media_transport.fptr==NULL)
@@ -177,11 +194,11 @@ int main(int argc, char *argv[])
         return 5;
     }
  
-    media_transport.Hollywood = 1;
+    media_transport.Hollywood = hollywood;
     metric.stime = gettimelong();
     metric.t = &media_transport;
 
-    if(fetch_manifest(media_transport.sock, mpdlink, hollywood, &media_manifest)<0)
+    if(fetch_manifest(&media_transport, mpdlink, &media_manifest)<0)
         return 6;
     
     for (int i = 0; i < media_manifest.num_of_levels ; i++)

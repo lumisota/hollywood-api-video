@@ -43,7 +43,7 @@ void bad_request(int);
 void cannot_execute(int);
 void error_die(const char *);
 void execute_cgi(int, const char *, const char *, const char *);
-void serve_file(void * sock, const char *filename);
+int serve_file(void * sock, const char *filename, int seq);
 int startup(u_short *);
 int check_arguments(int argc, char* argv[], u_short * port);
 
@@ -64,22 +64,18 @@ void * accept_request(void * a)
     char path[512];
     size_t i, j;
     struct stat st;
+    int seq         = 0 ;
     
     if(Hollywood)
     {
 
         int client = *((int *)a);
-        if (hollywood_socket(client, &h_sock, 1, 0) != 0) {
+        if (hollywood_socket(client, &h_sock, 0, 0) != 0) {
             printf("Unable to create Hollywood socket\n");
             return NULL;
         }
         printf("Hollywood socket initialized for %d\n", client); fflush(stdout);
-        uint8_t substream_id;
-
-
         sock = &h_sock;
-        printf("Reading hollywood %d\n", recv_message( &h_sock, buf, HTTPHEADERLEN, 0, &substream_id)); fflush(stdout);
-        printf("%s", buf);
         
     }
     else
@@ -139,13 +135,17 @@ void * accept_request(void * a)
         }
         else
         {
+            int ret;
             if ((st.st_mode & S_IFMT) == S_IFDIR)
                 strcat(path, "/index.html");
-            serve_file(sock, path);
+            ret = serve_file(sock, path, seq);
+            if (ret > 0)
+                seq = ret;
+            
         }
     
     }
-    printf("Closing client connection \n");
+    printf("Closing client connection %d \n", *(int *)a);
     close(*(int *)a);
     return NULL;
 }
@@ -192,11 +192,12 @@ void error_die(const char *sc)
  *              file descriptor
  *             the name of the file to serve */
 /**********************************************************************/
-void serve_file(void * sock, const char *filename)
+int serve_file(void * sock, const char *filename, int seq)
 {
     FILE *resource = NULL;
     int numchars = 1;
     char buf[1024];
+    int ret;
 
     buf[0] = 'A'; buf[1] = '\0';
 
@@ -210,17 +211,20 @@ void serve_file(void * sock, const char *filename)
         if ( send_resp_headers(sock, filename, Hollywood) < 0)
         {
             printf("Failure sending response headers to client \n");
-            return;
+            return -1;
         }
         
         if((strstr(filename,".mp4")!=NULL || strstr(filename,".ts")!=NULL || strstr(filename,".m4s")!=NULL) && Hollywood==1)
         {
-            send_media_over_hollywood(sock, filename);
+            ret = send_media_over_hollywood((hlywd_sock *)sock, resource, seq);
         }
         else
-            cat(sock, resource, Hollywood);
+            ret = cat(sock, resource, Hollywood);
+        printf("Finished!! \n"); fflush(stdout); 
     }
     fclose(resource);
+    printf("File closed\n");
+    return ret;
 }
 
 /**********************************************************************/

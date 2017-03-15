@@ -13,7 +13,7 @@
 /**********************************************************************/
 
 
-int connect_tcp_port (char * host, char * port)
+int connect_tcp_port (char * host, char * port, uint8_t hollywood, void * sock)
 {
     struct addrinfo hints;
     struct addrinfo *serveraddr;
@@ -40,7 +40,21 @@ int connect_tcp_port (char * host, char * port)
         close(fd);
         return -1;
     }
-    
+    if (hollywood)
+    {
+        /* Create Hollywood socket */
+        if (hollywood_socket(fd, (hlywd_sock *) sock, 0, 0) != 0) {
+            printf("Unable to create Hollywood socket\n");
+            close(fd);
+            return -1;
+        }
+        
+    }
+    else
+    {
+        *(int *)sock = fd;
+    }
+        
     return fd;
 }
 
@@ -56,22 +70,6 @@ int get_content_length( char * buf)
         return 0;
 }
 
-/**********************************************************************/
-/********** Used for reading only control/http messages ***************/
-
-static int read_from_sock(void * sock, char * buf, int len, uint8_t hollywood)
-{
-    if(hollywood)
-    {
-        uint8_t substream_id;
-        printf("Reading hollywood %d\n", len); fflush(stdout);
-        return recv_message((hlywd_sock * )sock, buf, len, 0, &substream_id);
-    }
-    else
-    {
-        return recv(*((int *)sock), buf, len, 0);
-    }
-}
 
 /**********************************************************************/
 
@@ -79,63 +77,51 @@ int get_html_headers(void * sock, char *buf, int size, uint8_t hollywood)
 {
     int i = 0;
     char c = '\0';
-    int retry = 0;
     int n;
     
-    while ((i < size - 1) && retry < 3)
+    if(hollywood)
     {
-        n = read_from_sock(sock, &c, 1, hollywood);
-        printf("%02X: %d\n", c, n); fflush(stdout);
-        if (n > 0)
+        /*headers are sent as a single message*/
+        uint8_t substream_id;
+        i = recv_message((hlywd_sock * )sock, buf, size, 0, &substream_id);
+        if ( i < 0 )
         {
-            buf[i] = c;
-            i++;
+            printf("get_html_headers: Error reading from Hollywood socket \n");
+            i = 0;
         }
-        else if (n==0)
-        {
-          //  printf("get_html_headers: socket disconnected\n");
-            break;
-        }
-        else
-        {
-            perror("get_html_headers: an error occured when receiving\n");
-            break;
-        }
-        
-        if (i >= 4)
-            if (strncmp(buf+i-4,"\r\n\r\n",4)==0)
-                break;
     }
+    else
+    {
+        while (i < size - 1)
+        {
+            n = recv(*((int *)sock), &c, 1, 0);;
+           // printf("%02X: %d\n", c, n); fflush(stdout);
+            if (n > 0)
+            {
+                buf[i] = c;
+                i++;
+            }
+            else if (n==0)
+            {
+              //  printf("get_html_headers: socket disconnected\n");
+                break;
+            }
+            else
+            {
+                perror("get_html_headers: an error occured when receiving on TCP \n");
+                break;
+            }
+            
+            if (i >= 4)
+                if (strncmp(buf+i-4,"\r\n\r\n",4)==0)
+                    break;
+        }
    // printf("get_html_headers: Read n bytes: %d", i);
+    }
     buf[i] = '\0';
-    
+   // printf("Received response : %s\n", buf);
     return(i);
 }
-
-/**********************************************************************/
-/**
-int receive_response(int fd, struct metrics * metric, uint8_t hollywood)
-{
-    char buf[1024];
-    
-    get_html_headers(fd, buf, 1024, hollywood);
-    
-    if(strstr(buf, "200 OK")==NULL)
-    {
-        printf("Request Failed: \n");
-        printf("%s",buf);
-        return -1;
-    }
-
-    if(strstr(buf, "video")!=NULL)
-    {
-        return (receive_video(fd, metric, hollywood));
-    }
-
-    return -1;
-}
-*/
- 
 
 
 /**********************************************************************/
@@ -154,10 +140,9 @@ int send_get_request(void * sock, char * url, uint8_t hollywood)
 
     
     sprintf(request, "GET %s HTTP/1.1\r\nHost: %s\r\nAccept: */*\r\n\r\n", filename, host);
-    printf("%s\nLENGTH: %d\n", request, strlen(request));
+//    printf("%s\nLENGTH: %d\n", request, strlen(request));
     if(hollywood)
     {
-         send_message((hlywd_sock *)sock, request, strlen(request), 0);
         return send_message((hlywd_sock *)sock, request, strlen(request), 0);
     }
     else
@@ -200,22 +185,58 @@ int separate_host_and_filepath(char * url, char * host, char * path)
 
 /**********************************************************************/
 
+
+int read_http_body_partial(void * sock, uint8_t * buf, int buflen, uint8_t hollywood)
+{
+    int ret;
+    if(hollywood)
+    {
+        uint8_t substream_id;
+        printf("http_read:  "); fflush(stdout); 
+        ret = recv_message((hlywd_sock * )sock, buf, buflen, 0, &substream_id);
+        printf("Read %d bytes\n",ret); fflush(stdout);
+        if (ret > 0)
+            ret -= HLYWD_MSG_TRAILER; 
+    }
+    else
+    {
+        ret = recv(*((int *)sock), buf, buflen, 0);
+    }
+    
+    return ret;
+}
+
+/**********************************************************************/
+
+
 int read_to_memory (void * sock, char * memory, int contentlen, uint8_t hollywood)
 {
     int ret             = 0;
     int bytes_written   = 0;
+//    printf("Content len: %d ......", contentlen );
     do
     {
-            
-        ret = read_from_sock(sock,  memory + bytes_written, contentlen - bytes_written, hollywood);
+        
+        if(hollywood)
+        {
+            uint8_t substream_id;
+            ret = recv_message((hlywd_sock * )sock, memory + bytes_written, contentlen - bytes_written, 0, &substream_id);
+        }
+        else
+        {
+            ret = recv(*((int *)sock), memory + bytes_written, contentlen - bytes_written, 0);
+        }
+
         if ( ret > 0 )
             bytes_written += ret;
         else
         {
             printf("read_to_memory: Received return value %d while reading socket\n", ret);
         }
-    }while(ret>0 && bytes_written < contentlen);
-
+    }while(ret > 0 && bytes_written < contentlen);
+    
+ //   printf(" received\n");
+    
     return bytes_written;
 }
 
@@ -246,11 +267,11 @@ int send_resp_headers(void * sock , const char *filename, uint8_t hollywood)
     
     if(strstr(filename, "mp4")!=NULL)
         strcat(buf, "Content-Type: video/mp4\r\n");
-    if(strstr(filename, "m4s")!=NULL)
+    else if(strstr(filename, "m4s")!=NULL)
         strcat(buf, "Content-Type: video/mp4\r\n");
-    if(strstr(filename, "ts")!=NULL)
+    else if(strstr(filename, "ts")!=NULL)
         strcat(buf, "Content-Type: video/m2ts\r\n");
-    if(strstr(filename, "mpd")!=NULL)
+    else if(strstr(filename, "mpd")!=NULL)
         strcat(buf, "Content-Type: xml/manifest\r\n");
     else
         strcat(buf, "Content-Type: unknown\r\n");
