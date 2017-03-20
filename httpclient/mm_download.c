@@ -21,7 +21,7 @@ int download_segments_tcp( manifest * m, transport * t )
     int bytes_rx                    = 0;
     int contentlen                  = 0;
     int curr_segment                = 0;
-    int curr_bitrate_level          = 0;
+    int curr_bitrate_level          = 1;
     char * curr_url                 = NULL;
     int http_resp_len               = 0;
     void * sock;

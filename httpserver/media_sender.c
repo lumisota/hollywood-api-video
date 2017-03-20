@@ -22,10 +22,10 @@ static uint32_t seq = 0;
 int add_msg_to_queue ( struct hlywd_message * msg, struct parse_attr * p )
 {
 
-//    uint32_t tmp    = htonl(offset);
-//    memcpy(msg->message+msg->msg_size, &tmp, sizeof(uint32_t));
-    uint32_t tmp = htonl(seq);
+    uint32_t tmp    = htonl(offset);
     memcpy(msg->message+msg->msg_size, &tmp, sizeof(uint32_t));
+    tmp = htonl(seq);
+    memcpy(msg->message+msg->msg_size+sizeof(uint32_t), &tmp, sizeof(uint32_t));
     //printf("HOLLYWOOD: %llu : %u : %u\n", msg->msg_size, offset, tmp);
     
     

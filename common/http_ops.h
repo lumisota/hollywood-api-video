@@ -27,7 +27,7 @@
 #define MAXHOSTLEN 128
 #define SERVER_STRING "Server: jdbhttpd/0.1.0\r\n"
 #define PAGESIZE 500000
-#define HLYWD_MSG_TRAILER 4 /*sizeof(uint32)*2 offset+seq, not using offset now */
+#define HLYWD_MSG_TRAILER 8 /*sizeof(uint32)*2 offset+seq */
 #define HOLLYWOOD_MSG_SIZE 1400
 
 int get_content_length( char * buf);

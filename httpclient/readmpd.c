@@ -305,7 +305,7 @@ int read_mpddata(char * memory, char mpdlink[], manifest * m)
                 }
                 free(tmp);
             }
-            printf("%s\n", next_level->segments[k]);
+            //printf("%s\n", next_level->segments[k]);
 
         }
     }

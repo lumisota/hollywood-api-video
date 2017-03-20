@@ -4,7 +4,7 @@
 #include <libavcodec/avcodec.h>
 
 #define DEBUG
-#define DECODE
+//#define DECODE
 
 #define DIV_ROUND_CLOSEST(x, divisor)(                  \
 {                                                       \
@@ -490,10 +490,10 @@ int init_metrics(struct metrics *metric)
 {
     memzero(metric, sizeof(*metric));
     metric->t                       =NULL;
-    metric->Tmin                    =-1;
+    metric->Tplay                    =-1;
     metric->T0                      = -1;
     metric->htime                   = gettimelong();
-    metric->Tmin0                   = -1;
+    metric->Tempty                   = -1;
     metric->initialprebuftime       = -1;
     /*if this value is set to 0, the whole file is requested. */
     metric->playout_buffer_seconds  =0;
@@ -503,10 +503,10 @@ int init_metrics(struct metrics *metric)
 int stall_imminent(struct metrics * metric)
 {
     long long timenow = gettimelong();
-    /* check if there is less than 50ms of video left in buffer. Tmin is the start of playout.
-     * if Tmin is -1 this playout has not started so no need to check
+    /* check if there is less than 50ms of video left in buffer. Tplay is the start of playout.
+     * if Tplay is -1 this playout has not started so no need to check
     */
-    if(metric->Tmin >= 0 && ((double)(metric->TSnow-metric->TS0)*1000)-(timenow-metric->Tmin)<=50000)
+    if(metric->Tplay >= 0 && ((double)(metric->TSnow-metric->TS0)*1000)-(timenow-metric->Tplay)<=50000)
     {
         return 1;
     }
@@ -521,7 +521,7 @@ int stall_imminent(struct metrics * metric)
  * This function controls the playout and measures the stalls. It is called from inside the savetag functions
  * whenever there is a new TS. The savetag function only needs to update metric->TSnow before calling this function.
  */
-void checkstall(int end, struct metrics * metric)
+void checkstall(int end, struct metrics * m)
 {
     long long timenow = gettimelong();
     /*If more than one stream is being downloaded, they need to be synchronized
@@ -530,62 +530,72 @@ void checkstall(int end, struct metrics * metric)
      in same file, so the check for metric->numofstreams shouldn't be done.*/
     //	if(metric->numofstreams > 1)
     //	{
-    metric->TSnow= metric->TSlist[0];
+    m->TSnow= m->TSlist[0];
     int i;
     for(i=1; i<NUMOFSTREAMS; i++)
     {
-        if(metric->TSnow>metric->TSlist[i])
-            metric->TSnow=metric->TSlist[i];
+        if(m->TSnow>m->TSlist[i])
+            m->TSnow=m->TSlist[i];
     }
     //	}
-    if(metric->T0 < 0)
+    if(m->T0 < 0)
     {
         /*initial run, initialize values*/
-        metric->T0 = timenow; /* arrival time of first packet*/
-        metric->Tmin0= timenow; /*time at which prebuffering started*/
-        metric->TS0 = metric->TSnow; /*the earliest timestamp to be played out after prebuffering*/
+        m->T0       = timenow; /* arrival time of first packet*/
+        m->Tempty   = timenow; /*time at which prebuffering started*/
+        m->TS0      = m->TSnow; /*the earliest timestamp to be played out after prebuffering*/
     }
-    /* check if there is a stall, reset time values if there is. Tmin is the start of playout.
-     * if Tmin is -1 this playout has not started so no need to check
+    /* check if there is a stall, reset time values if there is. Tplay is the start of playout.
+     * if Tplay is -1 this playout has not started so no need to check
      * Adding 10ms (10000us) for the encoder and whatnots delay*/
-    if(metric->Tmin >= 0 && ((double)(metric->TSnow-metric->TS0)*1000) <=(timenow-metric->Tmin))
+    if(m->Tplay >= 0)
     {
-        metric->Tmin0=metric->Tmin+((metric->TSnow-metric->TS0)*1000);
-        metric->Tmin = -1;
-        metric->TS0 = metric->TSnow;
+        long time_to_decode = m->Tplay + (double)((m->TSnow - m->TS0)*1000);
+        printf("Time to decode : %lld, timenow %lld, time to wait %lld\n", time_to_decode, timenow, time_to_decode -timenow ); fflush(stdout);
+        if ( time_to_decode < timenow)
+        {
+            m->Tempty = m->Tplay + ((m->TSnow - m->TS0) * 1000);
+            m->Tplay = -1;
+            m->TS0 = m->TSnow;
 #ifdef DEBUG
-        printf("Stall has occured at TS: %" PRIu64 " and Time: %lld\n", metric->TSnow, metric->Tmin0); //calculate stall duration
+            printf("Stall has occured at TS: %" PRIu64 " and Time: %lld\n", m->TSnow, m->Tempty); //calculate stall duration
 #endif
+        }
+        else
+        {
+            unsigned long time_to_wait = time_to_decode - timenow;
+            usleep(time_to_wait);
+        }
         
     }
     
-    /*if Tmin<0, then video is buffering; check if prebuffer is reached*/
-    if(metric->Tmin< 0)
+    /*if Tplay<0, then video is buffering; check if prebuffer is reached*/
+    if(m->Tplay < 0)
     {
-        if(metric->TSnow-metric->TS0 >= minbuffer || end)
+        if(m->TSnow - m->TS0 >= minbuffer || end)
         {
-            metric->Tmin = timenow;
+            m->Tplay = timenow;
 #ifdef DEBUG
-            printf("Min prebuffer has occured at TS: %" PRIu64 "and Time: %" PRIu64 ", start time %lld \n", metric->TSnow, timenow, metric->T0);
+            printf("Min prebuffer has occured at TS: %" PRIu64 "and Time: %" PRIu64 ", start time %lld \n", m->TSnow, timenow, m->T0);
             
 #endif
-            if(metric->initialprebuftime<0)
+            if(m->initialprebuftime<0)
             {
-                metric->initialprebuftime=(double)(metric->Tmin-metric->stime);
-                metric->startup =(double)(metric->Tmin-metric->htime);
+                m->initialprebuftime = (double)(m->Tplay - m->stime);
+                m->startup = (double)(m->Tplay - m->htime);
                 /*stalls need shorter prebuffering, so change minbufer now that initial prebuf is done. */
                 minbuffer = MIN_STALLBUFFER;
             }
             else
             {
-                printf("youtubeevent12;%ld;%ld;%" PRIu64 ";%.3f\n",(long)gettimeshort(),(long)metric->htime/1000000, metric->TS0, (double)(metric->Tmin-metric->Tmin0)/1000);
-                ++metric->numofstalls;
-                metric->totalstalltime+=(double)(metric->Tmin-metric->Tmin0);
+                printf("youtubeevent12;%ld;%ld;%" PRIu64 ";%.3f\n",(long)gettimeshort(),(long)m->htime/1000000, m->TS0, (double)(m->Tplay - m->Tempty)/1000);
+                m->numofstalls++;
+                m->totalstalltime+=(double)(m->Tplay - m->Tempty);
             }
         }
 #ifdef DEBUG
         else
-            printf("Prebuffered time %" PRIu64 ", TSnow %" PRIu64 ", TS0 %" PRIu64 "\n",metric->TSnow-metric->TS0, metric->TSnow, metric->TS0); fflush(stdout);
+            printf("Prebuffered time %" PRIu64 ", TSnow %" PRIu64 ", TS0 %" PRIu64 "\n", m->TSnow - m->TS0, m->TSnow, m->TS0); fflush(stdout);
 #endif
         
     }

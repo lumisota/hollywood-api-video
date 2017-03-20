@@ -4,6 +4,7 @@
 #include <stdint.h>
 #include <stddef.h>
 #include <stdio.h>
+#include <unistd.h>
 #include <sys/time.h>
 #include <sys/socket.h>
 #include <pthread.h>
@@ -51,7 +52,6 @@ typedef struct {
 struct metrics
 {
     pthread_mutex_t av_mutex;      /*mutex of the message*/
-
     transport * t;
     /*vidoe metrics*/
     long long htime; /*unix timestamp when test began*/
@@ -65,8 +65,8 @@ struct metrics
     uint64_t TSnow; //TS now (in milliseconds)
     uint64_t TSlist[NUMOFSTREAMS]; //TS now (in milliseconds)
     uint64_t TS0; //TS when prebuffering started (in milliseconds). Would be 0 at start of movie, but would be start of stall time otherwise when stall occurs.
-    long long Tmin; // microseconds when prebuffering done or in other words playout began.
-    long long Tmin0; //microseconds when prebuffering started, Tmin0-Tmin should give you the time it took to prebuffer.
+    long long Tplay; // microseconds when prebuffering done or in other words playout began.
+    long long Tempty; //microseconds when prebuffering started, Tempty-Tplay should give you the time it took to prebuffer.
     long long T0; /*Unix timestamp when first packet arrived in microseconds*/
     int playout_buffer_seconds;
 };
