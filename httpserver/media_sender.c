@@ -14,8 +14,8 @@ pthread_t       h_tid;          /*thread id of the tcp hollywood sender thread*/
 pthread_cond_t  msg_ready;      /*indicates whether a full message is ready to be sent*/
 pthread_mutex_t msg_mutex;      /*mutex of the hlywd_message*/
 
-static uint32_t offset = 0;     /*offset added to last 4 bytes of the message*/
-static uint32_t seq = 0;
+extern uint32_t offset;     /*offset added to last 4 bytes of the message*/
+extern uint32_t stream_seq;
 
 
 /* Add message to the queue of messages*/
@@ -24,15 +24,15 @@ int add_msg_to_queue ( struct hlywd_message * msg, struct parse_attr * p )
 
     uint32_t tmp    = htonl(offset);
     memcpy(msg->message+msg->msg_size, &tmp, sizeof(uint32_t));
-    tmp = htonl(seq);
+    tmp = htonl(stream_seq);
     memcpy(msg->message+msg->msg_size+sizeof(uint32_t), &tmp, sizeof(uint32_t));
-    //printf("HOLLYWOOD: %llu : %u : %u\n", msg->msg_size, offset, tmp);
+  //  printf("HOLLYWOOD: %llu : %u : %u\n", msg->msg_size, offset, stream_seq);
     
     
     offset+=msg->msg_size;
     msg->msg_size+=HLYWD_MSG_TRAILER;
     
-    ++seq;
+    ++stream_seq;
     
     pthread_mutex_lock(&msg_mutex);
     
@@ -109,7 +109,7 @@ void * fill_timing_info(void * a)
     p->h->file_complete = 1;
     pthread_cond_signal(&msg_ready);
     pthread_mutex_unlock(&msg_mutex);
-    printf("Ending read thread\n");
+  //  printf("Ending read thread\n");
 
     return NULL;
 }
@@ -150,7 +150,7 @@ void * write_to_hollywood(void * a)
     
         if( h->qlen == 0 && h->file_complete )
         {
-            printf("Sending complete\n");
+          //  printf("Sending complete\n");
             pthread_mutex_unlock(&msg_mutex);
             break;
         }
@@ -185,7 +185,7 @@ void * write_to_hollywood(void * a)
         else
             depends_on = 0;
         msg_len = send_message_time(h->hlywd_socket, msg->message, msg->msg_size, 0, h->seq, depends_on, msg->lifetime_ms);
-        printf("Sending message number %d (length: %d (size %d))..depends on : %u , lifetime : %u \n", h->seq, msg_len, msg->msg_size, depends_on, msg->lifetime_ms );
+        //printf("Sending message number %d (length: %d (size %d))..depends on : %u , lifetime : %u \n", h->seq, msg_len, msg->msg_size, depends_on, msg->lifetime_ms );
         fflush(stdout);
         h->seq++;
         if (msg_len == -1) {
@@ -199,7 +199,7 @@ void * write_to_hollywood(void * a)
         pthread_mutex_unlock(&msg_mutex);
         
     }
-    printf("Ending write thread\n");
+ //   printf("Ending write thread\n");
     return NULL;  
 }
 
@@ -270,7 +270,6 @@ END:
 //        printf("Closing file\n"); fflush(stdout);
 //        fclose(p->fptr);
 //    }
-    printf("Freeing everything\n");fflush(stdout); 
     
     /*free the structures*/
    // free(h);
@@ -279,16 +278,12 @@ END:
     offset = 0;
     /*destroy the attr, mutex & condition*/
     pthread_attr_destroy(&attr);
-    printf("Freeing everything\n");fflush(stdout);
 
     pthread_cond_destroy (&msg_ready);
-    printf("Freeing everything\n");fflush(stdout);
 
     pthread_mutex_destroy(&msg_mutex);
-    printf("Freeing everything\n");fflush(stdout);
 
     //pthread_exit(NULL);
     
-    printf("Returning \n");fflush(stdout);
     return seq;
 }

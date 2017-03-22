@@ -3,7 +3,7 @@
 #include <libavformat/avformat.h>
 #include <libavcodec/avcodec.h>
 
-#define DEBUG
+//#define DEBUG
 //#define DECODE
 
 #define DIV_ROUND_CLOSEST(x, divisor)(                  \
@@ -132,7 +132,7 @@ static int mm_read(void * opaque, uint8_t *buf, int buf_size)
     
     pthread_mutex_lock(&t->msg_mutex);
 
-    if ( t->rx_buf == NULL)
+    if (is_empty(t->rx_buf))
     {
         if ( t->stream_complete == 1)
         {
@@ -144,23 +144,10 @@ static int mm_read(void * opaque, uint8_t *buf, int buf_size)
             pthread_cond_wait( &t->msg_ready, &t->msg_mutex );
     }
     
-    if ( t->buf_len > buf_size )
-    {
-        ret = buf_size;
-    }
-    else
-    {
-        ret = t->buf_len;
-    }
-  
-    t->buf_len -= ret;
-
+    ret = pop_message (t->rx_buf, buf, buf_size);
     
-    memcpy(buf, t->rx_buf, ret);
-    
-    if ( t->buf_len == 0 )
+    if (ret <= buf_size)
     {
-        t->rx_buf = NULL;
         pthread_cond_signal(&t->msg_ready);
     }
     
@@ -248,8 +235,8 @@ void * mm_parser(void * opaque)
     int got_frame;
     struct metrics * m = (struct metrics * ) opaque;
     av_register_all();
-	void *buff = av_malloc(100*1024);
-	AVIOContext *avio = avio_alloc_context(buff, MAX_BUFFER_SIZE, 0,
+	void *buff = av_malloc(HOLLYWOOD_MSG_SIZE);
+	AVIOContext *avio = avio_alloc_context(buff, HOLLYWOOD_MSG_SIZE, 0,
 			m->t, mm_read, NULL, NULL);
 	if (avio == NULL) {
         fprintf(stderr, "Could not alloc avio context\n\n");
@@ -312,7 +299,7 @@ void * mm_parser(void * opaque)
     }
     
     /* dump input information to stderr */
-    av_dump_format(fmt_ctx, 0, src_filename, 0);
+    //av_dump_format(fmt_ctx, 0, src_filename, 0);
     
     
 #ifdef DECODE
@@ -453,7 +440,7 @@ void * mm_parser(void * opaque)
         if (pkt.stream_index == videoStreamIdx) {
             if (pkt.dts > 0) {
                 m->TSlist[STREAM_VIDEO] = (pkt.dts * vtb) / (SEC2PICO / SEC2MILI);
-                printf("TS now: %llu, frame type: %d\n",  m->TSlist[STREAM_VIDEO], pkt.flags&AV_PKT_FLAG_KEY?1:0);
+           //     printf("TS now: %llu, frame type: %d\r",  m->TSlist[STREAM_VIDEO], pkt.flags&AV_PKT_FLAG_KEY?1:0); fflush(stdout);
                 /*SA-10214- checkstall should be called after the TS is updated for each stream, instead of when new packets
                  arrive, this ensures that we know exactly what time the playout would stop and stall would occur*/
                 checkstall(0, m);
@@ -467,6 +454,11 @@ void * mm_parser(void * opaque)
             }
         }
         av_packet_unref(&pkt);
+        
+        pthread_mutex_lock(&m->t->msg_mutex);
+        m->t->playout_time = m->TSnow;
+        pthread_mutex_unlock(&m->t->msg_mutex);
+
     }
 #endif
     
@@ -551,7 +543,7 @@ void checkstall(int end, struct metrics * m)
     if(m->Tplay >= 0)
     {
         long time_to_decode = m->Tplay + (double)((m->TSnow - m->TS0)*1000);
-        printf("Time to decode : %lld, timenow %lld, time to wait %lld\n", time_to_decode, timenow, time_to_decode -timenow ); fflush(stdout);
+        //printf("Time to decode : %lld, timenow %lld, time to wait %lld\n", time_to_decode, timenow, time_to_decode -timenow ); fflush(stdout);
         if ( time_to_decode < timenow)
         {
             m->Tempty = m->Tplay + ((m->TSnow - m->TS0) * 1000);

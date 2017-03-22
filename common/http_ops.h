@@ -52,6 +52,7 @@ int not_found(void * sock, uint8_t hollywood);
 
 int unimplemented(void * sock, uint8_t hollywood);
 
-int read_http_body_partial(void * sock, uint8_t * buf, int buflen, uint8_t hollywood);
+int read_http_body_partial(void * sock, uint8_t * buf, int buflen, uint8_t hollywood, uint32_t * seq, uint32_t * offset);
+
 
 #endif /* defined(____http_ops__) */

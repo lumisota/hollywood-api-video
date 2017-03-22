@@ -15,8 +15,9 @@
 
 #include "helper.h"
 #include "../lib/hollywood.h"
-#include "buffer.h"
+#include "playout_buffer.h"
 #include "readmpd.h"
+#include "../common/http_ops.h"
 
 #define MIN_PREBUFFER 2000 /* in millisecond*/
 #define MIN_STALLBUFFER 1000
@@ -33,25 +34,21 @@ enum stream_type {
 typedef struct {
     pthread_cond_t  msg_ready;      /*indicates that a new message has been received*/
     pthread_mutex_t msg_mutex;      /*mutex of the message*/
-
     uint8_t Hollywood;
     int sock;
     FILE * fptr;
-    uint8_t * rx_buf;
-    int buf_len;
     hlywd_sock h_sock;
-    uint8_t packets_queued;
-    uint32_t lowest_seq_num;
     uint8_t stream_complete;
     char port[6];
     char path[380];
     char host[128];
+    uint64_t playout_time;
+    struct playout_buffer * rx_buf;
 }transport;
 
 
 struct metrics
 {
-    pthread_mutex_t av_mutex;      /*mutex of the message*/
     transport * t;
     /*vidoe metrics*/
     long long htime; /*unix timestamp when test began*/

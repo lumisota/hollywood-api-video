@@ -222,9 +222,9 @@ int read_mpddata(char * memory, char mpdlink[], manifest * m)
         printf("Number of rate levels / segments is negative, check mpd. \n");
         return -1;
     }
-    printf("%d : %d\n", num_of_rates, m->num_of_segments);fflush(stdout);
-
+    
     m->num_of_levels = num_of_rates;
+    m->segment_dur = (segdur/timescale);
     
     for (int j = 0; j < num_of_rates; j++)
     {
@@ -250,7 +250,7 @@ int read_mpddata(char * memory, char mpdlink[], manifest * m)
         }
         else
         {
-            printf("Replaced bandwidth \n");
+            //printf("Replaced bandwidth \n");
             strcpy(next_level->segments[0], newurl);
             free(newurl);
         }

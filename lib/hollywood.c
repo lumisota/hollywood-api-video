@@ -179,9 +179,9 @@ ssize_t recv_message(hlywd_sock *socket, void *buf, size_t len, int flags, uint8
 	while (socket->message_count == 0) {
 		uint8_t segment[1500+sizeof(tcp_seq)];
 		tcp_seq sequence_num = 0;
-        printf("(Hollywood[%d:%d]... ",socket->sock_fd, flags);fflush(stdout);
+    //    printf("(Hollywood[%d:%d]... ",socket->sock_fd, flags);fflush(stdout);
 		ssize_t segment_len = recv(socket->sock_fd, segment, 1500+sizeof(tcp_seq), flags);
-        printf(" %d bytes (%x:%x)) ", segment_len, segment[0], segment[segment_len-1]); fflush(stdout);
+    //    printf(" %d bytes (%x:%x)) ", segment_len, segment[0], segment[segment_len-1]); fflush(stdout);
 
 		if (segment_len <= 0) {
 			return segment_len;
@@ -196,7 +196,7 @@ ssize_t recv_message(hlywd_sock *socket, void *buf, size_t len, int flags, uint8
 			socket->current_sequence_num += segment_len;
 		}
 		parse_segment(socket, segment, segment_len, sequence_num);
-        printf("(Parsed: %d bytes)", segment_len); fflush(stdout);
+//        printf("(Parsed: %d bytes)", segment_len); fflush(stdout);
 
 	}
 	return dequeue_message(socket, (uint8_t *)buf, substream_id);

@@ -104,7 +104,6 @@ int fetch_manifest(transport * t, char * mpdlink, manifest * media_manifest )
     char memory[PAGESIZE];
     int contentlen;
     void * sock;
-    printf("Hollywood is %d\n", t->Hollywood);
     
     if ( t->Hollywood)
     {
@@ -151,13 +150,15 @@ int fetch_manifest(transport * t, char * mpdlink, manifest * media_manifest )
 int main(int argc, char *argv[])
 {
     struct metrics metric;
-    manifest media_manifest     ={0};
+    manifest media_manifest     = {0};
     transport media_transport;
     uint8_t hollywood = 0;
     char mpdlink[MAXURLLENGTH] = "127.0.0.1/BigBuckBunny/4sec/BigBuckBunny_4s_simple_2014_05_09.mpd";
     char filename[128] = "output.ts";
     char path[380]  = "";
+    
     init_metrics(&metric);
+
     init_transport(&media_transport);
 
     /* Check for hostname parameter */
@@ -201,13 +202,13 @@ int main(int argc, char *argv[])
     if(fetch_manifest(&media_transport, mpdlink, &media_manifest)<0)
         return 6;
     
-    for (int i = 0; i < media_manifest.num_of_levels ; i++)
+/*    for (int i = 0; i < media_manifest.num_of_levels ; i++)
     {
         printf(" BITRATE LEVEL : %d Presenting 1st and last URL\n", media_manifest.bitrate_level[i].bitrate);
         printf(" %s\n", media_manifest.bitrate_level[i].segments[0]);
         printf(" %s\n", media_manifest.bitrate_level[i].segments[media_manifest.num_of_segments-1]);
     }
-    
+*/
     if(play_video(&metric, &media_manifest, &media_transport)==0)
         printmetric(metric); 
     

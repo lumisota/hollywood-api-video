@@ -32,6 +32,7 @@ typedef struct
     /*DASH params*/
     int num_of_segments;
     int num_of_levels;
+    int segment_dur;
     level bitrate_level[MAX_SUPPORTED_BITRATE_LEVELS];
     
 }manifest;

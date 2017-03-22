@@ -37,6 +37,8 @@
 #define SERVER_STRING "Server: jdbhttpd/0.1.0\r\n"
 
 uint8_t     Hollywood = 0;
+uint32_t offset = 0;     /*offset added to last 4 bytes of the message*/
+uint32_t stream_seq = 0;
 
 void * accept_request(void * a);
 void bad_request(int);
@@ -86,7 +88,6 @@ void * accept_request(void * a)
     while (num_of_requests < 100)
     {
         char *query_string = NULL;
-        printf("Getting HTML headers\n"); fflush(stdout);
 
         numchars = get_html_headers(sock, buf, HTTPHEADERLEN, Hollywood);
         
@@ -107,7 +108,7 @@ void * accept_request(void * a)
             return NULL;
         }
 
-        printf("received a GET request: \n %s \n", buf);
+       // printf("received a GET request: \n %s \n", buf);
         i = 0;
         while (ISspace(buf[j]) && (j < sizeof(buf)))
             j++;
@@ -128,7 +129,7 @@ void * accept_request(void * a)
         sprintf(path, "testfiles%s", url);
         if (path[strlen(path) - 1] == '/')
             strcat(path, "index.html");
-        printf("Requested path is %s\n", path); fflush(stdout);
+        //printf("Requested path: %s\n", path); fflush(stdout);
         if (stat(path, &st) == -1)
         {
             not_found(sock, Hollywood);
@@ -145,7 +146,7 @@ void * accept_request(void * a)
         }
     
     }
-    printf("Closing client connection %d \n", *(int *)a);
+    printf("\nClosing client connection %d after %d Requests \n", *(int *)a, num_of_requests);
     close(*(int *)a);
     return NULL;
 }
@@ -206,7 +207,7 @@ int serve_file(void * sock, const char *filename, int seq)
         not_found(sock, Hollywood);
     else
     {
-        printf("Sending file : %s using %d\n", filename, Hollywood);
+        printf("Sending file : %s using %d\r", filename, Hollywood);
 
         if ( send_resp_headers(sock, filename, Hollywood) < 0)
         {
@@ -219,11 +220,19 @@ int serve_file(void * sock, const char *filename, int seq)
             ret = send_media_over_hollywood((hlywd_sock *)sock, resource, seq);
         }
         else
+        {
+            if(Hollywood)
+            {
+                /*reset offset and seq numbers whenever a non-video (mpd) file is requested*/
+                offset = 0;     /*offset added to last 4 bytes of the message*/
+                stream_seq = 0;
+
+            }
             ret = cat(sock, resource, Hollywood);
-        printf("Finished!! \n"); fflush(stdout); 
+        }
     }
     fclose(resource);
-    printf("File closed\n");
+   // printf("File closed\n");
     return ret;
 }
 
@@ -326,7 +335,7 @@ int main(int argc, char *argv[])
                        &client_name_len);
         if (client_sock == -1)
             error_die("accept");
-        printf("Accepting request for socket %d (from %d)\n", client_sock, server_sock); fflush(stdout); 
+        printf("\nAccepting request for socket %d (from %d)\n", client_sock, server_sock); fflush(stdout);
         /* accept_request(client_sock); */
         if (pthread_create(&newthread , NULL, accept_request, &client_sock) != 0)
             perror("pthread_create");

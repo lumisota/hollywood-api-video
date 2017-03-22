@@ -186,21 +186,37 @@ int separate_host_and_filepath(char * url, char * host, char * path)
 /**********************************************************************/
 
 
-int read_http_body_partial(void * sock, uint8_t * buf, int buflen, uint8_t hollywood)
+int read_http_body_partial(void * sock, uint8_t * buf, int buflen, uint8_t hollywood, uint32_t * seq, uint32_t * offset)
 {
     int ret;
     if(hollywood)
     {
         uint8_t substream_id;
-        printf("http_read:  "); fflush(stdout); 
+     //   printf("http_read:  "); fflush(stdout);
         ret = recv_message((hlywd_sock * )sock, buf, buflen, 0, &substream_id);
-        printf("Read %d bytes\n",ret); fflush(stdout);
+       // printf("Read %d bytes\n",ret); fflush(stdout);
         if (ret > 0)
-            ret -= HLYWD_MSG_TRAILER; 
+        {
+            ret -= HLYWD_MSG_TRAILER;
+            if(offset!=NULL)
+            {
+                memcpy(offset, buf+ret, sizeof(uint32_t));
+                *offset = ntohl(*offset);
+            }
+            if(seq!=NULL)
+            {
+                memcpy(seq, buf+ret+sizeof(uint32_t), sizeof(uint32_t));
+                *seq = ntohl(*seq);
+            }
+        }
     }
     else
     {
         ret = recv(*((int *)sock), buf, buflen, 0);
+        if(seq!=NULL)
+        {
+            *seq = *seq+1;
+        }
     }
     
     return ret;

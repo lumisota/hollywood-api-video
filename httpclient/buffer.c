@@ -199,7 +199,7 @@ int save_new_msg(uint32_t curr_seq_num, char * msg, int readlen, int bufsize, ui
 {
     int relative_seq, first_byte;
     
-    if (m->first_offset!=0)
+    if (m->first_offset != 0)
         relative_seq = curr_seq_num - m->last_parsed_seqnum - 1;
     else
         relative_seq = curr_seq_num - 1;
