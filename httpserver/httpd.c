@@ -207,7 +207,7 @@ int serve_file(void * sock, const char *filename, int seq)
         not_found(sock, Hollywood);
     else
     {
-        printf("Sending file : %s using %d\r", filename, Hollywood);
+        printf("Sending file : %s using %d\r", filename, Hollywood); fflush(stdout); 
 
         if ( send_resp_headers(sock, filename, Hollywood) < 0)
         {

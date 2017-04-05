@@ -10,9 +10,16 @@
 
 #include <string.h>
 #include <sys/time.h>
+#include <stdlib.h>
+#include <string.h>
+#include <stdio.h>
+#include <time.h>
+#include <sys/time.h>
+#include <inttypes.h>
+#include <stdarg.h>
 
 char *str_replace(char *orig, char *rep, char *with);
-void printhelp(char *name);
+void printdebug(const char* source, const char* format, ... );
 
 
 static inline void memzero (void * ptr, int size)

@@ -487,7 +487,6 @@ int init_metrics(struct metrics *metric)
     metric->htime                   = gettimelong();
     metric->Tempty                   = -1;
     metric->initialprebuftime       = -1;
-    /*if this value is set to 0, the whole file is requested. */
     metric->playout_buffer_seconds  =0;
     return 0;
 }

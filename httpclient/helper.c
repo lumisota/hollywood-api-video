@@ -7,12 +7,17 @@
 
 
 #include "helper.h"
-#include <stdlib.h>
-#include <string.h>
-#include <stdio.h>
-#include <time.h>
-#include <sys/time.h>
-#include <inttypes.h>
+
+void printdebug(const char* source, const char* format, ... )
+{
+    va_list args;
+    fprintf( stdout,"%s: ", source );
+    va_start( args, format );
+    vfprintf( stdout, format, args );
+    va_end( args );
+    fprintf( stdout, "\n" );
+}
+
 
 /*http://stackoverflow.com/questions/779875/what-is-the-function-to-replace-string-in-c
  * Function returns NULL when there is no replacement to be made.
@@ -77,31 +82,6 @@ char *str_replace(char *orig, char *rep, char *with) {
     return result;
 }
 
-void printhelp(char * name)
-{
-	printf("You have used the --help switch so here is the help:\n\n");
-
-	printf("The program uses the configuration file configyt and default values to run, alternatively arguments can be provided to override both configyt and defaults:\n\n");
-
-	printf("Usage of the program:\n");
-	printf("\n");
-	printf("%s <optional-parameters>\n", name);
-	printf("\n");
-	printf("Optional parameters\n");
-	printf("\t<url> => URL of the YouTube video\n");
-	printf("\t--nodownload => Only get the video information, actual video is not downloaded\n");
-	printf("\n");
-	printf("\t--verbose => Print instantaneous metric values when downloading video\n\t\tHas no effect if --nodownload is used\n");
-	printf("\n");
-	printf("\t--range <x>=> The length of the playout buffer in seconds. If no value is given whole file is downloaded\n");
-	printf("\t\t otherwise only x worth of video is buffered at any time. Value of x must be greater than 5, smaller values\n\t\t default to 5 automatically\n"); 
-	printf("\n");
-	printf("\t--onebitrate => when used the client does not switch to lower bit rate when a stall occurs\n");
-	printf("\n");
-	printf("RUN WITHOUT ARGUMENTS FOR TESTING.\n");
-	exit(0); 
-
-}
 
 
 
