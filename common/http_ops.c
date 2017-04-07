@@ -158,9 +158,10 @@ int separate_host_and_filepath(char * url, char * host, char * path)
 {
     uint8_t url_found   = 0;
     int url_len         = strlen (url);
+    int i; 
     
     
-    for (int i = 0; i < url_len ; i++ )
+    for (i = 0; i < url_len ; i++ )
     {
         if (url_found==0)
         {

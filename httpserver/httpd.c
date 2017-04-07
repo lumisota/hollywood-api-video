@@ -275,7 +275,8 @@ int startup(u_short *port)
 
 int check_arguments(int argc, char* argv[], u_short * port)
 {
-    for(int i=1; i<argc; i++)
+    int i; 
+    for(i=1; i<argc; i++)
     {
         if(strcmp(argv[i], "--port")==0)
         {

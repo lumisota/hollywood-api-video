@@ -1,6 +1,6 @@
 CC=gcc
-CCFLAGS=-c -g -Wall -I/usr/local/include `xml2-config --cflags`
-LDFLAGS=-L/usr/local/lib -lpthread -lavformat -lavcodec -lavutil `xml2-config --libs`
+CCFLAGS=-std=gnu99 -c -g -Wall -I/usr/local/include `xml2-config --cflags`
+LDFLAGS=-L/usr/local/lib -lm -lpthread -lavformat -lavcodec -lavutil -lswresample `xml2-config --libs` -ldl
 
 SERVER_DIR=httpserver
 SERVER_OBJ=media_sender.o httpd.o 
@@ -45,8 +45,8 @@ $(LIB_OBJ): $(patsubst %,$(LIB_DIR)/%, $(LIB_HDR))
 
 
 httpd: $(COMMON_OBJ) $(SERVER_OBJ) $(LIB_OBJ)
-	$(CC) -lm -o httpd $(SERVER_OBJ) $(COMMON_OBJ) $(LIB_OBJ) $(LDFLAGS) 
+	$(CC) -o httpd $(SERVER_OBJ) $(COMMON_OBJ) $(LIB_OBJ) $(LDFLAGS) 
 
 httpc: $(COMMON_OBJ) $(CLIENT_OBJ) $(LIB_OBJ)
-	$(CC) -lm -o httpc $(CLIENT_OBJ) $(COMMON_OBJ) $(LIB_OBJ) $(LDFLAGS) 
+	$(CC) -o httpc $(CLIENT_OBJ) $(COMMON_OBJ) $(LIB_OBJ) $(LDFLAGS) 
 

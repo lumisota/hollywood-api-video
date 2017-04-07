@@ -1,6 +1,6 @@
 CC=gcc
 CCFLAGS=-c -g -Wall -I/usr/local/include `xml2-config --cflags`
-LDFLAGS=-L/usr/local/lib -lpthread -lavformat -lavcodec -lavutil `xml2-config --libs`
+LDFLAGS=-L/usr/local/lib -lpthread -lavformat -lavcodec -lavutil -lswresample `xml2-config --libs` -ldl
 
 
 ALL_OBJ=helper.o mm_parser.o httpc.o playout_buffer.o readmpd.o ../common/http_ops.o mm_download.o bola.o
