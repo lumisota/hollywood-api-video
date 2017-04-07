@@ -19,7 +19,7 @@
 #define BOLA_STATE_STARTUP          1
 #define BOLA_STATE_STEADY           2
 #define BOLA_DEBUG                  1
-#define MINIMUM_BUFFER_S            1 // BOLA should never add artificial delays if buffer is less than MINIMUM_BUFFER_S.
+#define MINIMUM_BUFFER_S            10 // BOLA should never add artificial delays if buffer is less than MINIMUM_BUFFER_S.
 #define BUFFER_TARGET_S             30 // If Schedule Controller does not allow buffer level to reach BUFFER_TARGET_S, this can be a placeholder buffer level.
 #define REBUFFER_SAFETY_FACTOR      0.5 // Used when buffer level is dangerously low, might happen often in live streaming.
 

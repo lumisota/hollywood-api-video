@@ -1,27 +1,52 @@
-CC=clang
-CPLUS=clang++
+CC=gcc
+CCFLAGS=-c -g -Wall -I/usr/local/include `xml2-config --cflags`
+LDFLAGS=-L/usr/local/lib -lpthread -lavformat -lavcodec -lavutil `xml2-config --libs`
 
-all: sender receiver file-receiver httpserver/httpd file-sender httpclient/httpc
+SERVER_DIR=httpserver
+SERVER_OBJ=media_sender.o httpd.o 
+SERVER_SRC=media_sender.c httpd.c 
+SERVER_HDR=media_sender.h 
+
+CLIENT_DIR=httpclient
+CLIENT_OBJ=helper.o mm_parser.o httpc.o playout_buffer.o readmpd.o mm_download.o bola.o
+CLIENT_SRC=helper.c mm_parser.c httpc.c playout_buffer.c readmpd.c mm_download.c bola.c
+CLIENT_HDR=helper.h mm_parser.h playout_buffer.h readmpd.h mm_download.h bola.h
+
+COMMON_DIR=common
+COMMON_OBJ=http_ops.o
+COMMON_SRC=http_ops.c
+COMMON_HDR=http_ops.h
+
+LIB_SRC=hollywood.c cobs.c
+LIB_HDR=hollywood.h cobs.h
+LIB_OBJ=hollywood.o cobs.o
+LIB_DIR=lib
+
+
+all: httpd httpc
 
 clean:
-	rm sender receiver file-sender file-receiver 
+	rm httpd httpc $(SERVER_OBJ) $(LIB_OBJ) $(CLIENT_OBJ) $(COMMON_OBJ)
 
-sender: sender.c lib/cobs.c lib/hollywood.c
-	$(CC) -g -lm -o sender sender.c lib/cobs.c lib/hollywood.c
 
-receiver: receiver.c lib/cobs.c lib/hollywood.c
-	$(CC) -g -lm -lpthread -o receiver receiver.c lib/cobs.c lib/hollywood.c
+$(COMMON_OBJ): $(patsubst %,$(COMMON_DIR)/%, $(COMMON_HDR))
+	$(CC) $(CCFLAGS) $(COMMON_DIR)/$*.c -o $*.o 
 
-httpclient/httpc: 
-	cd httpclient && $(MAKE)
 
-httpserver/httpd: httpserver/httpd.c httpserver/vdo-sender.cpp httpserver/mpeg.cpp httpserver/mpeg_a.cpp httpserver/helper.cpp lib/cobs.c lib/hollywood.c
-	$(CPLUS) -g -lm -o httpserver/httpd httpserver/httpd.c httpserver/vdo-sender.cpp httpserver/mpeg.cpp httpserver/mpeg_a.cpp httpserver/helper.cpp lib/cobs.c lib/hollywood.c -lpthread
+$(SERVER_OBJ): $(patsubst %,$(SERVER_DIR)/%, $(SERVER_HDR))
+	$(CC) $(CCFLAGS) $(SERVER_DIR)/$*.c -o $*.o 
 
-file-sender: file-sender.c lib/cobs.c lib/hollywood.c
-	$(CC) -g -lm -o file-sender file-sender.c lib/cobs.c lib/hollywood.c
 
-file-receiver: file-receiver.c lib/cobs.c lib/hollywood.c
-	$(CC) -g -lm -o file-receiver file-receiver.c lib/cobs.c lib/hollywood.c
+$(CLIENT_OBJ): $(patsubst %,$(CLIENT_DIR)/%, $(CLIENT_HDR))
+	$(CC) $(CCFLAGS) $(CLIENT_DIR)/$*.c -o $*.o 
 
+$(LIB_OBJ): $(patsubst %,$(LIB_DIR)/%, $(LIB_HDR)) 
+	$(CC) $(CCFLAGS) $(LIB_DIR)/$*.c -o $*.o 
+
+
+httpd: $(COMMON_OBJ) $(SERVER_OBJ) $(LIB_OBJ)
+	$(CC) -lm -o httpd $(SERVER_OBJ) $(COMMON_OBJ) $(LIB_OBJ) $(LDFLAGS) 
+
+httpc: $(COMMON_OBJ) $(CLIENT_OBJ) $(LIB_OBJ)
+	$(CC) -lm -o httpc $(CLIENT_OBJ) $(COMMON_OBJ) $(LIB_OBJ) $(LDFLAGS) 
 

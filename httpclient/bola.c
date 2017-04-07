@@ -309,8 +309,8 @@ int getMaxIndex(struct bola_state * bola, float bufferLevel)
             // At top quality, allow schedule controller to decide how far to fill buffer.
             delaySeconds = 0;
         } else {
-            //streamProcessor.getScheduleController().setTimeToLoadDelay(1000 * delaySeconds);
-            usleep(delaySeconds/1000000);
+            printdebug("BOLA", "Delaying to avoid overfilling buffer with low quality chunks (%f sec)", delaySeconds);
+            usleep(delaySeconds*1000000);
         }
     } else {
         delaySeconds = 0;
