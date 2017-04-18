@@ -14,15 +14,18 @@
 #include <string.h>
 #include <math.h>
 #include <libxml/parser.h>
-#include "helper.h"
+#include "../common/helper.h"
 #include "../common/http_ops.h"
 
 
 #define MAX_SUPPORTED_BITRATE_LEVELS 24
+#define READMPD ""
+//#define READMPD "READMPD"
+
 
 typedef struct
 {
-    int bitrate;
+    long bitrate;
     char **segments;
 } level;
 

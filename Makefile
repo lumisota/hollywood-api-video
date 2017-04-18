@@ -8,14 +8,14 @@ SERVER_SRC=media_sender.c httpd.c
 SERVER_HDR=media_sender.h 
 
 CLIENT_DIR=httpclient
-CLIENT_OBJ=helper.o mm_parser.o httpc.o playout_buffer.o readmpd.o mm_download.o bola.o
-CLIENT_SRC=helper.c mm_parser.c httpc.c playout_buffer.c readmpd.c mm_download.c bola.c
-CLIENT_HDR=helper.h mm_parser.h playout_buffer.h readmpd.h mm_download.h bola.h
+CLIENT_OBJ=mm_parser.o httpc.o playout_buffer.o readmpd.o mm_download.o bola.o
+CLIENT_SRC=mm_parser.c httpc.c playout_buffer.c readmpd.c mm_download.c bola.c
+CLIENT_HDR=mm_parser.h playout_buffer.h readmpd.h mm_download.h bola.h
 
 COMMON_DIR=common
-COMMON_OBJ=http_ops.o
-COMMON_SRC=http_ops.c
-COMMON_HDR=http_ops.h
+COMMON_OBJ=http_ops.o helper.o
+COMMON_SRC=http_ops.c helper.c 
+COMMON_HDR=http_ops.h helper.h
 
 LIB_SRC=hollywood.c cobs.c
 LIB_HDR=hollywood.h cobs.h

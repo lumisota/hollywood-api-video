@@ -13,6 +13,7 @@
 #include <math.h>
 #include "readmpd.h"
 #include "mm_parser.h"
+#include "../common/helper.h"
 
 
 #define BOLA_STATE_ONE_BITRATE      0
@@ -61,7 +62,7 @@ int getQualityFromThroughput(struct bola_state * bola, long throughput );
 int getQualityFromBufferLevel(struct bola_state * bola, float bufferLevel);
 int calculateInitialState(manifest * m, int isDynamic, struct bola_state * initialState);
 int getFirstIndex(struct bola_state * bola);
-int getMaxIndex(struct bola_state * bola, float bufferLevel);
+int getMaxIndex(struct bola_state * bola, float bufferLevel, long long stime);
 
 
 #endif /* defined(____bola__) */

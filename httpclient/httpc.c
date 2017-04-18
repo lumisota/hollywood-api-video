@@ -13,6 +13,7 @@
 #include "../common/http_ops.h"
 #include "mm_download.h"
 
+extern int verbose;
 #define ISspace(x) isspace((int)(x))
 /**********************************************************************/
 //
@@ -54,7 +55,7 @@ int check_arguments(int argc, char* argv[], char * port, char * mpdlink, char * 
             else
             {
                 printf ("Invalid arguments\n");
-                printf("Usage : %s --port <port number> --mpd <mpd link/url> --out <output file>\n", argv[0]);
+                printf("Usage : %s --port <port number> --mpd <mpd link/url> --out <output file> [--verbose]\n", argv[0]);
                 return -1;
             }
         }
@@ -66,7 +67,7 @@ int check_arguments(int argc, char* argv[], char * port, char * mpdlink, char * 
             else
             {
                 printf ("Invalid arguments\n");
-                printf("Usage : %s --port <port number> --mpd <mpd link/url> --out <output file>\n", argv[0]);
+                printf("Usage : %s --port <port number> --mpd <mpd link/url> --out <output file> [--verbose]\n", argv[0]);
                 return -1;
             }
         }
@@ -78,16 +79,18 @@ int check_arguments(int argc, char* argv[], char * port, char * mpdlink, char * 
             else
             {
                 printf ("Invalid arguments\n");
-                printf("Usage : %s --port <port number> --mpd <mpd link/url> --out <output file>\n", argv[0]);
+                printf("Usage : %s --port <port number> --mpd <mpd link/url> --out <output file> [--verbose]\n", argv[0]);
                 return -1;
             }
         }
         else if(strcmp(argv[i], "--hollywood")==0)
             *hollywood=1;
+        else if(strcmp(argv[i], "--verbose")==0)
+            verbose = 1;
         else
         {
             printf ("Invalid arguments\n");
-            printf("Usage : %s --port <port number> --mpd <mpd link/url> --out <output file>\n", argv[0]);
+            printf("Usage : %s --port <port number> --mpd <mpd link/url> --out <output file> [--verbose]\n", argv[0]);
             return -1;
             
         }
@@ -98,12 +101,15 @@ int check_arguments(int argc, char* argv[], char * port, char * mpdlink, char * 
 
 /**********************************************************************/
 
-int fetch_manifest(transport * t, char * mpdlink, manifest * media_manifest )
+long fetch_manifest(transport * t, char * mpdlink, manifest * media_manifest )
 {
     char buf[HTTPHEADERLEN];
     char memory[PAGESIZE];
     int contentlen;
     void * sock;
+    int bytes_rx;
+    long long start_time;
+    long Throughput = -1;
     
     if ( t->Hollywood)
     {
@@ -115,7 +121,8 @@ int fetch_manifest(transport * t, char * mpdlink, manifest * media_manifest )
     }
     
     send_get_request(sock, mpdlink, t->Hollywood);
-        
+    
+    start_time = gettimelong();
     get_html_headers(sock, buf, HTTPHEADERLEN, t->Hollywood);
     
     
@@ -133,14 +140,26 @@ int fetch_manifest(transport * t, char * mpdlink, manifest * media_manifest )
     else if (contentlen == 0)
         printf("Received no content length for manifest file \n");
 
-    if(read_to_memory (sock, memory, contentlen, t->Hollywood)==0)
+    bytes_rx = read_to_memory (sock, memory, contentlen, t->Hollywood);
+    if(bytes_rx<=0)
     {
         printf("Unable to receive mpd file \n");
         return -1;
     }
     else
-        return read_mpddata(memory, mpdlink, media_manifest);
+    {
+       // double download_time = gettimelong() - start_time;
+        long long download_time =gettimelong() - start_time;
+        Throughput = (long)((double)bytes_rx*8000000/download_time);  /*bps*/
+        if(read_mpddata(memory, mpdlink, media_manifest)<0)
+        {
+            printf("Unable to parse mpd file\n");
+            return -1;
+        }
+        return Throughput;
+    }
     
+
     return -1;
 
 }
@@ -153,9 +172,10 @@ int main(int argc, char *argv[])
     manifest media_manifest     = {0};
     transport media_transport;
     uint8_t hollywood = 0;
-    char mpdlink[MAXURLLENGTH] = "127.0.0.1/BigBuckBunny/4sec/BigBuckBunny_4s_simple_2014_05_09.mpd";
+    char mpdlink[MAXURLLENGTH] = "127.0.0.1/BigBuckBunny/1sec/mp2s/BBB.mpd";
     char filename[128] = "output.ts";
     char path[380]  = "";
+    long initial_throughput;
     
     init_metrics(&metric);
 
@@ -199,19 +219,25 @@ int main(int argc, char *argv[])
     metric.stime = gettimelong();
     metric.t = &media_transport;
 
-    if(fetch_manifest(&media_transport, mpdlink, &media_manifest)<0)
-        return 6;
-    
-/*    for (int i = 0; i < media_manifest.num_of_levels ; i++)
+    initialize_http_operations(metric.stime);
+
+    initial_throughput = fetch_manifest(&media_transport, mpdlink, &media_manifest);
+    if(initial_throughput<0)
     {
-        printf(" BITRATE LEVEL : %d Presenting 1st and last URL\n", media_manifest.bitrate_level[i].bitrate);
-        printf(" %s\n", media_manifest.bitrate_level[i].segments[0]);
-        printf(" %s\n", media_manifest.bitrate_level[i].segments[media_manifest.num_of_segments-1]);
+        printf("received negative throughput\n");
+        return 6;
     }
-*/
-    if(play_video(&metric, &media_manifest, &media_transport)==0)
+    for (int i = 0; i < media_manifest.num_of_levels ; i++)
+    {
+        printdebug(READMPD, " BITRATE LEVEL : %d (%d) Presenting 1st and last URL\n", media_manifest.bitrate_level[i].bitrate, i);
+        printdebug(READMPD, " %s\n", media_manifest.bitrate_level[i].segments[0]);
+        printdebug(READMPD, " %s\n", media_manifest.bitrate_level[i].segments[media_manifest.num_of_segments-1]);
+    }
+
+    if(play_video(&metric, &media_manifest, &media_transport, initial_throughput)==0)
         printmetric(metric); 
     
+    exit_http_operations(); 
     fclose(media_transport.fptr);
     close(media_transport.sock);
     return 0;

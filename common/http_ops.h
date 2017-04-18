@@ -20,7 +20,10 @@
 #include <ctype.h>
 #include <sys/stat.h>
 #include <netdb.h>
+#include <pthread.h>
+
 #include "../lib/hollywood.h"
+#include "helper.h"
 
 #define MAXURLLENGTH 512
 #define HTTPHEADERLEN 2048
@@ -54,5 +57,7 @@ int unimplemented(void * sock, uint8_t hollywood);
 
 int read_http_body_partial(void * sock, uint8_t * buf, int buflen, uint8_t hollywood, uint32_t * seq, uint32_t * offset);
 
+void exit_http_operations();
 
+int initialize_http_operations(long long stime);
 #endif /* defined(____http_ops__) */

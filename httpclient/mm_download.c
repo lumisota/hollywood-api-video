@@ -12,10 +12,11 @@ pthread_t       av_tid;          /*thread id of the av parser thread*/
 #define BUFFER_DURATION 5000 /*seconds*/
 #define IS_DYNAMIC      1
 
+//#define DOWNLOAD "DOWNLOAD"
+#define DOWNLOAD ""
 
 
-
-int download_segments( manifest * m, transport * t )
+int download_segments( manifest * m, transport * t , long long stime, long throughput)
 {
     char buf[HTTPHEADERLEN];
     struct bola_state bola          = {0};
@@ -30,11 +31,12 @@ int download_segments( manifest * m, transport * t )
     uint32_t new_seq                = 0;
     long long start_time            = 0;
     void * sock;
-    long buffered_duration           = 0;
+    long buffered_duration          = 0;
     
     /*Initialize bola, isDynamic is set to 1 (Live)*/
     curr_bitrate_level = calculateInitialState(m, IS_DYNAMIC, &bola);
-    
+    saveThroughput(&bola, throughput);  /*bps*/
+
     if ( t->Hollywood)
     {
         sock = &(t->h_sock);
@@ -61,7 +63,7 @@ int download_segments( manifest * m, transport * t )
         {
             /*Delay due to bufferLevel > bufferTarget is added to BOLA placeholder buffer*/
             long delay =(buffered_duration-BUFFER_DURATION);
-            printdebug("DOWNLOAD", "Buffer full, going to sleep for %ld seconds", delay);
+            printdebug(DOWNLOAD, "Buffer full, going to sleep for %ld seconds", delay);
 
             bola.placeholderBuffer+= (float)delay/1000.0;
             usleep(delay*1000);
@@ -73,18 +75,20 @@ int download_segments( manifest * m, transport * t )
         if(buffered_duration< 0)
         {
             /*This shouldn't happen*/
-            printdebug("DOWNLOAD","Getting negative buffered duration, zeroing it");
+            printdebug(DOWNLOAD,"Getting negative buffered duration, zeroing it");
             buffered_duration = 0 ; 
         }
-        curr_bitrate_level = getMaxIndex(&bola, (float)buffered_duration/1000.0);
-        printdebug("DOWNLOAD", "TSnow %ld, BufferLen %ld, BitrateLevel: %d, SegmentIndex: %d\n", t->playout_time, buffered_duration, curr_bitrate_level, curr_segment);
+        curr_bitrate_level = getMaxIndex(&bola, (float)buffered_duration/1000.0, stime);
+        curr_url = m->bitrate_level[curr_bitrate_level].segments[curr_segment];
+
+       // printf("PLAYOUT: ")
+        printf("BUFFER: %lld %lld %ld %d %d %ld\n", (gettimelong()-stime)/1000, t->playout_time, buffered_duration, curr_bitrate_level, curr_segment, m->bitrate_level[curr_bitrate_level].bitrate);
        // printf("\nFinished request for segment %d (Buffer len: %d s). Content len: %d, bytes rx: %d at level : %d\n", curr_segment - 1, buffered_duration/1000 , contentlen, bytes_rx, curr_bitrate_level); fflush(stdout);
         
         //        if (curr_segment % 5 == 0 && curr_bitrate_level > 14)
         //            curr_bitrate_level--;
         
         bytes_rx = 0;
-        curr_url = m->bitrate_level[curr_bitrate_level].segments[curr_segment];
         
         http_resp_len = 0 ;
         
@@ -200,18 +204,17 @@ int init_transport(transport * t)
 }
 
 
-int play_video (struct metrics * metric, manifest * media_manifest , transport * media_transport)
+int play_video (struct metrics * metric, manifest * media_manifest , transport * media_transport, long throughput)
 {
     pthread_attr_t attr;
 
     metric->stime = gettimelong();
-    printf("Starting download 1\n"); fflush(stdout);
     
     
     /*Initialize the condition and mutex*/
     pthread_cond_init(&media_transport->msg_ready, NULL);
     pthread_mutex_init(&media_transport->msg_mutex, NULL);
-    
+        
     pthread_attr_init(&attr);
     pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_JOINABLE);
     
@@ -223,7 +226,7 @@ int play_video (struct metrics * metric, manifest * media_manifest , transport *
         return -1;
     }
 
-    download_segments(media_manifest, media_transport);
+    download_segments(media_manifest, media_transport, metric->stime, throughput);
     
     /*wait for threads to end*/
     pthread_join(av_tid, NULL);

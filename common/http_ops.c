@@ -8,9 +8,72 @@
 
 #include "http_ops.h"
 
+pthread_t       http_tid;          /*thread id of the av parser thread*/
+static int exit_thread         = 0;
+static long long inst_bytes    = 0;
+static long long inst_time     = 0;
+static pthread_mutex_t http_mutex;      /*mutex for throughput metrics*/
 
+
+void * print_instantaneous_throughput(void * opaque)
+{
+    long long timenow;
+    long long starttime = *((long long *)opaque);
+
+    while (!exit_thread)
+    {
+        pthread_mutex_lock(&http_mutex);
+        timenow = gettimelong();
+        printf("RATE: %lld, %f\n", (timenow - starttime)/1000, (double)inst_bytes*8000000/(timenow - inst_time) );
+        inst_time = timenow;
+        inst_bytes = 0;
+        pthread_mutex_unlock(&http_mutex);
+        usleep(500000);
+    }
+    
+    pthread_mutex_destroy(&http_mutex);
+    free(opaque); 
+    return NULL;
+}
+
+void update_bytes_read(int bytes)
+{
+    if (bytes<=0)
+        return;
+    pthread_mutex_lock(&http_mutex);
+    inst_bytes += bytes;
+    pthread_mutex_unlock(&http_mutex);
+    
+}
+
+int initialize_http_operations(long long stime)
+{
+    void * starttime = malloc(sizeof(long long));
+    memcpy(starttime, &stime, sizeof(long long));
+    pthread_attr_t attr;
+    
+    pthread_attr_init(&attr);
+    pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_JOINABLE);
+    pthread_mutex_init(&http_mutex, NULL);
+    
+    int err = pthread_create(&(http_tid), &attr, &print_instantaneous_throughput, starttime);
+    
+    return err;
+}
+
+void exit_http_operations()
+{
+    pthread_mutex_lock(&http_mutex);
+    exit_thread = 1;
+    pthread_mutex_unlock(&http_mutex);
+    
+    pthread_join(http_tid, NULL);
+    return;
+}
 
 /**********************************************************************/
+
+
 
 
 int connect_tcp_port (char * host, char * port, uint8_t hollywood, void * sock)
@@ -89,12 +152,15 @@ int get_html_headers(void * sock, char *buf, int size, uint8_t hollywood)
             printf("get_html_headers: Error reading from Hollywood socket \n");
             i = 0;
         }
+        update_bytes_read(i);
     }
     else
     {
         while (i < size - 1)
         {
             n = recv(*((int *)sock), &c, 1, 0);;
+            update_bytes_read(n);
+
            // printf("%02X: %d\n", c, n); fflush(stdout);
             if (n > 0)
             {
@@ -198,6 +264,8 @@ int read_http_body_partial(void * sock, uint8_t * buf, int buflen, uint8_t holly
        // printf("Read %d bytes\n",ret); fflush(stdout);
         if (ret > 0)
         {
+            update_bytes_read(ret);
+
             ret -= HLYWD_MSG_TRAILER;
             if(offset!=NULL)
             {
@@ -214,6 +282,8 @@ int read_http_body_partial(void * sock, uint8_t * buf, int buflen, uint8_t holly
     else
     {
         ret = recv(*((int *)sock), buf, buflen, 0);
+        update_bytes_read(ret);
+
         if(seq!=NULL)
         {
             *seq = *seq+1;
@@ -238,10 +308,13 @@ int read_to_memory (void * sock, char * memory, int contentlen, uint8_t hollywoo
         {
             uint8_t substream_id;
             ret = recv_message((hlywd_sock * )sock, memory + bytes_written, contentlen - bytes_written, 0, &substream_id);
+            update_bytes_read(ret);
+
         }
         else
         {
             ret = recv(*((int *)sock), memory + bytes_written, contentlen - bytes_written, 0);
+            update_bytes_read(ret);
         }
 
         if ( ret > 0 )

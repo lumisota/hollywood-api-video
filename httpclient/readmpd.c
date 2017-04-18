@@ -63,12 +63,82 @@ int get_base_url (char * link)
 }
 
 
+
+
+//int populate_attributes(xmlNode * node, xmlNode * node3,  manifest * m)
+//{
+//    xmlAttr         * attribute;
+//
+//    if(xmlStrcmp(node3->name, (const xmlChar *) "SegmentTemplate")==0 || xmlStrcmp(node3->name, (const xmlChar *) "Representation")==0)
+//    {
+//        printdebug(READMPD, "\t\t Child is <%s> (%i)\n", node3->name, node3->type);
+//        attribute = node3->properties;
+//        while(attribute)
+//        {
+//            printdebug(READMPD,">>>>>>>>>>>>>>>>%s\n", (char *)attribute->name);
+//            if(xmlStrcmp(attribute->name, (const xmlChar *) "duration")==0)
+//            {
+//                xmlChar* value = xmlNodeListGetString(node->doc, attribute->children, 1);
+//                segdur=atoi((char *)value);
+//                xmlFree(value);
+//            }
+//            else if(xmlStrcmp(attribute->name, (const xmlChar *) "timescale")==0)
+//            {
+//                xmlChar* value = xmlNodeListGetString(node->doc, attribute->children, 1);
+//                timescale=atoi((char *)value);
+//                xmlFree(value);
+//            }
+//            else if(xmlStrcmp(attribute->name, (const xmlChar *) "initialization")==0
+//                    || xmlStrcmp(attribute->name, (const xmlChar *) "index")==0)
+//            {
+//                xmlChar* value = xmlNodeListGetString(node->doc, attribute->children, 1);
+//                strcpy(init_url[num_of_rates], base_url);
+//                strcat(init_url[num_of_rates], (char *)value);
+//                printdebug(READMPD,"Init_url being filled here!!! %s (%s)\n", init_url[num_of_rates], (char *)value); fflush(stdout);
+//                xmlFree(value);
+//            }
+//            else if(xmlStrcmp(attribute->name, (const xmlChar *) "media")==0)
+//            {
+//                xmlChar* value = xmlNodeListGetString(node->doc, attribute->children, 1);
+//                strcpy(media_url[num_of_rates], base_url);
+//                strcat(media_url[num_of_rates], (char *) value);
+//                printdebug(READMPD,"Media_url is %s \n", media_url[num_of_rates]);
+//                xmlFree(value);
+//            }
+//            else if(xmlStrcmp(attribute->name, (const xmlChar *) "id")==0)
+//            {
+//                xmlChar* value = xmlNodeListGetString(node->doc, attribute->children, 1);
+//                strcpy(repid,(char *)value);
+//                xmlFree(value);
+//            }
+//            else if(xmlStrcmp(attribute->name, (const xmlChar *) "height")==0)
+//            {
+//                xmlChar* value = xmlNodeListGetString(node->doc, attribute->children, 1);
+//                height=atoi((char *)value);
+//                xmlFree(value);
+//            }
+//            else if(xmlStrcmp(attribute->name, (const xmlChar *) "bandwidth")==0)
+//            {
+//                xmlChar* value = xmlNodeListGetString(node->doc, attribute->children, 1);
+//                strcpy(bw,(char *)value);
+//                xmlFree(value);
+//            }
+//            
+//            attribute = attribute->next;
+//        }
+//        return 1;
+//        
+//    }
+//    return 0;
+//}
+
+
 int read_mpddata(char * memory, char mpdlink[], manifest * m)
 {
-    xmlDoc          *document;
-    xmlNode         *root, *first_child, *node, *second_child, *node2, *third_child, *node3;
-    char            duration[25]="\0";
     xmlAttr         * attribute;
+    xmlDoc          *document;
+    xmlNode         *root, *first_child, *node, *second_child, *node2, *third_child, *node3, *fourth_child, *node4;
+    char            duration[25]="\0";
     float           dur, segdur=0, timescale=0;
     int             num_of_rates = 0, height;
     char            bw[25] = "", repid[25] = "";
@@ -79,28 +149,28 @@ int read_mpddata(char * memory, char mpdlink[], manifest * m)
     char            keyword_bw [12] = "$Bandwidth$";
     char            keyword_num [12] = "$Number$";
     char            segnum[5];
-    char            init_url[MAXURLLENGTH];
-    char            media_url[MAXURLLENGTH];
+    char            base_url[MAXURLLENGTH]  = "";
+    char            init_url_template[MAXURLLENGTH] = "";
+    char            media_url_template[MAXURLLENGTH] = "";
+    char            init_url[MAX_SUPPORTED_BITRATE_LEVELS][MAXURLLENGTH]  = {""};
+    char            media_url[MAX_SUPPORTED_BITRATE_LEVELS][MAXURLLENGTH] = {""};
     
     
-    
-    strcpy(init_url, mpdlink);
-    if(get_base_url(init_url)==0)
+    strcpy(base_url, mpdlink);
+    if(get_base_url(base_url)==0)
     {
-        printf("Unable to successfully extract the base URL\n");
+        printdebug(READMPD,"Unable to successfully extract the base URL\n");
         return -1;
     }
-    strcpy(media_url, init_url);
-        
+    
     document = xmlReadMemory(memory, strlen(memory), mpdlink, NULL, 0);
     root = xmlDocGetRootElement(document);
-  //  fprintf(stdout, "Root is <%s> (%i)\n", root->name, root->type);
-
+//    fprintf(stdout, "Root is <%s> (%i)\n", root->name, root->type);
     
     first_child = root->children;
     for (node = first_child; node; node = node->next)
     {
-      //  fprintf(stdout, "\t Child is <%s> (%i)\n", node->name, node->type);
+//        fprintf(stdout, "\t Child is <%s> (%i)\n", node->name, node->type);
         if(xmlStrcmp(node->name, (const xmlChar *) "Period")==0)
         {
             attribute = node->properties;
@@ -109,9 +179,9 @@ int read_mpddata(char * memory, char mpdlink[], manifest * m)
                 if(xmlStrcmp(attribute->name, (const xmlChar *) "duration")==0)
                 {
                     xmlChar* value = xmlNodeListGetString(node->doc, attribute->children, 1);
-                //    printf("\t\t%s : %s\n",(char *)attribute->name, (char *)value);
+                    printdebug(READMPD,"\t\t%s : %s\n",(char *)attribute->name, (char *)value);
                     strcpy(duration, (char *)value);
-                    printf("Duration is %s and %f\n", duration, dur =get_duration(duration));
+                    printdebug(READMPD, "Duration is %s and %f\n", duration, dur = get_duration(duration));
                     get_duration(duration);
                     xmlFree(value);
                     break;
@@ -121,18 +191,73 @@ int read_mpddata(char * memory, char mpdlink[], manifest * m)
             second_child = node->children;
             for (node2 = second_child; node2; node2 = node2->next)
             {
-              //  fprintf(stdout, "\t\t Child is <%s> (%i)\n", node2->name, node2->type);
+             //   fprintf(stdout, "\t\t Child is <%s> (%i)\n", node2->name, node2->type);
                 if(xmlStrcmp(node2->name, (const xmlChar *) "AdaptationSet")==0)
                 {
                     third_child = node2->children;
                     for (node3 = third_child; node3; node3 = node3->next)
+//                    {
+//                        if(ret>0 && xmlStrcmp(node3->name, (const xmlChar *) "Representation"))
+//                        {
+//                            /* add 2 to include init segment*/
+//                            m->num_of_segments = ceil(dur/(segdur/timescale)) + 1;
+//                            printdebug(READMPD, "Init segment : %s\n", init_url[num_of_rates]);
+//                            printdebug(READMPD, "Timescale : %f, Seg duration : %f\n", timescale, segdur);
+//                            printdebug(READMPD, "Number of Segments = %d\n", m->num_of_segments);
+//                            
+//                            strcpy(bandwidth[num_of_rates], bw);
+//                            strcpy(id[num_of_rates], repid);
+//                            num_of_rates++;
+//                            if(num_of_rates>=MAX_SUPPORTED_BITRATE_LEVELS)
+//                            {
+//                                printdebug(READMPD,"Number of rate levels exceeds the maximum allowed value\n");
+//                                return -1;
+//                            }
+//                            ret = 0;
+//                            strcpy(media_url[num_of_rates], base_url);
+//                            strcpy(init_url[num_of_rates], base_url);
+//                        }
+//                        ret = populate_attributes(node, node3, m);
+//                        if(ret<0)
+//                            return -1;
+//                        fourth_child = node3->children;
+//                        for (node4 = fourth_child; node4; node4 = node4->next)
+//                        {
+//                            if(populate_attributes(node, node4, m)<0)
+//                                return -1;
+//                        }
+//                           
+//                        
+//                    }
+//                    
+//                    if(ret>0)
+//                    {
+//                        /* add 2 to include init segment*/
+//                        m->num_of_segments = ceil(dur/(segdur/timescale)) + 1;
+//                        printdebug(READMPD, "Init segment : %s\n", init_url[num_of_rates]);
+//                        printdebug(READMPD, "Timescale : %f, Seg duration : %f\n", timescale, segdur);
+//                        printdebug(READMPD, "Number of Segments = %d\n", m->num_of_segments);
+//                      
+//                        strcpy(bandwidth[num_of_rates], bw);
+//                        strcpy(id[num_of_rates], repid);
+//                        num_of_rates++;
+//                        if(num_of_rates>=MAX_SUPPORTED_BITRATE_LEVELS)
+//                        {
+//                            printdebug(READMPD,"Number of rate levels exceeds the maximum allowed value\n");
+//                            return -1;
+//                        }
+//                    }
+//                  
+
+
                     {
                         if(xmlStrcmp(node3->name, (const xmlChar *) "SegmentTemplate")==0)
                         {
+                            printdebug(READMPD, "\t\t Child is <%s> (%i)\n", node3->name, node3->type);
                             attribute = node3->properties;
                             while(attribute)
                             {
-                               // printf(">>>>>>>>>>>>>>>>%s\n", (char *)attribute->name);
+                                printdebug(READMPD,">>>>>>>>>>>>>>>>%s\n", (char *)attribute->name);
                                 if(xmlStrcmp(attribute->name, (const xmlChar *) "duration")==0)
                                 {
                                     xmlChar* value = xmlNodeListGetString(node->doc, attribute->children, 1);
@@ -149,15 +274,17 @@ int read_mpddata(char * memory, char mpdlink[], manifest * m)
                                         || xmlStrcmp(attribute->name, (const xmlChar *) "index")==0)
                                 {
                                     xmlChar* value = xmlNodeListGetString(node->doc, attribute->children, 1);
-                                    strcat(init_url, (char *)value);
-                                  //  printf("Init_url being filled here!!! %s (%s)\n", init_url, (char *)value);
+                                    strcpy(init_url_template, base_url);
+                                    strcat(init_url_template, (char *)value);
+                                    printdebug(READMPD,"Init_url being filled here!!! %s (%s)\n", init_url_template, (char *)value); fflush(stdout);
                                     xmlFree(value);
                                 }
                                 else if(xmlStrcmp(attribute->name, (const xmlChar *) "media")==0)
                                 {
                                     xmlChar* value = xmlNodeListGetString(node->doc, attribute->children, 1);
-                                    strcat(media_url, (char *) value);
-                                 //   printf("Media_url is %s \n", media_url);
+                                    strcpy(media_url_template, base_url);
+                                    strcat(media_url_template, (char *) value);
+                                    printdebug(READMPD,"Media_url is %s \n", media_url_template);
                                     xmlFree(value);
                                 }
                                 
@@ -165,13 +292,12 @@ int read_mpddata(char * memory, char mpdlink[], manifest * m)
                             }
                             /* add 2 to include init segment*/
                             m->num_of_segments = ceil(dur/(segdur/timescale)) + 1;
-                            printf("Init segment : %s\n", init_url);
-                            printf("Timescale : %f, Seg duration : %f\n", timescale, segdur);
-                            printf("Number of Segments = %d\n", m->num_of_segments);
                         }
                         
                         if(xmlStrcmp(node3->name, (const xmlChar *) "Representation")==0)
                         {
+                    //        fprintf(stdout, "\t\t Child is <%s> (%i)\n", node3->name, node3->type);
+
                             attribute = node3->properties;
                             while(attribute)
                             {
@@ -197,19 +323,72 @@ int read_mpddata(char * memory, char mpdlink[], manifest * m)
                                 attribute = attribute->next;
                             }
                             
+                            fourth_child = node3->children;
+                            for (node4 = fourth_child; node4; node4 = node4->next)
+                            {
+                                if(xmlStrcmp(node4->name, (const xmlChar *) "SegmentTemplate")==0)
+                                {
+                                //    fprintf(stdout, "\t\t Child is <%s> (%i)\n", node4->name, node4->type);
+                                    attribute = node4->properties;
+                                    while(attribute)
+                                    {
+                                        printdebug(READMPD,">>>>>>>>>>>>>>>>%s\n", (char *)attribute->name);
+                                        if(xmlStrcmp(attribute->name, (const xmlChar *) "duration")==0)
+                                        {
+                                            xmlChar* value = xmlNodeListGetString(node->doc, attribute->children, 1);
+                                            segdur=atoi((char *)value);
+                                            xmlFree(value);
+                                        }
+                                        else if(xmlStrcmp(attribute->name, (const xmlChar *) "timescale")==0)
+                                        {
+                                            xmlChar* value = xmlNodeListGetString(node->doc, attribute->children, 1);
+                                            timescale=atoi((char *)value);
+                                            xmlFree(value);
+                                        }
+                                        else if(xmlStrcmp(attribute->name, (const xmlChar *) "initialization")==0
+                                                || xmlStrcmp(attribute->name, (const xmlChar *) "index")==0)
+                                        {
+                                            xmlChar* value = xmlNodeListGetString(node->doc, attribute->children, 1);
+                                            strcpy(init_url_template, base_url);
+                                            strcat(init_url_template, (char *)value);
+                                            printdebug(READMPD,"Init_url being filled here!!! %s (%s)\n", init_url_template, (char *)value); fflush(stdout);
+                                            xmlFree(value);
+                                        }
+                                        else if(xmlStrcmp(attribute->name, (const xmlChar *) "media")==0)
+                                        {
+                                            xmlChar* value = xmlNodeListGetString(node->doc, attribute->children, 1);
+                                            strcpy(media_url_template, base_url);
+                                            strcat(media_url_template, (char *) value);
+                                            printdebug(READMPD,"Media_url is %s \n", media_url_template);
+                                            xmlFree(value);
+                                        }
+                                        
+                                        attribute = attribute->next;
+                                    }
+                                    /* add 2 to include init segment*/
+                                    m->num_of_segments = ceil(dur/(segdur/timescale)) + 1;
+
+                                }
+                            }
+                            strcpy(media_url[num_of_rates], media_url_template);
+                            strcpy(init_url[num_of_rates], init_url_template);
                             strcpy(bandwidth[num_of_rates], bw);
                             strcpy(id[num_of_rates], repid);
+                            printdebug(READMPD, "Init segment : %s\n", init_url[num_of_rates]);
+                            printdebug(READMPD, "Media segment : %s\n", media_url[num_of_rates]);
+                            printdebug(READMPD, "Timescale : %f, Seg duration : %f\n", timescale, segdur);
+                            printdebug(READMPD, "Number of Segments = %d\n", m->num_of_segments);
                             num_of_rates++;
                             if(num_of_rates>=MAX_SUPPORTED_BITRATE_LEVELS)
                             {
-                                printf("Number of rate levels exceeds the maximum allowed value\n");
+                                printdebug(READMPD,"Number of rate levels exceeds the maximum allowed value\n");
                                 return -1;
                             }
                             
                         }
                         
                     }
-                    
+            
                 }
             }
             
@@ -219,7 +398,7 @@ int read_mpddata(char * memory, char mpdlink[], manifest * m)
 
     if( m->num_of_segments < 0)
     {
-        printf("Number of rate levels / segments is negative, check mpd. \n");
+        printdebug(READMPD,"Number of rate levels / segments is negative, check mpd. \n");
         return -1;
     }
     
@@ -236,12 +415,12 @@ int read_mpddata(char * memory, char mpdlink[], manifest * m)
         
         next_level->bitrate = atoi(bandwidth[j]);
         
-        newurl = str_replace(init_url, keyword_bw, bandwidth[j]);
+        newurl = str_replace(init_url[j], keyword_bw, bandwidth[j]);
         if(newurl == NULL)
         {
-            newurl = str_replace(init_url, keyword_id, id[j]);
+            newurl = str_replace(init_url[j], keyword_id, id[j]);
             if(newurl == NULL)
-                strcpy(next_level->segments[0], init_url);
+                strcpy(next_level->segments[0], init_url[j]);
             else
             {
                 strcpy(next_level->segments[0], newurl);
@@ -250,7 +429,7 @@ int read_mpddata(char * memory, char mpdlink[], manifest * m)
         }
         else
         {
-            //printf("Replaced bandwidth \n");
+            //printdebug(READMPD,"Replaced bandwidth \n");
             strcpy(next_level->segments[0], newurl);
             free(newurl);
         }
@@ -259,16 +438,16 @@ int read_mpddata(char * memory, char mpdlink[], manifest * m)
         for (int k = 1; k < m->num_of_segments; k++)
         {
             sprintf(segnum,"%d", k);
-            tmp = str_replace(media_url, keyword_bw, bandwidth[j]);
+            tmp = str_replace(media_url[j], keyword_bw, bandwidth[j]);
             if ( tmp == NULL )
             {
-                tmp = str_replace(media_url, keyword_id, id[j]);
+                tmp = str_replace(media_url[j], keyword_id, id[j]);
                 if(tmp == NULL)
                 {
-                    newurl = str_replace(media_url, keyword_num, segnum);
+                    newurl = str_replace(media_url[j], keyword_num, segnum);
                     if(newurl == NULL)
                     {
-                        strcpy(next_level->segments[k], media_url);
+                        strcpy(next_level->segments[k], media_url[j]);
                     }
                     else
                     {
@@ -305,7 +484,7 @@ int read_mpddata(char * memory, char mpdlink[], manifest * m)
                 }
                 free(tmp);
             }
-            //printf("%s\n", next_level->segments[k]);
+            //printdebug(READMPD,"%s\n", next_level->segments[k]);
 
         }
     }

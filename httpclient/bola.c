@@ -7,7 +7,11 @@
 //
 
 #include "bola.h"
+#define BOLA ""
+#define BOLAMETRIC ""
 
+//#define BOLAMETRIC "ABR"
+//#define BOLA "BOLA"
 
 
 float getStableBufferTime()
@@ -93,7 +97,7 @@ int calculateParameters(int minimumBufferS, int bufferTargetS, manifest * m, str
     {
         bola->bitrates[i] = (double)m->bitrate_level[i].bitrate;
         bola->utilities[i] = log ((float)bola->bitrates[i]/bola->bitrates[0]);
-        printdebug("BOLA", "Level = %d\tBitrate = %d\tUtility = %f", i, bola->bitrates[i], bola->utilities[i]);
+        printdebug(BOLA, "Level = %d\tBitrate = %f\tUtility = %f", i, bola->bitrates[i], bola->utilities[i]);
 
     }
     bola->num_of_levels = m->num_of_levels;
@@ -115,7 +119,7 @@ int calculateParameters(int minimumBufferS, int bufferTargetS, manifest * m, str
     bola->Vp = minimumBufferS / (bola->utilities[0] + bola->gp - 1);
     bola->highestUtilityIndex = highestUtilityIndex;
     
-    printdebug("BOLA", "Initialized gamma = %d, V = %d, %d", bola->gp, bola->Vp, highestUtilityIndex);
+    printdebug(BOLA, "Initialized gamma = %d, V = %d, %d", bola->gp, bola->Vp, highestUtilityIndex);
     
     return highestUtilityIndex;
 }
@@ -126,7 +130,7 @@ int calculateInitialState(manifest * m, int isDynamic, struct bola_state * initi
     if (calculateParameters(MINIMUM_BUFFER_S, BUFFER_TARGET_S, m, initialState) == 0) {
         // The best soloution is to always use the lowest bitrate...
         initialState->state = BOLA_STATE_ONE_BITRATE;
-        printdebug("BOLA", "Initialized to ONE BITRATE STATE");
+        printdebug(BOLA, "Initialized to ONE BITRATE STATE");
         return 0;
     }
     
@@ -168,7 +172,7 @@ int calculateInitialState(manifest * m, int isDynamic, struct bola_state * initi
 //        }
 //        log('BolaDebug ' + mediaInfo.type + ' bitrates' + info);
 //    }
-    printdebug("BOLA", "Initialized to STATE STARTUP");
+    printdebug(BOLA, "Initialized to STATE STARTUP");
 
     return 1;
 }
@@ -184,12 +188,12 @@ int getFirstIndex(struct bola_state * bola)
         long initThroughput = getRecentThroughput(bola);
         if (initThroughput == 0) {
             // We don't have information about any download yet - let someone else decide quality.
-            printdebug("BOLA", "Quality initialized to 0, No throughput information");
+            printdebug(BOLA, "Quality initialized to 0, No throughput information");
             return 0;
         }
         int q = getQualityFromThroughput(bola, initThroughput* bola->bandwidthSafetyFactor);
         bola->lastQuality = q;
-        printdebug("BOLA", "Quality initialized to %d, rule : Throughput %ld", q, initThroughput);
+        printdebug(BOLA, "Quality initialized to %d, rule : Throughput %ld", q, initThroughput);
         return q;
     }
     
@@ -200,7 +204,7 @@ int getFirstIndex(struct bola_state * bola)
 
 
 /*bufferLevel is in seconds*/
-int getMaxIndex(struct bola_state * bola, float bufferLevel)
+int getMaxIndex(struct bola_state * bola, float bufferLevel, long long stime)
 {
     double recentThroughput;
     float effectiveBufferLevel;
@@ -214,7 +218,8 @@ int getMaxIndex(struct bola_state * bola, float bufferLevel)
 
    
     if (bola->state == BOLA_STATE_ONE_BITRATE) {
-        printdebug("BOLA", "BOLA_STATE_ONE_BITRATE:::Last Quality: 0 , New Quality 0, rule : NONE");
+        printdebug(BOLA, "BOLA_STATE_ONE_BITRATE:::Last Quality: 0 , New Quality 0, rule : NONE");
+        printdebug(BOLAMETRIC, "%lld %.0f, %.0f, NONE, BOLA_STATE_ONE_BITRATE", (gettimelong()-stime)/1000, bola->bitrates[0], bola->bitrates[0]);
         return 0;
     }
     
@@ -251,7 +256,8 @@ int getMaxIndex(struct bola_state * bola, float bufferLevel)
                 bola->placeholderBuffer = wantEffectiveBuffer - bufferLevel;
             }
         }
-        printdebug("BOLA", "BOLA_STATE_STARTUP:::Last Quality: %d , New Quality %d, rule : Throughput (%ld bps)",  bola->lastQuality, q, recentThroughput);
+        printdebug(BOLA, "BOLA_STATE_STARTUP:::Last Quality: %d , New Quality %d, rule : Throughput (%ld bps)",  bola->lastQuality, q, recentThroughput);
+        printdebug(BOLAMETRIC, "%lld %.0f %.0f Throughput BOLA_STATE_STARTUP", (gettimelong()-stime)/1000,bola->bitrates[bola->lastQuality], bola->bitrates[q]);
 
         bola->lastQuality = q;
         return q;
@@ -259,7 +265,7 @@ int getMaxIndex(struct bola_state * bola, float bufferLevel)
     
     // steady state
     bolaQuality = getQualityFromBufferLevel(bola, effectiveBufferLevel);
-    printdebug("BOLA", "effectiveBufferLevel %f (%f)",  effectiveBufferLevel, bufferLevel);
+    printdebug(BOLA, "effectiveBufferLevel %f (%f)",  effectiveBufferLevel, bufferLevel);
 
     // we want to avoid oscillations
     // We implement the "BOLA-O" variant: when network bandwidth lies between two encoded bitrate levels, stick to the lowest level.
@@ -309,13 +315,14 @@ int getMaxIndex(struct bola_state * bola, float bufferLevel)
             // At top quality, allow schedule controller to decide how far to fill buffer.
             delaySeconds = 0;
         } else {
-            printdebug("BOLA", "Delaying to avoid overfilling buffer with low quality chunks (%f sec)", delaySeconds);
+            printdebug(BOLA, "Delaying to avoid overfilling buffer with low quality chunks (%f sec)", delaySeconds);
             usleep(delaySeconds*1000000);
         }
     } else {
         delaySeconds = 0;
     }
-    printdebug("BOLA", "BOLA_STATE_STEADY:::Last Quality: %d , New Quality %d, rule : Buffer",  bola->lastQuality, bolaQuality);
+    printdebug(BOLA, "BOLA_STATE_STEADY:::Last Quality: %d , New Quality %d, rule : Buffer",  bola->lastQuality, bolaQuality);
+    printdebug(BOLAMETRIC, "%lld %.0f %.0f Buffer BOLA_STATE_STEADY", (gettimelong()-stime)/1000, bola->bitrates[bola->lastQuality], bola->bitrates[bolaQuality]);
 
     bola->lastQuality = bolaQuality;
 //    metricsModel.updateBolaState(mediaType, bolaState);

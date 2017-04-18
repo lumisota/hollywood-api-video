@@ -14,7 +14,7 @@
 #include <string.h>
 #include <stdlib.h>
 #include "../common/http_ops.h"
-#include "helper.h"
+#include "../common/helper.h"
 
 
 /* Buffer size of ~15MB, would hold for instance ~15 seconds of 8Mbps video

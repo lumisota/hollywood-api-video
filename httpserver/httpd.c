@@ -196,7 +196,6 @@ void error_die(const char *sc)
 int serve_file(void * sock, const char *filename, int seq)
 {
     FILE *resource = NULL;
-    int numchars = 1;
     char buf[1024];
     int ret;
 
@@ -204,7 +203,7 @@ int serve_file(void * sock, const char *filename, int seq)
 
     resource = fopen(filename, "r");
     if (resource == NULL)
-        not_found(sock, Hollywood);
+        ret = not_found(sock, Hollywood);
     else
     {
         printf("Sending file : %s using %d\r", filename, Hollywood); fflush(stdout); 
@@ -230,8 +229,8 @@ int serve_file(void * sock, const char *filename, int seq)
             }
             ret = cat(sock, resource, Hollywood);
         }
+        fclose(resource);
     }
-    fclose(resource);
    // printf("File closed\n");
     return ret;
 }

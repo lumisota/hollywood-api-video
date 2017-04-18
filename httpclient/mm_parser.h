@@ -13,7 +13,7 @@
 #include <libavutil/timestamp.h>
 #include <libavformat/avformat.h>
 
-#include "helper.h"
+#include "../common/helper.h"
 #include "../lib/hollywood.h"
 #include "playout_buffer.h"
 #include "readmpd.h"
@@ -52,7 +52,7 @@ struct metrics
     transport * t;
     /*vidoe metrics*/
     long long htime; /*unix timestamp when test began*/
-    long long stime; /*unix timestamp in microseconds, when sending GET request*/
+    long long stime; /*unix timestamp in microseconds, when media downlaod began*/
     long long etime;/*unix timestamp in microseconds, when test ended*/
     double startup; /*time in microseconds, from start of test to playout*/
     int numofstalls;
@@ -66,6 +66,7 @@ struct metrics
     long long Tempty; //microseconds when prebuffering started, Tempty-Tplay should give you the time it took to prebuffer.
     long long T0; /*Unix timestamp when first packet arrived in microseconds*/
     int playout_buffer_seconds;
+
 };
 
 //typedef struct

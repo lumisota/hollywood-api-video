@@ -23,6 +23,6 @@
 
 int init_transport(transport * t);
 
-int play_video (struct metrics * metric, manifest * media_manifest , transport * media_transport);
+int play_video (struct metrics * metric, manifest * media_manifest , transport * media_transport, long throughput);
 
 #endif /* defined(____mm_download__) */

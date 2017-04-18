@@ -487,7 +487,6 @@ int init_metrics(struct metrics *metric)
     metric->htime                   = gettimelong();
     metric->Tempty                   = -1;
     metric->initialprebuftime       = -1;
-    metric->playout_buffer_seconds  =0;
     return 0;
 }
 
@@ -593,6 +592,7 @@ void checkstall(int end, struct metrics * m)
     
 }
 
+
 void printmetric(struct metrics metric)
 {    
     printf("ALL.1;");
@@ -600,15 +600,11 @@ void printmetric(struct metrics metric)
     printf("%"PRIu64";",    metric.TSnow*1000); // duration
     printf("%.0f;",         metric.startup); /*startup delay*/
     printf("%.0f;",         metric.initialprebuftime); // Initial prebuf time
-           
-   // printf("VIDEO.1;");
-    printf("%.0f;",         metric.totalbytes[STREAM_VIDEO]); //total bytes
-    
+
     printf("%d;",           metric.numofstalls); //num of stalls
     printf("%.0f;",         (metric.numofstalls>0 ? (metric.totalstalltime/metric.numofstalls) : 0)); // av stall duration
-    printf("%.0f;",         metric.totalstalltime); // total stall time
+    printf("%.0f\n",         metric.totalstalltime); // total stall time
 
-    printf("%d;\n",         metric.playout_buffer_seconds); /*range*/
     
     
 }
