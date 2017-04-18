@@ -48,10 +48,10 @@ struct hlywd_attr {
 
 struct parse_attr {
     FILE * fptr;
-    struct hlywd_attr * h;
+    struct hlywd_attr *hlywd_data;
 };
 
-int send_media_over_hollywood(hlywd_sock * sock, FILE * fptr, int seq);
+int send_media_over_hollywood(hlywd_sock * sock, FILE * fptr, int seq, char *src_filename);
 
 /* function that parses an mp4 file and creates hollywood messages
 	it is called as a thread. and parse_attr is to be passed as argument */
