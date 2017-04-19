@@ -1,6 +1,6 @@
 CC=gcc
 CCFLAGS=-std=gnu99 -c -g -Wall -I/usr/local/include `xml2-config --cflags`
-LDFLAGS=-L/usr/local/lib -lm -lpthread -lavformat -lavcodec -lavutil -lswresample `xml2-config --libs` -ldl
+LDFLAGS=-L/usr/local/lib -lm -lpthread -lavformat -lavcodec -lavutil -lswresample `xml2-config --libs` -lz -ldl -lva -lX11 -lva-drm -lva-x11
 
 SERVER_DIR=httpserver
 SERVER_OBJ=media_sender.o httpd.o 
@@ -28,6 +28,9 @@ all: httpd httpc
 clean:
 	rm httpd httpc $(SERVER_OBJ) $(LIB_OBJ) $(CLIENT_OBJ) $(COMMON_OBJ)
 
+testfiles:
+	wget http://www.netlab.tkk.fi/tutkimus/rtc/testfiles.tar.gz
+	tar -zxvf testfiles.tar.gz
 
 $(COMMON_OBJ): $(patsubst %,$(COMMON_DIR)/%, $(COMMON_HDR))
 	$(CC) $(CCFLAGS) $(COMMON_DIR)/$*.c -o $*.o 
@@ -44,9 +47,9 @@ $(LIB_OBJ): $(patsubst %,$(LIB_DIR)/%, $(LIB_HDR))
 	$(CC) $(CCFLAGS) $(LIB_DIR)/$*.c -o $*.o 
 
 
-httpd: $(COMMON_OBJ) $(SERVER_OBJ) $(LIB_OBJ)
+httpd: $(COMMON_OBJ) $(SERVER_OBJ) $(LIB_OBJ) testfiles
 	$(CC) -o httpd $(SERVER_OBJ) $(COMMON_OBJ) $(LIB_OBJ) $(LDFLAGS) 
 
-httpc: $(COMMON_OBJ) $(CLIENT_OBJ) $(LIB_OBJ)
+httpc: $(COMMON_OBJ) $(CLIENT_OBJ) $(LIB_OBJ) testfiles
 	$(CC) -o httpc $(CLIENT_OBJ) $(COMMON_OBJ) $(LIB_OBJ) $(LDFLAGS) 
 
