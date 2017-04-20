@@ -383,83 +383,94 @@ int send_media_over_hollywood(hlywd_sock * sock, FILE *fptr, int seq, char *src_
     /* Set sequence number */
     hlywd_data.seq = seq;
 
-    /* open media file, and decode frames in video_frames structure */
-    int ret = 0, got_frame;
-
-    /* register all formats and codecs */
-    av_register_all();
-
-    /* open input file, and allocate format context */
-    if (avformat_open_input(&fmt_ctx, src_filename, NULL, NULL) < 0) {
-        fprintf(stderr, "Could not open source file %s\n", src_filename);
-        exit(1);
-    }
-
-    /* retrieve stream information */
-    if (avformat_find_stream_info(fmt_ctx, NULL) < 0) {
-        fprintf(stderr, "Could not find stream information\n");
-        exit(1);
-    }
-
-    if (open_codec_context(&video_stream_idx, &video_dec_ctx, fmt_ctx, AVMEDIA_TYPE_VIDEO) >= 0) {
-        video_stream = fmt_ctx->streams[video_stream_idx];
-
-        /* allocate image where the decoded image will be put */
-        width = video_dec_ctx->width;
-        height = video_dec_ctx->height;
-        pix_fmt = video_dec_ctx->pix_fmt;
-        ret = av_image_alloc(video_dst_data, video_dst_linesize,
-                             width, height, pix_fmt, 1);
-        if (ret < 0) {
-            fprintf(stderr, "Could not allocate raw video buffer\n");
-            goto decode_end;
-        }
-        video_dst_bufsize = ret;
-    }
-
-    int vden = fmt_ctx->streams[video_stream_idx]->time_base.den;
-    int vnum = fmt_ctx->streams[video_stream_idx]->time_base.num;
-    vtb = DIV_ROUND_CLOSEST(vnum * SEC2PICO, vden);
-
-    frame = av_frame_alloc();
-    if (!frame) {
-        fprintf(stderr, "Could not allocate frame\n");
-        ret = AVERROR(ENOMEM);
-        goto decode_end;
-    }
-
-    /* initialize packet, set data to NULL, let the demuxer fill it */
-    av_init_packet(&pkt);
-    pkt.data = NULL;
-    pkt.size = 0;
-    
-    /* get file size */
+    char *file_ext = strrchr(src_filename, '.') + 1;
+        
     struct stat src_file_stat;
     stat(src_filename, &src_file_stat);
     src_filesize = src_file_stat.st_size;
+        
+    if(strcmp(file_ext, "ts") == 0) {
+        /* open media file, and decode frames in video_frames structure */
+        int ret = 0, got_frame;
 
-    /* read frames from the file */
-    while (av_read_frame(fmt_ctx, &pkt) >= 0) {
-        AVPacket orig_pkt = pkt;
-        do {
-            ret = decode_packet(&got_frame, 0);
-            if (ret < 0)
-                break;
-            pkt.data += ret;
-            pkt.size -= ret;
-        } while (pkt.size > 0);
-        av_packet_unref(&orig_pkt);
-    }
+        /* register all formats and codecs */
+        av_register_all();
+
+        /* open input file, and allocate format context */
+        if (avformat_open_input(&fmt_ctx, src_filename, NULL, NULL) < 0) {
+            fprintf(stderr, "Could not open source file %s\n", src_filename);
+            exit(1);
+        }
+
+        /* retrieve stream information */
+        if (avformat_find_stream_info(fmt_ctx, NULL) < 0) {
+            fprintf(stderr, "Could not find stream information\n");
+            exit(1);
+        }
+
+        if (open_codec_context(&video_stream_idx, &video_dec_ctx, fmt_ctx, AVMEDIA_TYPE_VIDEO) >= 0) {
+            video_stream = fmt_ctx->streams[video_stream_idx];
+
+            /* allocate image where the decoded image will be put */
+            width = video_dec_ctx->width;
+            height = video_dec_ctx->height;
+            pix_fmt = video_dec_ctx->pix_fmt;
+            ret = av_image_alloc(video_dst_data, video_dst_linesize,
+                             width, height, pix_fmt, 1);
+            if (ret < 0) {
+                fprintf(stderr, "Could not allocate raw video buffer\n");
+                goto decode_end;
+            }
+            video_dst_bufsize = ret;
+        }
+
+        int vden = fmt_ctx->streams[video_stream_idx]->time_base.den;
+        int vnum = fmt_ctx->streams[video_stream_idx]->time_base.num;
+        vtb = DIV_ROUND_CLOSEST(vnum * SEC2PICO, vden);
+
+        frame = av_frame_alloc();
+        if (!frame) {
+            fprintf(stderr, "Could not allocate frame\n");
+            ret = AVERROR(ENOMEM);
+            goto decode_end;
+        }
+
+        /* initialize packet, set data to NULL, let the demuxer fill it */
+        av_init_packet(&pkt);
+        pkt.data = NULL;
+        pkt.size = 0;
+
+        /* read frames from the file */
+        while (av_read_frame(fmt_ctx, &pkt) >= 0) {
+            AVPacket orig_pkt = pkt;
+            do {
+                ret = decode_packet(&got_frame, 0);
+                if (ret < 0)
+                    break;
+                pkt.data += ret;
+                pkt.size -= ret;
+            } while (pkt.size > 0);
+            av_packet_unref(&orig_pkt);
+        }
     
-    /* flush cached frames */
-    pkt.data = NULL;
-    pkt.size = 0;
+        /* flush cached frames */
+        pkt.data = NULL;
+        pkt.size = 0;
 
 decode_end:
-    avcodec_free_context(&video_dec_ctx);
-    avformat_close_input(&fmt_ctx);
-    av_frame_free(&frame);
-        
+        avcodec_free_context(&video_dec_ctx);
+        avformat_close_input(&fmt_ctx);
+        av_frame_free(&frame);  
+    } else {
+        struct vid_frame *new_frame = (struct vid_frame *) malloc(sizeof(struct vid_frame));
+        new_frame->byte_offset = 0;
+        new_frame->next = NULL;
+        new_frame->duration = 0;
+        new_frame->key_frame = 0;
+        new_frame->byte_length = src_filesize;
+        video_frames = new_frame; 
+    }
+    
     /* Initialize the condition and mutex */
     pthread_cond_init(&msg_ready, NULL);
     pthread_mutex_init(&msg_mutex, NULL);
