@@ -1,6 +1,6 @@
 CC=gcc
 CCFLAGS=-std=gnu99 -c -g -Wall -I/usr/local/include `xml2-config --cflags`
-LDFLAGS=-L/usr/local/lib -lm -lpthread -lavformat -lavcodec -lavutil -lswresample `xml2-config --libs` -lz -ldl -lva -lX11 -lva-drm -lva-x11
+LDFLAGS=-L/usr/local/lib -lm -lpthread -lavformat -lavcodec -lavutil -lswresample `xml2-config --libs` -lz -ldl 
 
 SERVER_DIR=httpserver
 SERVER_OBJ=media_sender.o httpd.o 
