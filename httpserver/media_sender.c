@@ -24,39 +24,9 @@
  */
 
 #include "media_sender.h"
-#include <libavutil/imgutils.h>
-#include <libavutil/samplefmt.h>
-#include <libavutil/timestamp.h>
-#include <libavformat/avformat.h>
+#include "tsdemux.h"
+
 #include <sys/stat.h>
-
-#define DIV_ROUND_CLOSEST(x, divisor)(                  \
-{                                                       \
-        typeof(divisor) __divisor = divisor;            \
-        (((x) + ((__divisor) / 2)) / (__divisor));      \
-}                                                       \
-)
-
-#define SEC2PICO UINT64_C(1000000000000)
-#define SEC2MILI 1000
-
-static AVFormatContext *fmt_ctx = NULL;
-static AVCodecContext *video_dec_ctx = NULL;
-static int width, height;
-static enum AVPixelFormat pix_fmt;
-static AVStream *video_stream = NULL;
-static const char *src_filename = NULL;
-int src_filesize;
-
-static uint8_t *video_dst_data[4] = {NULL};
-static int      video_dst_linesize[4];
-static int video_dst_bufsize;
-
-static int video_stream_idx = -1;
-static AVFrame *frame = NULL;
-static AVPacket pkt;
-static int video_frame_count = 0;
-int vtb = 0;
 
 pthread_t       av_tid;         /*thread id of the av parser thread*/
 pthread_t       h_tid;          /*thread id of the tcp hollywood sender thread*/
@@ -66,105 +36,7 @@ pthread_mutex_t msg_mutex;      /*mutex of the hlywd_message*/
 extern uint32_t offset;         /*offset added to last 4 bytes of the message*/
 extern uint32_t stream_seq;
 
-struct vid_frame {
-    int64_t byte_offset;
-    int64_t byte_length;
-    long unsigned duration;
-    int key_frame;
-    struct vid_frame *next;
-};
-
-struct vid_frame *video_frames = NULL;
-
-/* FFmpeg helper functions */
-
-static int decode_packet(int *got_frame, int cached)
-{
-    int ret = 0;
-    int decoded = pkt.size;
-        
-    *got_frame = 0;
-
-    if (pkt.stream_index == video_stream_idx) {
-        /* decode video frame */
-        ret = avcodec_decode_video2(video_dec_ctx, frame, got_frame, &pkt);
-        if (ret < 0) {
-            return ret;
-        }
-
-        if (*got_frame) {
-            struct vid_frame *next_frame = (struct vid_frame *) malloc(sizeof(struct vid_frame));
-            next_frame->byte_offset = pkt.pos;
-            next_frame->next = NULL;
-            next_frame->duration = (pkt.dts * vtb) / (SEC2PICO / SEC2MILI);
-            next_frame->key_frame = frame->key_frame;
-            next_frame->byte_length = src_filesize - next_frame->byte_offset;
-            if (video_frames == NULL) {
-                video_frames = next_frame;
-            } else {
-                struct vid_frame *end_frame = video_frames;
-                while (end_frame->next != NULL) {
-                    end_frame = end_frame->next;
-                }
-                end_frame->next = next_frame;
-                end_frame->byte_length = next_frame->byte_offset-end_frame->byte_offset;
-            }
-        }
-    } 
-    return decoded;
-}
-
-static int open_codec_context(int *stream_idx,
-                              AVCodecContext **dec_ctx, AVFormatContext *fmt_ctx, enum AVMediaType type)
-{
-    int ret, stream_index;
-    AVStream *st;
-    AVCodec *dec = NULL;
-    AVDictionary *opts = NULL;
-
-    ret = av_find_best_stream(fmt_ctx, type, -1, -1, NULL, 0);
-    if (ret < 0) {
-        fprintf(stderr, "Could not find %s stream in input file '%s'\n",
-                av_get_media_type_string(type), src_filename);
-        return ret;
-    } else {
-        stream_index = ret;
-        st = fmt_ctx->streams[stream_index];
-
-        /* find decoder for the stream */
-        dec = avcodec_find_decoder(st->codecpar->codec_id);
-        if (!dec) {
-            fprintf(stderr, "Failed to find %s codec\n",
-                    av_get_media_type_string(type));
-            return AVERROR(EINVAL);
-        }
-
-        /* Allocate a codec context for the decoder */
-        *dec_ctx = avcodec_alloc_context3(dec);
-        if (!*dec_ctx) {
-            fprintf(stderr, "Failed to allocate the %s codec context\n",
-                    av_get_media_type_string(type));
-            return AVERROR(ENOMEM);
-        }
-
-        /* Copy codec parameters from input stream to output codec context */
-        if ((ret = avcodec_parameters_to_context(*dec_ctx, st->codecpar)) < 0) {
-            fprintf(stderr, "Failed to copy %s codec parameters to decoder context\n",
-                    av_get_media_type_string(type));
-            return ret;
-        }
-
-        /* Init the decoders, with or without reference counting */
-        av_dict_set(&opts, "refcounted_frames", "0", 0);
-        if ((ret = avcodec_open2(*dec_ctx, dec, &opts)) < 0) {
-            fprintf(stderr, "Failed to open %s codec\n",
-                    av_get_media_type_string(type));
-            return ret;
-        }
-        *stream_idx = stream_index;
-    }
-    return 0;
-}
+vid_frame *video_frames = NULL;
 
 /* Add message to the queue of messages*/
 int add_msg_to_queue(struct hlywd_message *msg, struct parse_attr *pparams) {
@@ -232,8 +104,7 @@ void *fill_timing_info(void *pparams_arg) {
      */
     struct vid_frame *cur_frame = video_frames;
     while (cur_frame != NULL) {
-        int64_t remaining_bytes = cur_frame->byte_length;
-        fseek(pparams->fptr, cur_frame->byte_offset, SEEK_SET); /* go to start of frame in file */
+        int64_t remaining_bytes = cur_frame->len;
         while (remaining_bytes > 0) {
             /* initialise an empty Hollywood message */
             msg = (struct hlywd_message *) malloc(sizeof(struct hlywd_message));
@@ -263,7 +134,9 @@ void *fill_timing_info(void *pparams_arg) {
             
             remaining_bytes = remaining_bytes - bytes_read;
         }
-        cur_frame = cur_frame->next;
+        vid_frame *next = cur_frame->next;
+        free(cur_frame);
+        cur_frame = next;
     }
     
     pthread_mutex_lock(&msg_mutex);
@@ -373,6 +246,8 @@ int send_media_over_hollywood(hlywd_sock * sock, FILE *fptr, int seq, char *src_
     /* initialise attribute structures */
     pparams.fptr = fptr; /*file pointer for reading mp4 file*/
     pparams.hlywd_data = &hlywd_data; /* Hollywood metadata structure */
+    pparams.src_filename = src_filename;
+    pparams.streams = NULL;
     hlywd_data.hlywd_socket = sock; /* Hollywood socket */
     
     /* if sending, set playout delay via Hollywood API */
@@ -387,87 +262,17 @@ int send_media_over_hollywood(hlywd_sock * sock, FILE *fptr, int seq, char *src_
         
     struct stat src_file_stat;
     stat(src_filename, &src_file_stat);
-    src_filesize = src_file_stat.st_size;
-        
+    size_t src_filesize = src_file_stat.st_size;
+
     if(strcmp(file_ext, "ts") == 0) {
-        /* open media file, and decode frames in video_frames structure */
-        int ret = 0, got_frame;
-
-        /* register all formats and codecs */
-        av_register_all();
-
-        /* open input file, and allocate format context */
-        if (avformat_open_input(&fmt_ctx, src_filename, NULL, NULL) < 0) {
-            fprintf(stderr, "Could not open source file %s\n", src_filename);
-            exit(1);
-        }
-
-        /* retrieve stream information */
-        if (avformat_find_stream_info(fmt_ctx, NULL) < 0) {
-            fprintf(stderr, "Could not find stream information\n");
-            exit(1);
-        }
-
-        if (open_codec_context(&video_stream_idx, &video_dec_ctx, fmt_ctx, AVMEDIA_TYPE_VIDEO) >= 0) {
-            video_stream = fmt_ctx->streams[video_stream_idx];
-
-            /* allocate image where the decoded image will be put */
-            width = video_dec_ctx->width;
-            height = video_dec_ctx->height;
-            pix_fmt = video_dec_ctx->pix_fmt;
-            ret = av_image_alloc(video_dst_data, video_dst_linesize,
-                             width, height, pix_fmt, 1);
-            if (ret < 0) {
-                fprintf(stderr, "Could not allocate raw video buffer\n");
-                goto decode_end;
-            }
-            video_dst_bufsize = ret;
-        }
-
-        int vden = fmt_ctx->streams[video_stream_idx]->time_base.den;
-        int vnum = fmt_ctx->streams[video_stream_idx]->time_base.num;
-        vtb = DIV_ROUND_CLOSEST(vnum * SEC2PICO, vden);
-
-        frame = av_frame_alloc();
-        if (!frame) {
-            fprintf(stderr, "Could not allocate frame\n");
-            ret = AVERROR(ENOMEM);
-            goto decode_end;
-        }
-
-        /* initialize packet, set data to NULL, let the demuxer fill it */
-        av_init_packet(&pkt);
-        pkt.data = NULL;
-        pkt.size = 0;
-
-        /* read frames from the file */
-        while (av_read_frame(fmt_ctx, &pkt) >= 0) {
-            AVPacket orig_pkt = pkt;
-            do {
-                ret = decode_packet(&got_frame, 0);
-                if (ret < 0)
-                    break;
-                pkt.data += ret;
-                pkt.size -= ret;
-            } while (pkt.size > 0);
-            av_packet_unref(&orig_pkt);
-        }
-    
-        /* flush cached frames */
-        pkt.data = NULL;
-        pkt.size = 0;
-
-decode_end:
-        avcodec_free_context(&video_dec_ctx);
-        avformat_close_input(&fmt_ctx);
-        av_frame_free(&frame);  
+        video_frames = get_frames(&pparams);
     } else {
         struct vid_frame *new_frame = (struct vid_frame *) malloc(sizeof(struct vid_frame));
-        new_frame->byte_offset = 0;
+        new_frame->starts_at = 0;
         new_frame->next = NULL;
-        new_frame->duration = 0;
+        new_frame->timestamp = 0;
         new_frame->key_frame = 0;
-        new_frame->byte_length = src_filesize;
+        new_frame->len = src_filesize;
         video_frames = new_frame; 
     }
     
@@ -499,7 +304,6 @@ decode_end:
     pthread_join(av_tid, NULL);
     pthread_join(h_tid, NULL);
     
-END:
     seq = hlywd_data.seq;
     offset = 0;
     

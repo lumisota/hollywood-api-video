@@ -22,6 +22,7 @@
 #include <unistd.h>
 #include <pthread.h>
 #include <math.h>
+#include "tsdemux.h"
 
 #define MAXQLEN 10 
 
@@ -44,11 +45,6 @@ struct hlywd_attr {
     hlywd_sock * hlywd_socket;
     uint8_t file_complete;
     struct hlywd_message * hlywd_msg;
-};
-
-struct parse_attr {
-    FILE * fptr;
-    struct hlywd_attr *hlywd_data;
 };
 
 int send_media_over_hollywood(hlywd_sock * sock, FILE * fptr, int seq, char *src_filename);

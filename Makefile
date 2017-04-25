@@ -3,9 +3,9 @@ CCFLAGS=-std=gnu99 -c -g -Wall -I/usr/local/include `xml2-config --cflags`
 LDFLAGS=-L/usr/local/lib -lm -lpthread -lavformat -lavcodec -lavutil -lswresample `xml2-config --libs` -lz -ldl 
 
 SERVER_DIR=httpserver
-SERVER_OBJ=media_sender.o httpd.o 
-SERVER_SRC=media_sender.c httpd.c 
-SERVER_HDR=media_sender.h 
+SERVER_OBJ=media_sender.o httpd.o tsdemux.o
+SERVER_SRC=media_sender.c httpd.c tsdemux.c
+SERVER_HDR=tsdemux.h media_sender.h
 
 CLIENT_DIR=httpclient
 CLIENT_OBJ=mm_parser.o httpc.o playout_buffer.o readmpd.o mm_download.o bola.o
