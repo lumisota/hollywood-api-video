@@ -142,7 +142,7 @@ vid_frame *get_frames(struct parse_attr *p) {
                 
                 uint16_t l = to_int(ptr+1);
 
-                if (l & 0x3000 != 0x3000) {
+                if ((l & 0x3000) != 0x3000) {
                     return NULL;
                 }
                 
@@ -209,7 +209,7 @@ vid_frame *get_frames(struct parse_attr *p) {
                     uint16_t channel=to_int(ptr);
                     uint16_t pid=to_int(ptr+2);
 
-                    if (pid&0xe000!=0xe000) {
+                    if ((pid&0xe000)!=0xe000) {
                         return -12;
                     }
 
@@ -244,7 +244,7 @@ vid_frame *get_frames(struct parse_attr *p) {
                     uint8_t type=to_byte(ptr);
                     uint16_t pid=to_int(ptr+1);
 
-                    if (pid&0xe000!=0xe000) {
+                    if ((pid&0xe000)!=0xe000) {
                         return NULL;
                     }
                     

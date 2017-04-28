@@ -177,7 +177,7 @@ int download_segments( manifest * m, transport * t , long long stime, long throu
     
     printf("Stream has finished downloading\n");
     
-    if( !is_empty(t->rx_buf))
+    while( !is_empty(t->rx_buf))
         pthread_cond_wait( &t->msg_ready, &t->msg_mutex );
     
     t->stream_complete = 1;

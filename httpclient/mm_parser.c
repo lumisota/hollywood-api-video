@@ -4,7 +4,7 @@
 #include <libavcodec/avcodec.h>
 
 //#define DEBUG
-//#define DECODE
+#define DECODE
 
 #define DIV_ROUND_CLOSEST(x, divisor)(                  \
 {                                                       \
@@ -23,10 +23,7 @@ static int width, height;
 static enum AVPixelFormat pix_fmt;
 static AVStream *video_stream = NULL, *audio_stream = NULL;
 static const char *src_filename = NULL;
-static const char *video_dst_filename = "video_out";
-static const char *audio_dst_filename = "audio_out";
-static FILE *video_dst_file = NULL;
-static FILE *audio_dst_file = NULL;
+
 
 static uint8_t *video_dst_data[4] = {NULL};
 static int      video_dst_linesize[4];
@@ -41,7 +38,7 @@ static int audio_frame_count = 0;
 static unsigned long long atb = 0;
 static unsigned long long vtb = 0;
 
-static int decode_packet(int *got_frame, int cached)
+static int decode_packet(int *got_frame, int cached, struct metrics * m)
 {
     int ret = 0;
     int decoded = pkt.size;
@@ -72,20 +69,25 @@ static int decode_packet(int *got_frame, int cached)
                         av_get_pix_fmt_name(frame->format));
                 return -1;
             }
+            if(pkt.dts > 0)
+            {
+                m->TSlist[STREAM_VIDEO] = (pkt.dts * vtb) / (SEC2PICO / SEC2MILI);
+            //     printf("TS now: %llu, frame type: %d\r",  m->TSlist[STREAM_VIDEO], pkt.flags&AV_PKT_FLAG_KEY?1:0); fflush(stdout);
+            /*SA-10214- checkstall should be called after the TS is updated for each stream, instead of when new packets
+             arrive, this ensures that we know exactly what time the playout would stop and stall would occur*/
+                checkstall(0, m);
             
-            if(video_frame_count%1000==0)
-                printf("video_frame%s n:%d coded_n:%d ts:%lld\n",
+           // if(video_frame_count)
+               /* printf("video_frame%s n:%d coded_n:%d ts:%lld\n",
                    cached ? "(cached)" : "",
-                   video_frame_count++, frame->coded_picture_number, cached ? (pkt.pts * vtb) / (SEC2PICO / SEC2MILI) : (pkt.dts * vtb) / (SEC2PICO / SEC2MILI));
-            
+                   video_frame_count++, frame->coded_picture_number, cached ? (pkt.pts * vtb) / (SEC2PICO / SEC2MILI) : (pkt.dts * vtb) / (SEC2PICO / SEC2MILI));*/
+            }
             /* copy decoded frame to destination buffer:
              * this is required since rawvideo expects non aligned data */
             av_image_copy(video_dst_data, video_dst_linesize,
                           (const uint8_t **)(frame->data), frame->linesize,
                           pix_fmt, width, height);
             
-            /* write to rawvideo file */
-          //  fwrite(video_dst_data[0], 1, video_dst_bufsize, video_dst_file);
         }
     } else if (pkt.stream_index == audio_stream_idx) {
         /* decode audio frame */
@@ -106,16 +108,7 @@ static int decode_packet(int *got_frame, int cached)
                    cached ? "(cached)" : "",
                    audio_frame_count++, frame->nb_samples,
                    av_ts2timestr(frame->pts, &audio_dec_ctx->time_base));
-            
-            /* Write the raw audio data samples of the first plane. This works
-             * fine for packed formats (e.g. AV_SAMPLE_FMT_S16). However,
-             * most audio decoders output planar audio, which uses a separate
-             * plane of audio samples for each channel (e.g. AV_SAMPLE_FMT_S16P).
-             * In other words, this code will write only the first audio channel
-             * in these cases.
-             * You should use libswresample or libavfilter to convert the frame
-             * to packed data. */
-            fwrite(frame->extended_data[0], 1, unpadded_linesize, audio_dst_file);
+
         }
     }
     
@@ -127,7 +120,8 @@ static int decode_packet(int *got_frame, int cached)
 
 static int mm_read(void * opaque, uint8_t *buf, int buf_size)
 {
-    transport * t = ((transport *) opaque);
+    struct metric * m = ((transport *) opaque);
+    transport * t = m->t;
     int ret ;
     
     pthread_mutex_lock(&t->msg_mutex);
@@ -141,7 +135,9 @@ static int mm_read(void * opaque, uint8_t *buf, int buf_size)
             return 0;
         }
         else
+        {
             pthread_cond_wait( &t->msg_ready, &t->msg_mutex );
+        }
     }
     
     ret = pop_message (t->rx_buf, buf, buf_size);
@@ -267,12 +263,6 @@ void * mm_parser(void * opaque)
         video_stream = fmt_ctx->streams[video_stream_idx];
         video_dec_ctx = video_stream->codec;
         
-        video_dst_file = fopen(video_dst_filename, "wb");
-        if (!video_dst_file) {
-            fprintf(stderr, "Could not open destination file %s\n", video_dst_filename);
-            ret = 1;
-            goto end;
-        }
         
         /* allocate image where the decoded image will be put */
         width = video_dec_ctx->width;
@@ -290,12 +280,6 @@ void * mm_parser(void * opaque)
     if (open_codec_context(&audio_stream_idx, fmt_ctx, AVMEDIA_TYPE_AUDIO) >= 0) {
         audio_stream = fmt_ctx->streams[audio_stream_idx];
         audio_dec_ctx = audio_stream->codec;
-        audio_dst_file = fopen(audio_dst_filename, "wb");
-        if (!audio_dst_file) {
-            fprintf(stderr, "Could not open destination file %s\n", audio_dst_filename);
-            ret = 1;
-            goto end;
-        }
     }
     
     /* dump input information to stderr */
@@ -339,17 +323,12 @@ void * mm_parser(void * opaque)
     av_init_packet(&pkt);
     pkt.data = NULL;
     pkt.size = 0;
-    
-    if (video_stream)
-        printf("Demuxing video from file '%s' into '%s'\n", src_filename, video_dst_filename);
-    if (audio_stream)
-        printf("Demuxing audio from file '%s' into '%s'\n", src_filename, audio_dst_filename);
 
     /* read frames from the file */
     while (av_read_frame(fmt_ctx, &pkt) >= 0) {
         AVPacket orig_pkt = pkt;
         do {
-            ret = decode_packet(&got_frame, 0);
+            ret = decode_packet(&got_frame, 0, m);
             if (ret < 0)
                 break;
             pkt.data += ret;
@@ -362,17 +341,9 @@ void * mm_parser(void * opaque)
     pkt.data = NULL;
     pkt.size = 0;
     do {
-        decode_packet(&got_frame, 1);
+        decode_packet(&got_frame, 1, m);
     } while (got_frame);
     
-    printf("Demuxing succeeded.\n");
-    
-    if (video_stream) {
-        printf("Play the output video file with the command:\n"
-               "ffplay -f rawvideo -pix_fmt %s -video_size %dx%d %s\n",
-               av_get_pix_fmt_name(pix_fmt), width, height,
-               video_dst_filename);
-    }
     
     if (audio_stream) {
         enum AVSampleFormat sfmt = audio_dec_ctx->sample_fmt;
@@ -391,10 +362,6 @@ void * mm_parser(void * opaque)
         if ((ret = get_format_from_sample_fmt(&fmt, sfmt)) < 0)
             goto end;
         
-        printf("Play the output audio file with the command:\n"
-               "ffplay -f %s -ac %d -ar %d %s\n",
-               fmt, n_channels, audio_dec_ctx->sample_rate,
-               audio_dst_filename);
     }
     
     
@@ -440,7 +407,7 @@ void * mm_parser(void * opaque)
         if (pkt.stream_index == videoStreamIdx) {
             if (pkt.dts > 0) {
                 m->TSlist[STREAM_VIDEO] = (pkt.dts * vtb) / (SEC2PICO / SEC2MILI);
-           //     printf("TS now: %llu, frame type: %d\r",  m->TSlist[STREAM_VIDEO], pkt.flags&AV_PKT_FLAG_KEY?1:0); fflush(stdout);
+                printf("TS now: %llu, frame type: %d\n",  m->TSlist[STREAM_VIDEO], pkt.flags&AV_PKT_FLAG_KEY?1:0); fflush(stdout);
                 /*SA-10214- checkstall should be called after the TS is updated for each stream, instead of when new packets
                  arrive, this ensures that we know exactly what time the playout would stop and stall would occur*/
                 checkstall(0, m);
@@ -466,10 +433,6 @@ end:
     avcodec_close(video_dec_ctx);
     avcodec_close(audio_dec_ctx);
     avformat_close_input(&fmt_ctx);
-    if (video_dst_file)
-        fclose(video_dst_file);
-    if (audio_dst_file)
-        fclose(audio_dst_file);
     av_frame_free(&frame);
     av_free(video_dst_data[0]);
     
@@ -556,6 +519,9 @@ void checkstall(int end, struct metrics * m)
             unsigned long time_to_wait = time_to_decode - timenow;
             usleep(time_to_wait);
         }
+        pthread_mutex_lock(&m->t->msg_mutex);
+        m->t->playout_time = m->TSnow;
+        pthread_mutex_unlock(&m->t->msg_mutex);
         
     }
     
@@ -587,6 +553,9 @@ void checkstall(int end, struct metrics * m)
         else
             printf("Prebuffered time %" PRIu64 ", TSnow %" PRIu64 ", TS0 %" PRIu64 "\n", m->TSnow - m->TS0, m->TSnow, m->TS0); fflush(stdout);
 #endif
+        pthread_mutex_lock(&m->t->msg_mutex);
+        m->t->playout_time = m->TS0;
+        pthread_mutex_unlock(&m->t->msg_mutex);
         
     }
     
@@ -604,7 +573,6 @@ void printmetric(struct metrics metric)
     printf("%d;",           metric.numofstalls); //num of stalls
     printf("%.0f;",         (metric.numofstalls>0 ? (metric.totalstalltime/metric.numofstalls) : 0)); // av stall duration
     printf("%.0f\n",         metric.totalstalltime); // total stall time
-
     
     
 }
