@@ -15,6 +15,7 @@ pthread_t       av_tid;          /*thread id of the av parser thread*/
 //#define DOWNLOAD "DOWNLOAD"
 #define DOWNLOAD ""
 
+extern int endnow; 
 
 int download_segments( manifest * m, transport * t , long long stime, long throughput)
 {
@@ -46,14 +47,14 @@ int download_segments( manifest * m, transport * t , long long stime, long throu
         sock = &(t->sock);
     }
     printf("\n");
-    while (curr_segment != m->num_of_segments )
+    while (curr_segment <= m->num_of_segments )
     {
         if(curr_segment == 0)
             buffered_duration = 0;
         else
         {
             pthread_mutex_lock(&t->msg_mutex);
-            buffered_duration = (m->segment_dur * (curr_segment - 1) * 1000) - t->playout_time;
+            buffered_duration = (m->segment_dur * (curr_segment - m->init) * 1000) - t->playout_time;
             fflush(stdout);
             pthread_mutex_unlock(&t->msg_mutex);
         }
@@ -68,7 +69,7 @@ int download_segments( manifest * m, transport * t , long long stime, long throu
             bola.placeholderBuffer+= (float)delay/1000.0;
             usleep(delay*1000);
             pthread_mutex_lock(&t->msg_mutex);
-            buffered_duration = (m->segment_dur * (curr_segment - 1) * 1000) - t->playout_time;
+            buffered_duration = (m->segment_dur * (curr_segment - m->init) * 1000) - t->playout_time;
             pthread_mutex_unlock(&t->msg_mutex);
 
         }
@@ -123,6 +124,8 @@ int download_segments( manifest * m, transport * t , long long stime, long throu
         
         while (bytes_rx < contentlen )
         {
+            if(endnow)
+                goto END_DOWNLOAD; 
             
             ret = read_http_body_partial(sock, rx_buf, HOLLYWOOD_MSG_SIZE, t->Hollywood, &new_seq, NULL);
             
@@ -173,14 +176,17 @@ int download_segments( manifest * m, transport * t , long long stime, long throu
         
         
     }
+
+END_DOWNLOAD: 
     pthread_mutex_lock(&t->msg_mutex);
     
-    printf("Stream has finished downloading\n");
-    
+    printf("Stream has finished downloading %d of %d \n", curr_segment,  m->num_of_segments);
+
+    t->stream_complete = 1;    
     while( !is_empty(t->rx_buf))
         pthread_cond_wait( &t->msg_ready, &t->msg_mutex );
     
-    t->stream_complete = 1;
+//    t->stream_complete = 1;
     
     pthread_cond_signal(&t->msg_ready);
     pthread_mutex_unlock(&t->msg_mutex);

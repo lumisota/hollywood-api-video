@@ -36,6 +36,7 @@ typedef struct
     int num_of_segments;
     int num_of_levels;
     int segment_dur;
+    uint8_t init; /*boolean - init segment (with no media data) exists or not*/ 
     level bitrate_level[MAX_SUPPORTED_BITRATE_LEVELS];
     
 }manifest;

@@ -4,7 +4,7 @@
 #include <libavcodec/avcodec.h>
 
 //#define DEBUG
-#define DECODE
+//#define DECODE
 
 #define DIV_ROUND_CLOSEST(x, divisor)(                  \
 {                                                       \
@@ -120,8 +120,7 @@ static int decode_packet(int *got_frame, int cached, struct metrics * m)
 
 static int mm_read(void * opaque, uint8_t *buf, int buf_size)
 {
-    struct metric * m = ((transport *) opaque);
-    transport * t = m->t;
+    transport * t =  ((transport *) opaque);
     int ret ;
     
     pthread_mutex_lock(&t->msg_mutex);
@@ -130,7 +129,6 @@ static int mm_read(void * opaque, uint8_t *buf, int buf_size)
     {
         if ( t->stream_complete == 1)
         {
-            printf("Parser thread exiting with 0\n");
             pthread_mutex_unlock(&t->msg_mutex);
             return 0;
         }
@@ -407,7 +405,7 @@ void * mm_parser(void * opaque)
         if (pkt.stream_index == videoStreamIdx) {
             if (pkt.dts > 0) {
                 m->TSlist[STREAM_VIDEO] = (pkt.dts * vtb) / (SEC2PICO / SEC2MILI);
-                printf("TS now: %llu, frame type: %d\n",  m->TSlist[STREAM_VIDEO], pkt.flags&AV_PKT_FLAG_KEY?1:0); fflush(stdout);
+            //    printf("TS now: %llu, frame type: %d\n",  m->TSlist[STREAM_VIDEO], pkt.flags&AV_PKT_FLAG_KEY?1:0); fflush(stdout);
                 /*SA-10214- checkstall should be called after the TS is updated for each stream, instead of when new packets
                  arrive, this ensures that we know exactly what time the playout would stop and stall would occur*/
                 checkstall(0, m);
@@ -421,10 +419,6 @@ void * mm_parser(void * opaque)
             }
         }
         av_packet_unref(&pkt);
-        
-        pthread_mutex_lock(&m->t->msg_mutex);
-        m->t->playout_time = m->TSnow;
-        pthread_mutex_unlock(&m->t->msg_mutex);
 
     }
 #endif
@@ -505,7 +499,7 @@ void checkstall(int end, struct metrics * m)
     {
         long time_to_decode = m->Tplay + (double)((m->TSnow - m->TS0)*1000);
         //printf("Time to decode : %lld, timenow %lld, time to wait %lld\n", time_to_decode, timenow, time_to_decode -timenow ); fflush(stdout);
-        if ( time_to_decode < timenow)
+        if ( time_to_decode - 10000 < timenow)
         {
             m->Tempty = m->Tplay + ((m->TSnow - m->TS0) * 1000);
             m->Tplay = -1;
@@ -514,11 +508,22 @@ void checkstall(int end, struct metrics * m)
             printf("Stall has occured at TS: %" PRIu64 " and Time: %lld\n", m->TSnow, m->Tempty); //calculate stall duration
 #endif
         }
+#ifndef DECODE
         else
         {
             unsigned long time_to_wait = time_to_decode - timenow;
-            usleep(time_to_wait);
+	    pthread_mutex_lock(&m->t->msg_mutex);
+            if ( m->t->stream_complete == 0)
+            {
+                pthread_mutex_unlock(&m->t->msg_mutex);
+                usleep(time_to_wait);
+            }
+            else
+            {
+                pthread_mutex_unlock(&m->t->msg_mutex);
+            }
         }
+#endif
         pthread_mutex_lock(&m->t->msg_mutex);
         m->t->playout_time = m->TSnow;
         pthread_mutex_unlock(&m->t->msg_mutex);
@@ -565,14 +570,14 @@ void checkstall(int end, struct metrics * m)
 void printmetric(struct metrics metric)
 {    
     printf("ALL.1;");
-    printf("%lld;",         metric.etime-metric.stime);   //download time
-    printf("%"PRIu64";",    metric.TSnow*1000); // duration
-    printf("%.0f;",         metric.startup); /*startup delay*/
-    printf("%.0f;",         metric.initialprebuftime); // Initial prebuf time
+    printf("%lld;",         (metric.etime-metric.stime)/1000);   //download time
+    printf("%"PRIu64";",    metric.TSnow); // duration
+    printf("%.0f;",         metric.startup/1000); /*startup delay*/
+    printf("%.0f;",         metric.initialprebuftime/1000); // Initial prebuf time
 
     printf("%d;",           metric.numofstalls); //num of stalls
-    printf("%.0f;",         (metric.numofstalls>0 ? (metric.totalstalltime/metric.numofstalls) : 0)); // av stall duration
-    printf("%.0f\n",         metric.totalstalltime); // total stall time
+    printf("%.0f;",         (metric.numofstalls>0 ? (metric.totalstalltime/metric.numofstalls/1000) : 0)); // av stall duration
+    printf("%.0f\n",         metric.totalstalltime/1000); // total stall time
     
     
 }

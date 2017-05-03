@@ -8,12 +8,14 @@
 #include <string.h>
 #include <ctype.h>
 #include <netdb.h>
+#include <signal.h>
 #include "mm_parser.h"
 #include "readmpd.h"
 #include "../common/http_ops.h"
 #include "mm_download.h"
 
 extern int verbose;
+int endnow = 0; 
 #define ISspace(x) isspace((int)(x))
 /**********************************************************************/
 //
@@ -166,6 +168,25 @@ long fetch_manifest(transport * t, char * mpdlink, manifest * media_manifest )
 
 /**********************************************************************/
 
+static void signal_handler (int signo)
+{
+    endnow = 1;
+}
+/**********************************************************************/
+
+static int prepare_exit()
+{
+    if(signal(SIGINT, signal_handler) == SIG_ERR)
+        return -1; 
+   
+    if(signal(SIGTERM, signal_handler) == SIG_ERR)
+        return -1;
+
+    return 0;
+} 
+
+/**********************************************************************/
+
 int main(int argc, char *argv[])
 {
     struct metrics metric;
@@ -176,7 +197,12 @@ int main(int argc, char *argv[])
     char filename[128] = "output.ts";
     char path[380]  = "";
     long initial_throughput;
-    
+    if (prepare_exit()<0)
+    {
+        printf("Signal handlers failed to register\n"); 
+        return 0; 
+    }
+
     init_metrics(&metric);
 
     init_transport(&media_transport);
