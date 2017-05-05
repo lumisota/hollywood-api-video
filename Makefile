@@ -29,8 +29,10 @@ clean:
 	rm httpd httpc $(SERVER_OBJ) $(LIB_OBJ) $(CLIENT_OBJ) $(COMMON_OBJ)
 
 testfiles:
-	wget http://www.netlab.tkk.fi/tutkimus/rtc/testfiles.tar.gz
-	tar -zxvf testfiles.tar.gz
+	wget http://www.netlab.tkk.fi/tutkimus/rtc/BBB_8bitrates_hd.tar.gz
+	tar -zxvf BBB_8bitrates_hd.tar.gz
+	mkdir testfiles
+	mv BBB_8bitrates_hd testfiles/.
 
 $(COMMON_OBJ): $(patsubst %,$(COMMON_DIR)/%, $(COMMON_HDR))
 	$(CC) $(CCFLAGS) $(COMMON_DIR)/$*.c -o $*.o 
