@@ -102,7 +102,7 @@ int download_segments( manifest * m, transport * t , long long stime, long throu
             if( http_resp_len == 0 )
             {
                 close(t->sock);
-                if((t->sock = connect_tcp_port (t->host, t->port, t->Hollywood, sock))<0)
+                if((t->sock = connect_tcp_port (t->host, t->port, t->Hollywood, sock, t->OO))<0)
                     break;
             }
             
@@ -202,6 +202,7 @@ int init_transport(transport * t)
     t->fptr             = NULL;
     t->stream_complete  = 0;
     t->playout_time     = 0;
+    t->OO               = 0; 
     t->rx_buf  = malloc(sizeof(struct playout_buffer));
     memzero(t->rx_buf, sizeof(struct playout_buffer) );
     sprintf(t->host, "");

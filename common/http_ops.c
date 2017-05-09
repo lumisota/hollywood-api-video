@@ -76,7 +76,7 @@ void exit_http_operations()
 
 
 
-int connect_tcp_port (char * host, char * port, uint8_t hollywood, void * sock)
+int connect_tcp_port (char * host, char * port, uint8_t hollywood, void * sock, uint8_t OO)
 {
     struct addrinfo hints;
     struct addrinfo *serveraddr;
@@ -106,7 +106,7 @@ int connect_tcp_port (char * host, char * port, uint8_t hollywood, void * sock)
     if (hollywood)
     {
         /* Create Hollywood socket */
-        if (hollywood_socket(fd, (hlywd_sock *) sock, 0, 0) != 0) {
+        if (hollywood_socket(fd, (hlywd_sock *) sock, OO, 0) != 0) {
             printf("Unable to create Hollywood socket\n");
             close(fd);
             return -1;

@@ -44,7 +44,7 @@ int endnow = 0;
 //}
 /**********************************************************************/
 
-int check_arguments(int argc, char* argv[], char * port, char * mpdlink, char * filename, uint8_t * hollywood)
+int check_arguments(int argc, char* argv[], char * port, char * mpdlink, char * filename, uint8_t * hollywood, uint8_t * OO)
 {
     int i;
     for(i=1; i<argc; i++)
@@ -57,7 +57,7 @@ int check_arguments(int argc, char* argv[], char * port, char * mpdlink, char * 
             else
             {
                 printf ("Invalid arguments\n");
-                printf("Usage : %s --port <port number> --mpd <mpd link/url> --out <output file> [--verbose]\n", argv[0]);
+                printf("Usage : %s --port <port number> --mpd <mpd link/url> --out <output file> [--verbose] [--oo]\n", argv[0]);
                 return -1;
             }
         }
@@ -87,6 +87,8 @@ int check_arguments(int argc, char* argv[], char * port, char * mpdlink, char * 
         }
         else if(strcmp(argv[i], "--hollywood")==0)
             *hollywood=1;
+        else if(strcmp(argv[i], "--oo")==0)
+            *OO=1;
         else if(strcmp(argv[i], "--verbose")==0)
             verbose = 1;
         else
@@ -192,7 +194,7 @@ int main(int argc, char *argv[])
     struct metrics metric;
     manifest media_manifest     = {0};
     transport media_transport;
-    uint8_t hollywood = 0;
+    uint8_t hollywood = 0, oo = 0;
     char mpdlink[MAXURLLENGTH] = "127.0.0.1/BigBuckBunny/1sec/mp2s/BBB.mpd";
     char filename[128] = "output.ts";
     char path[380]  = "";
@@ -209,7 +211,7 @@ int main(int argc, char *argv[])
 
     /* Check for hostname parameter */
     if (argc > 1) {
-        if((check_arguments(argc, argv, media_transport.port, mpdlink, filename, &hollywood))<0)
+        if((check_arguments(argc, argv, media_transport.port, mpdlink, filename, &hollywood, &oo))<0)
             return(0);
     }
 
@@ -223,12 +225,12 @@ int main(int argc, char *argv[])
     }
     if(hollywood)
     {
-        if((media_transport.sock = connect_tcp_port (media_transport.host, media_transport.port, hollywood, &media_transport.h_sock))<0)
+        if((media_transport.sock = connect_tcp_port (media_transport.host, media_transport.port, hollywood, &media_transport.h_sock, oo))<0)
             return -1;
     }
     else
     {
-        if((media_transport.sock = connect_tcp_port (media_transport.host, media_transport.port, hollywood, &media_transport.sock ))<0)
+        if((media_transport.sock = connect_tcp_port (media_transport.host, media_transport.port, hollywood, &media_transport.sock, 0))<0)
             return -1;
     }
 
@@ -242,6 +244,7 @@ int main(int argc, char *argv[])
     }
  
     media_transport.Hollywood = hollywood;
+    media_transport.OO = oo;
     metric.stime = gettimelong();
     metric.t = &media_transport;
 

@@ -37,6 +37,7 @@
 #define SERVER_STRING "Server: jdbhttpd/0.1.0\r\n"
 
 uint8_t     Hollywood = 0;
+uint8_t PartialReliability = 0;
 uint32_t offset = 0;     /*offset added to last 4 bytes of the message*/
 uint32_t stream_seq = 0;
 
@@ -72,7 +73,7 @@ void * accept_request(void * a)
     {
 
         int client = *((int *)a);
-        if (hollywood_socket(client, &h_sock, 0, 0) != 0) {
+        if (hollywood_socket(client, &h_sock, 0, PartialReliability) != 0) {
             printf("Unable to create Hollywood socket\n");
             return NULL;
         }
@@ -285,7 +286,7 @@ int check_arguments(int argc, char* argv[], u_short * port)
             else
             {
                 printf ("Invalid arguments\n");
-                printf("Usage with TCP Hollywood : %s --port <port number> --hollywood\n", argv[0]);
+                printf("Usage with TCP Hollywood : %s --port <port number> --hollywood --pr\n", argv[0]);
                 printf("Usage with TCP only : %s --port <port number> \n", argv[0]);
                 printf("Usage with TCP with auto port : %s \n", argv[0]);
                 return -1;
@@ -293,10 +294,12 @@ int check_arguments(int argc, char* argv[], u_short * port)
         }
         else if(strcmp(argv[i], "--hollywood")==0)
             Hollywood=1;
+        else if(strcmp(argv[i], "--pr")==0)
+            PartialReliability=1;
         else
         {
             printf ("Invalid arguments\n");
-            printf("Usage with TCP Hollywood : %s --port <port number> --hollywood\n", argv[0]);
+            printf("Usage with TCP Hollywood : %s --port <port number> --hollywood --pr\n", argv[0]);
             printf("Usage with TCP only : %s --port <port number> \n", argv[0]);
             printf("Usage with TCP with auto port : %s \n", argv[0]);
             return -1;

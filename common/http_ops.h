@@ -45,7 +45,7 @@ int separate_host_and_filepath(char * url, char * host, char * path);
 
 int read_to_memory (void * sock, char * memory, int contentlen, uint8_t hollywood);
 
-int connect_tcp_port (char * host, char * port, uint8_t hollywood, void * sock);
+int connect_tcp_port (char * host, char * port, uint8_t hollywood, void * sock, uint8_t OO);
 
 int send_resp_headers(void * sock , const char *filename, uint8_t hollywood);
 

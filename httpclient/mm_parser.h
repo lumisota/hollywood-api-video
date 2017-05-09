@@ -35,6 +35,7 @@ typedef struct {
     pthread_cond_t  msg_ready;      /*indicates that a new message has been received*/
     pthread_mutex_t msg_mutex;      /*mutex of the message*/
     uint8_t Hollywood;
+    uint8_t OO;
     int sock;
     FILE * fptr;
     hlywd_sock h_sock;
