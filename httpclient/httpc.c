@@ -44,7 +44,13 @@ int endnow = 0;
 //}
 /**********************************************************************/
 
-int check_arguments(int argc, char* argv[], char * port, char * mpdlink, char * filename, uint8_t * hollywood, uint8_t * OO)
+void print_instructions(char * prog)
+{
+    printf("Usage : %s --port <port number> --mpd <mpd link/url> --out <output file> [--verbose] [--oo] [--prebuf x (ms)]\n", prog);
+}
+
+
+int check_arguments(int argc, char* argv[], char * port, char * mpdlink, char * filename, uint8_t * hollywood, uint8_t * OO, int * prebuf)
 {
     int i;
     for(i=1; i<argc; i++)
@@ -57,7 +63,7 @@ int check_arguments(int argc, char* argv[], char * port, char * mpdlink, char * 
             else
             {
                 printf ("Invalid arguments\n");
-                printf("Usage : %s --port <port number> --mpd <mpd link/url> --out <output file> [--verbose] [--oo]\n", argv[0]);
+                print_instructions(argv[0]);
                 return -1;
             }
         }
@@ -69,7 +75,7 @@ int check_arguments(int argc, char* argv[], char * port, char * mpdlink, char * 
             else
             {
                 printf ("Invalid arguments\n");
-                printf("Usage : %s --port <port number> --mpd <mpd link/url> --out <output file> [--verbose]\n", argv[0]);
+                print_instructions(argv[0]);
                 return -1;
             }
         }
@@ -81,12 +87,17 @@ int check_arguments(int argc, char* argv[], char * port, char * mpdlink, char * 
             else
             {
                 printf ("Invalid arguments\n");
-                printf("Usage : %s --port <port number> --mpd <mpd link/url> --out <output file> [--verbose]\n", argv[0]);
+                print_instructions(argv[0]);
                 return -1;
             }
         }
         else if(strcmp(argv[i], "--hollywood")==0)
             *hollywood=1;
+        else if(strcmp(argv[i], "--prebuf")==0)
+        {
+            ++i; 
+            *prebuf = atoi(argv[i]);
+        }
         else if(strcmp(argv[i], "--oo")==0)
             *OO=1;
         else if(strcmp(argv[i], "--verbose")==0)
@@ -94,7 +105,7 @@ int check_arguments(int argc, char* argv[], char * port, char * mpdlink, char * 
         else
         {
             printf ("Invalid arguments\n");
-            printf("Usage : %s --port <port number> --mpd <mpd link/url> --out <output file> [--verbose]\n", argv[0]);
+            print_instructions(argv[0]);
             return -1;
             
         }
@@ -198,6 +209,7 @@ int main(int argc, char *argv[])
     char mpdlink[MAXURLLENGTH] = "127.0.0.1/BigBuckBunny/1sec/mp2s/BBB.mpd";
     char filename[128] = "output.ts";
     char path[380]  = "";
+    int prebuf = MIN_PREBUFFER; 
     long initial_throughput;
     if (prepare_exit()<0)
     {
@@ -211,7 +223,7 @@ int main(int argc, char *argv[])
 
     /* Check for hostname parameter */
     if (argc > 1) {
-        if((check_arguments(argc, argv, media_transport.port, mpdlink, filename, &hollywood, &oo))<0)
+        if((check_arguments(argc, argv, media_transport.port, mpdlink, filename, &hollywood, &oo, &prebuf))<0)
             return(0);
     }
 
@@ -247,6 +259,7 @@ int main(int argc, char *argv[])
     media_transport.OO = oo;
     metric.stime = gettimelong();
     metric.t = &media_transport;
+    metric.minbufferlen = prebuf; 
 
     initialize_http_operations(metric.stime);
 

@@ -93,12 +93,12 @@ int push_message(struct playout_buffer * q, uint8_t * buf, uint32_t new_seq, uin
     
     if ( seq_gap >= MAX_QUEUED_MSGS)
     {
-        printf("playout_buffer: Irregular sequence number %u, too large\n", new_seq);
+        printf("playout_buffer: Irregular sequence number %u, too large (CURR head: %u)\n", new_seq, q->lowest_seqnum);
         return -1;
     }
     else if (seq_gap < 0)
     {
-        printf("playout_buffer: Irregular sequence number %u, expired\n", new_seq);
+        printf("playout_buffer: Irregular sequence number %u, expired (CURR head: %u)\n", new_seq, q->lowest_seqnum);
         return -1;
     }
     

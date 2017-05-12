@@ -19,8 +19,7 @@
 #include "readmpd.h"
 #include "../common/http_ops.h"
 
-#define MIN_PREBUFFER 1000 /* in millisecond*/
-#define MIN_STALLBUFFER 500
+#define MIN_PREBUFFER 100 /* in millisecond*/
 #define NUMOFSTREAMS 1
 #define MAX_DASH_INIT_SEGMENT_SIZE 1000
 #define URLLISTSIZE 24
@@ -51,6 +50,7 @@ typedef struct {
 struct metrics
 {
     transport * t;
+    long minbufferlen; /*buffer len when playout begins*/
     /*vidoe metrics*/
     long long htime; /*unix timestamp when test began*/
     long long stime; /*unix timestamp in microseconds, when media downlaod began*/

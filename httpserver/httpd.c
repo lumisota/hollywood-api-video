@@ -130,7 +130,7 @@ void * accept_request(void * a)
         sprintf(path, "testfiles%s", url);
         if (path[strlen(path) - 1] == '/')
             strcat(path, "index.html");
-        //printf("Requested path: %s\n", path); fflush(stdout);
+        printf("Requested path: %s\n", path); fflush(stdout);
         if (stat(path, &st) == -1)
         {
             not_found(sock, Hollywood);

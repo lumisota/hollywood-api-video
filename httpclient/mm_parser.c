@@ -228,6 +228,7 @@ void * mm_parser(void * opaque)
 {
     int got_frame;
     struct metrics * m = (struct metrics * ) opaque;
+    minbuffer = m->minbufferlen; 
     av_register_all();
 	void *buff = av_malloc(HOLLYWOOD_MSG_SIZE);
 	AVIOContext *avio = avio_alloc_context(buff, HOLLYWOOD_MSG_SIZE, 0,
@@ -545,7 +546,7 @@ void checkstall(int end, struct metrics * m)
                 m->initialprebuftime = (double)(m->Tplay - m->stime);
                 m->startup = (double)(m->Tplay - m->htime);
                 /*stalls need shorter prebuffering, so change minbufer now that initial prebuf is done. */
-                minbuffer = MIN_STALLBUFFER;
+                minbuffer = m->minbufferlen/2;
             }
             else
             {
@@ -571,6 +572,7 @@ void printmetric(struct metrics metric)
 {    
     printf("ALL.1;");
     printf("%lld;",         (metric.etime-metric.stime)/1000);   //download time
+    printf("%ld;",          metric.minbufferlen); 
     printf("%"PRIu64";",    metric.TSnow); // duration
     printf("%.0f;",         metric.startup/1000); /*startup delay*/
     printf("%.0f;",         metric.initialprebuftime/1000); // Initial prebuf time
@@ -578,6 +580,8 @@ void printmetric(struct metrics metric)
     printf("%d;",           metric.numofstalls); //num of stalls
     printf("%.0f;",         (metric.numofstalls>0 ? (metric.totalstalltime/metric.numofstalls/1000) : 0)); // av stall duration
     printf("%.0f\n",         metric.totalstalltime/1000); // total stall time
+
+    fflush(stdout); 
     
     
 }

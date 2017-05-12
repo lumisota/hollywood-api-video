@@ -47,7 +47,7 @@ int download_segments( manifest * m, transport * t , long long stime, long throu
         sock = &(t->sock);
     }
     printf("\n");
-    while (curr_segment <= m->num_of_segments )
+    while (curr_segment < m->num_of_segments )
     {
         if(curr_segment == 0)
             buffered_duration = 0;
@@ -180,7 +180,7 @@ int download_segments( manifest * m, transport * t , long long stime, long throu
 END_DOWNLOAD: 
     pthread_mutex_lock(&t->msg_mutex);
     
-    printf("Stream has finished downloading %d of %d \n", curr_segment,  m->num_of_segments);
+    printf("Stream has finished downloading %d of %d \n", curr_segment,  m->num_of_segments); fflush(stdout); 
 
     t->stream_complete = 1;    
     while( !is_empty(t->rx_buf))
