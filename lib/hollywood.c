@@ -41,7 +41,7 @@
 
 #ifndef __APPLE__
 #define TCP_OODELIVERY 27
-#define TCP_PRELIABILITY 28
+//#define TCP_PRELIABILITY 28
 #endif 
 /* Message queue functions */
 int add_message(hlywd_sock *socket, uint8_t *data, size_t len);
@@ -146,6 +146,7 @@ ssize_t send_message_time(hlywd_sock *socket, const void *buf, size_t len, int f
 
 /* Sends a non-time-lined message */
 ssize_t send_message_sub(hlywd_sock *socket, const void *buf, size_t len, int flags, uint8_t substream_id) {
+    printf("sending a message with length %d..\n", len);
 	/* Add sub-stream ID to start of unencoded data */
 	uint8_t *preencode_buf = (uint8_t *) malloc(len+1);
 	memcpy(preencode_buf, &substream_id, 1);
@@ -179,9 +180,9 @@ ssize_t recv_message(hlywd_sock *socket, void *buf, size_t len, int flags, uint8
 	while (socket->message_count == 0) {
 		uint8_t segment[1500+sizeof(tcp_seq)];
 		tcp_seq sequence_num = 0;
-    //    printf("(Hollywood[%d:%d]... ",socket->sock_fd, flags);fflush(stdout);
+        //printf("(Hollywood[%d:%d]... ",socket->sock_fd, flags);fflush(stdout);
 		ssize_t segment_len = recv(socket->sock_fd, segment, 1500+sizeof(tcp_seq), flags);
-    //    printf(" %d bytes (%x:%x)) ", segment_len, segment[0], segment[segment_len-1]); fflush(stdout);
+        //printf(" %d bytes (%x:%x)) ", segment_len, segment[0], segment[segment_len-1]); fflush(stdout);
 
 		if (segment_len <= 0) {
 			return segment_len;
@@ -196,8 +197,8 @@ ssize_t recv_message(hlywd_sock *socket, void *buf, size_t len, int flags, uint8
 			socket->current_sequence_num += segment_len;
 		}
 		parse_segment(socket, segment, segment_len, sequence_num);
-//        printf("(Parsed: %d bytes)", segment_len); fflush(stdout);
-
+	    print_sbuffer(socket->sb);
+        //printf("(Parsed: %d bytes)", segment_len); fflush(stdout);
 	}
 	return dequeue_message(socket, (uint8_t *)buf, substream_id);
 }
@@ -223,6 +224,7 @@ size_t dequeue_message(hlywd_sock *socket, uint8_t *buf, uint8_t *substream_id) 
 
 /* Adds a message to the end of the message queue */
 int add_message(hlywd_sock *socket, uint8_t *data, size_t len) {
+    printf("message (len %zu)\n", len);
 	message *new_message = (message *) malloc(sizeof(message));
 	memcpy(&new_message->substream_id, data, 1);
 	new_message->data = data+1;
@@ -242,6 +244,7 @@ int add_message(hlywd_sock *socket, uint8_t *data, size_t len) {
 
 /* Parse an incoming segment */
 void parse_segment(hlywd_sock *socket, uint8_t *segment, size_t segment_len, tcp_seq sequence_num) {
+    printf("segment (seq %zu, len %zu)\n", sequence_num, segment_len);
 	int message_region_start = 0;
 	int message_region_end = segment_len-1;
 	/* check for head */
@@ -297,6 +300,7 @@ void parse_segment(hlywd_sock *socket, uint8_t *segment, size_t segment_len, tcp
 		add_message(socket, decoded_msg, decoded_msg_len);
 		current_byte++;
 	}
+	
 }
 
 /* Utility functions */
@@ -367,191 +371,94 @@ void print_sbuffer(sparsebuffer *sb) {
 }
 
 sparsebuffer_entry *add_entry(sparsebuffer *sb, tcp_seq sequence_num, size_t length, uint8_t *data) {
-	/* is the sparsebuffer empty? */
-	if (sb->head == NULL) {
-		sparsebuffer_entry *new_sbe = (sparsebuffer_entry *) malloc(sizeof(sparsebuffer_entry));
-		new_sbe->sequence_num = sequence_num;
-		new_sbe->len = length;
-		new_sbe->data = (uint8_t *) malloc(length);
-		memcpy(new_sbe->data, data, length);
-		new_sbe->next = NULL;
-		new_sbe->prev = NULL;
-		sb->head = new_sbe;
-		sb->tail = new_sbe;
-		return new_sbe;
-	}
-	/* no -- at least one entry */
-	/* is this entry the new head? */
-	if (sequence_num < sb->head->sequence_num) {
-		/* yes, yes it is */
-		if (sequence_num+length < sb->head->sequence_num) {
-			sparsebuffer_entry *new_sbe = (sparsebuffer_entry *) malloc(sizeof(sparsebuffer_entry));
-			new_sbe->sequence_num = sequence_num;
-			new_sbe->len = length;
-			new_sbe->data = (uint8_t *) malloc(length);
-			memcpy(new_sbe->data, data, length);
-			new_sbe->next = sb->head;
-			new_sbe->prev = NULL;
-			sb->head->prev = new_sbe;
-			sb->head = new_sbe;
-			return new_sbe;
-		} else {
-			sparsebuffer_entry *ends_in = sb->head;
-			while (ends_in != NULL && sequence_num+length > ends_in->sequence_num+ends_in->len) {
-				sparsebuffer_entry *next_cache = ends_in->next;
-				destroy_sb_entry(ends_in);
-				ends_in = next_cache;
-			}
-			if (ends_in == NULL) {
-				sparsebuffer_entry *new_sbe = (sparsebuffer_entry *) malloc(sizeof(sparsebuffer_entry));
-				new_sbe->sequence_num = sequence_num;
-				new_sbe->len = length;
-				new_sbe->data = (uint8_t *) malloc(length);
-				memcpy(new_sbe->data, data, length);
-				new_sbe->next = NULL;
-				new_sbe->prev = NULL;
-				sb->tail = new_sbe;
-				sb->head = new_sbe;
-				return new_sbe;
-			} else if (sequence_num+length < ends_in->sequence_num) {
-				sparsebuffer_entry *new_sbe = (sparsebuffer_entry *) malloc(sizeof(sparsebuffer_entry));
-				new_sbe->sequence_num = sequence_num;
-				new_sbe->len = length;
-				new_sbe->data = (uint8_t *) malloc(length);
-				memcpy(new_sbe->data, data, length);
-				new_sbe->next = ends_in;
-				new_sbe->prev = NULL;
-				sb->head = new_sbe;
-				ends_in->prev = new_sbe;
-				return new_sbe;
-			} else {
-				sparsebuffer_entry *new_sbe = (sparsebuffer_entry *) malloc(sizeof(sparsebuffer_entry));
-				new_sbe->sequence_num = sequence_num;
-				new_sbe->len = (ends_in->sequence_num+ends_in->len)-sequence_num;
-				new_sbe->data = (uint8_t *) malloc(length);
-				memcpy(new_sbe->data, data, length);
-				memcpy(new_sbe->data+length, ends_in->data, (ends_in->sequence_num+ends_in->len)-(sequence_num+length));
-				new_sbe->next = ends_in->next;
-				new_sbe->prev = NULL;
-				sb->head = new_sbe;
-				if (ends_in->next == NULL) {
-					sb->tail = new_sbe;
-				} else {
-					ends_in->next->prev = new_sbe;
-				}
-				destroy_sb_entry(ends_in);
-				return new_sbe;
-			}
-		}
-	} else {
-		/* no, it isn't. find the entry that this one starts in, or before */
-		sparsebuffer_entry *starts_in = sb->head;
-		while (starts_in != NULL && sequence_num > starts_in->sequence_num+starts_in->len) {
-			starts_in = starts_in->next;
-		}
-		/* is this the new tail? */
-		if (starts_in == NULL) {
-			sparsebuffer_entry *new_sbe = (sparsebuffer_entry *) malloc(sizeof(sparsebuffer_entry));
-			new_sbe->sequence_num = sequence_num;
-			new_sbe->len = length;
-			new_sbe->data = (uint8_t *) malloc(length);
-			memcpy(new_sbe->data, data, length);
-			new_sbe->next = NULL;
-			new_sbe->prev = sb->tail;
-			sb->tail->next = new_sbe;
-			sb->tail = new_sbe;
-			return new_sbe;
-		}
-		sparsebuffer_entry *new_sbe = (sparsebuffer_entry *) malloc(sizeof(sparsebuffer_entry));
-		new_sbe->sequence_num = MIN(sequence_num, starts_in->sequence_num);
-		/* find the entry we end inside, or after -- deleting entries along the way */
-		sparsebuffer_entry *ends_in = starts_in;
-		while (ends_in != NULL && sequence_num+length > ends_in->sequence_num+ends_in->len) {
-			sparsebuffer_entry *next_cache = ends_in->next;
-			if (ends_in != starts_in) {
-				destroy_sb_entry(ends_in);
-			}
-			ends_in = next_cache;
-		}
-		if (ends_in == NULL) {
-			new_sbe->len = (sequence_num+length)-new_sbe->sequence_num;
-			new_sbe->data = (uint8_t *) malloc(new_sbe->len);
-			if (new_sbe->sequence_num != sequence_num) {
-				memcpy(new_sbe->data, starts_in->data, sequence_num-starts_in->sequence_num);
-				memcpy(new_sbe->data+(sequence_num-starts_in->sequence_num), data, length);
-				if (starts_in->prev == NULL) {
-					sb->head = new_sbe;
-					new_sbe->prev = NULL;
-				} else {
-					starts_in->prev->next = new_sbe;
-					new_sbe->prev = starts_in->prev;
-				}
-			} else {
-				memcpy(new_sbe->data, data, length);
-				new_sbe->prev = starts_in->prev;
-				starts_in->prev->next = new_sbe;
-			}
-			destroy_sb_entry(starts_in);
-			new_sbe->next = NULL;
-			sb->tail = new_sbe;
-			return new_sbe;
-		} else if (sequence_num+length < ends_in->sequence_num) {
-			new_sbe->len = (sequence_num+length)-new_sbe->sequence_num;
-			new_sbe->data = (uint8_t *) malloc(new_sbe->len);
-			if (new_sbe->sequence_num != sequence_num) {
-				memcpy(new_sbe->data, starts_in->data, sequence_num-starts_in->sequence_num);
-				memcpy(new_sbe->data+(sequence_num-starts_in->sequence_num), data, length);
-				if (starts_in->prev == NULL) {
-					sb->head = new_sbe;
-					new_sbe->prev = NULL;
-				} else {
-					starts_in->prev->next = new_sbe;
-					new_sbe->prev = starts_in->prev;
-				}
-			} else {
-				memcpy(new_sbe->data, data, length);
-				new_sbe->prev = starts_in->prev;
-				starts_in->prev->next = new_sbe;
-			}
-			destroy_sb_entry(starts_in);
-			new_sbe->next = ends_in;
-			ends_in->prev = new_sbe;	
-			return new_sbe;	
-		} else {
-			new_sbe->len = (ends_in->sequence_num+ends_in->len)-new_sbe->sequence_num;
-			new_sbe->data = (uint8_t *) malloc(new_sbe->len);
-			if (new_sbe->sequence_num != sequence_num) {
-				memcpy(new_sbe->data, starts_in->data, sequence_num-starts_in->sequence_num);
-				memcpy(new_sbe->data+(sequence_num-starts_in->sequence_num), data, length);
-				memcpy(new_sbe->data+(sequence_num-starts_in->sequence_num)+length, ends_in->data+((sequence_num+length)-ends_in->sequence_num), (ends_in->sequence_num+ends_in->len)-(sequence_num+length));
-				if (starts_in->prev == NULL) {
-					sb->head = new_sbe;
-					new_sbe->prev = NULL;
-				} else {
-					starts_in->prev->next = new_sbe;
-					new_sbe->prev = starts_in->prev;
-				}
-			} else {
-				memcpy(new_sbe->data, data, length);
-				if ((ends_in->sequence_num+ends_in->len)-(sequence_num+length) > 0) {
-					memcpy(new_sbe->data+length, ends_in->data+((sequence_num+length)-ends_in->sequence_num), (ends_in->sequence_num+ends_in->len)-(sequence_num+length));
-				}
-				new_sbe->prev = starts_in->prev;
-				if (starts_in->prev == NULL) {
-					sb->head = new_sbe;
-				} else {
-					starts_in->prev->next = new_sbe;
-				}
-			}
-			destroy_sb_entry(starts_in);
-			new_sbe->next = ends_in->next;
-			if (ends_in->next == NULL) {
-				sb->tail = new_sbe;
-			} else {
-				ends_in->next->prev = new_sbe;
-			}
-			return new_sbe;
-		}
-	}
-	return NULL;
+    /* find starts_in */
+    sparsebuffer_entry *starts_in = sb->head;
+    while (starts_in != NULL && sequence_num > starts_in->sequence_num+starts_in->len) {
+        starts_in = starts_in->next;
+    }
+    /* find ends_in */
+    sparsebuffer_entry *ends_in = starts_in;
+    while (ends_in != NULL && sequence_num+length >= ends_in->sequence_num+ends_in->len) {
+        ends_in = ends_in ->next;
+    }
+    /* construct new entry */
+    sparsebuffer_entry *new_sbe = (sparsebuffer_entry *) malloc(sizeof(sparsebuffer_entry));
+    printf(">>>\n");
+    print_sbuffer_entry(starts_in);
+    /* populate sequence number */
+    if (starts_in != NULL && starts_in->sequence_num < sequence_num) {
+        new_sbe->sequence_num = starts_in->sequence_num;
+    } else {
+        new_sbe->sequence_num = sequence_num;
+    }
+    /* populate data length */
+    if (ends_in != NULL && sequence_num+length >= ends_in->sequence_num) {
+        new_sbe->len = ends_in->sequence_num+ends_in->len - new_sbe->sequence_num;
+    } else {
+        new_sbe->len = sequence_num+length - new_sbe->sequence_num;
+    }
+    /* malloc data space */
+    new_sbe->data = (uint8_t *) malloc(new_sbe->len);
+    /* copy data from starts_in, if it exists */
+    int current_pos = 0;
+    if (new_sbe->sequence_num < sequence_num) {
+        /* data to copy from starts_in */
+        current_pos = sequence_num-new_sbe->sequence_num;
+        memcpy(new_sbe->data, starts_in->data, current_pos);
+    }
+    /* copy from data */
+    memcpy(new_sbe->data+current_pos, data, length);
+    current_pos += length;
+    if (new_sbe->sequence_num+new_sbe->len > sequence_num+length) {
+        /* data to copy from ends_in */
+        memcpy(new_sbe->data+current_pos, ends_in->data+(ends_in->len-(new_sbe->len-current_pos)), new_sbe->len-current_pos);
+    }
+    /* wire in new_sbe */
+    /* starts_in */
+    if (starts_in != NULL) {
+        new_sbe->prev = starts_in->prev;
+        if (starts_in->prev != NULL) {
+            starts_in->prev->next = new_sbe;
+        } else {
+            sb->head = new_sbe;
+        }
+    } else {
+        if (sb->head == NULL) {
+            new_sbe->prev = NULL;
+            sb->head = new_sbe;
+        } else {
+            new_sbe->prev = sb->tail;
+            sb->tail->next = new_sbe;
+            sb->tail = new_sbe;
+        }
+    }
+    /* ends_in */
+    if (ends_in != NULL) {
+        if (new_sbe->sequence_num+new_sbe->len < ends_in->sequence_num) {
+            new_sbe->next = ends_in;
+            ends_in->prev = new_sbe;
+        } else {
+            new_sbe->next = ends_in->next;
+            if (ends_in->next != NULL) {
+                ends_in->next->prev = new_sbe;
+            } else {
+                sb->tail = new_sbe;
+                new_sbe->next = NULL;
+            }
+        }
+    } else {
+        sb->tail = new_sbe;
+        new_sbe->next = NULL;
+    }
+    /* clean up */  
+    sparsebuffer_entry* del = starts_in;
+    while (del != NULL && del != ends_in) {
+        sparsebuffer_entry* del_next = del->next;
+        destroy_sb_entry(del);
+        del = del_next;
+    }
+    if (ends_in != NULL && new_sbe->sequence_num+new_sbe->len >= ends_in->sequence_num) {
+        destroy_sb_entry(ends_in);
+    }
+    return new_sbe;
 }
