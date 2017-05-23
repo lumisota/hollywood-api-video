@@ -35,7 +35,7 @@
 
 int get_content_length( char * buf);
 
-int get_html_headers(void * sock, char *buf, int size, uint8_t hollywood);
+int get_html_headers(void * sock, char *buf, int size, uint8_t hollywood, uint8_t * substream);
 
 //int receive_response(int fd, struct metrics * metric, uint8_t hollywood);
 

@@ -33,7 +33,8 @@ int download_segments( manifest * m, transport * t , long long stime, long throu
     long long start_time            = 0;
     void * sock;
     long buffered_duration          = 0;
-    
+    uint8_t substream               = 0;
+
     /*Initialize bola, isDynamic is set to 1 (Live)*/
     curr_bitrate_level = calculateInitialState(m, IS_DYNAMIC, &bola);
     saveThroughput(&bola, throughput);  /*bps*/
@@ -92,18 +93,32 @@ int download_segments( manifest * m, transport * t , long long stime, long throu
         bytes_rx = 0;
         
         http_resp_len = 0 ;
-        
+        if( send_get_request (sock, curr_url, t->Hollywood) < 0 )
+            goto END_DOWNLOAD;
         while (http_resp_len==0)
         {
-            if( send_get_request (sock, curr_url, t->Hollywood) < 0 )
-                break;
-            
-            http_resp_len = get_html_headers(sock, buf, HTTPHEADERLEN, t->Hollywood);
+            http_resp_len = get_html_headers(sock, buf, HTTPHEADERLEN, t->Hollywood, &substream);
             if( http_resp_len == 0 )
             {
                 close(t->sock);
                 if((t->sock = connect_tcp_port (t->host, t->port, t->Hollywood, sock, t->OO))<0)
-                    break;
+                {
+                    printf("ERROR: TCP Connect failed\n");
+                    goto END_DOWNLOAD;
+                }
+                if( send_get_request (sock, curr_url, t->Hollywood) < 0 )
+                {
+                    printf("ERROR: Send GET request failed on Hollywood\n");
+                    goto END_DOWNLOAD;
+                }
+            }
+            else if (http_resp_len > 0 )
+            {
+                if (substream == 2)
+                {
+                    printf("SUBSTREAM 2: We should probably add this to the queue\n");
+                    http_resp_len = 0;
+                }
             }
             
         }
@@ -111,14 +126,14 @@ int download_segments( manifest * m, transport * t , long long stime, long throu
         if(strstr(buf, "200 OK")==NULL)
         {
             printf("Request Failed: %s \n", buf);
-            break;
+            goto END_DOWNLOAD;
         }
         
         contentlen = get_content_length(buf);
         if (contentlen == 0)
         {
             printf("download_segments: Received zero content length, exiting program! \n");
-            break;
+            goto END_DOWNLOAD;
         }
         start_time = gettimelong();
         
@@ -138,18 +153,20 @@ int download_segments( manifest * m, transport * t , long long stime, long throu
                     if (ferror (t->fptr))
                         printf ("download_segments: Error Writing to file\n");
                     perror("File writing error occured: ");
-                    return -1;
+                    goto END_DOWNLOAD;
                 }
                 
             }
             else if (ret<0)
             {
-                perror("download_segments: Socket recv failed: ");
-                return -1;
+                perror("ERROR: download_segments: Socket recv failed: ");
+                goto END_DOWNLOAD;
             }
             else
             {
                 printf("download_segments: Received 0 bytes, connection closed\n");
+                goto END_DOWNLOAD;
+
             }
             
             bytes_rx += ret;

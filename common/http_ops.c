@@ -136,7 +136,7 @@ int get_content_length( char * buf)
 
 /**********************************************************************/
 
-int get_html_headers(void * sock, char *buf, int size, uint8_t hollywood)
+int get_html_headers(void * sock, char *buf, int size, uint8_t hollywood, uint8_t * substream)
 {
     int i = 0;
     char c = '\0';
@@ -152,6 +152,9 @@ int get_html_headers(void * sock, char *buf, int size, uint8_t hollywood)
             printf("get_html_headers: Error reading from Hollywood socket \n");
             i = 0;
         }
+        if(substream!=NULL)
+            *substream = substream_id;
+
         update_bytes_read(i);
     }
     else

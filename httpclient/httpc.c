@@ -125,6 +125,7 @@ long fetch_manifest(transport * t, char * mpdlink, manifest * media_manifest )
     int bytes_rx;
     long long start_time;
     long Throughput = -1;
+    uint8_t substream;
     
     if ( t->Hollywood)
     {
@@ -138,8 +139,13 @@ long fetch_manifest(transport * t, char * mpdlink, manifest * media_manifest )
     send_get_request(sock, mpdlink, t->Hollywood);
     
     start_time = gettimelong();
-    get_html_headers(sock, buf, HTTPHEADERLEN, t->Hollywood);
+    get_html_headers(sock, buf, HTTPHEADERLEN, t->Hollywood, &substream);
     
+    if( t->Hollywood && substream == 2)
+    {
+        printf("Error: Received timelined message in manifest GET\n");
+        return -1; 
+    }
     
     if(strstr(buf, "200 OK")==NULL)
     {

@@ -90,7 +90,7 @@ void * accept_request(void * a)
     {
         char *query_string = NULL;
 
-        numchars = get_html_headers(sock, buf, HTTPHEADERLEN, Hollywood);
+        numchars = get_html_headers(sock, buf, HTTPHEADERLEN, Hollywood, NULL);
         
         if (numchars == 0 )
             break;

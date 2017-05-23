@@ -146,7 +146,7 @@ ssize_t send_message_time(hlywd_sock *socket, const void *buf, size_t len, int f
 
 /* Sends a non-time-lined message */
 ssize_t send_message_sub(hlywd_sock *socket, const void *buf, size_t len, int flags, uint8_t substream_id) {
-    printf("sending a message with length %d..\n", len);
+    //printf("sending a message with length %d..\n", len);
 	/* Add sub-stream ID to start of unencoded data */
 	uint8_t *preencode_buf = (uint8_t *) malloc(len+1);
 	memcpy(preencode_buf, &substream_id, 1);
@@ -224,7 +224,7 @@ size_t dequeue_message(hlywd_sock *socket, uint8_t *buf, uint8_t *substream_id) 
 
 /* Adds a message to the end of the message queue */
 int add_message(hlywd_sock *socket, uint8_t *data, size_t len) {
-    printf("message (len %zu)\n", len);
+    //printf("message (len %zu)\n", len);
 	message *new_message = (message *) malloc(sizeof(message));
 	memcpy(&new_message->substream_id, data, 1);
 	new_message->data = data+1;
@@ -244,7 +244,7 @@ int add_message(hlywd_sock *socket, uint8_t *data, size_t len) {
 
 /* Parse an incoming segment */
 void parse_segment(hlywd_sock *socket, uint8_t *segment, size_t segment_len, tcp_seq sequence_num) {
-    printf("segment (seq %zu, len %zu)\n", sequence_num, segment_len);
+    //printf("segment (seq %zu, len %zu)\n", sequence_num, segment_len);
 	int message_region_start = 0;
 	int message_region_end = segment_len-1;
 	/* check for head */
@@ -365,7 +365,7 @@ void destroy_sb_entry(sparsebuffer_entry *sb_entry) {
 void print_sbuffer(sparsebuffer *sb) {
 	sparsebuffer_entry *sb_entry = sb->head;
 	while (sb_entry != NULL) {
-		print_sbuffer_entry(sb_entry);
+		//print_sbuffer_entry(sb_entry);
 		sb_entry = sb_entry->next;
 	}
 }
@@ -383,8 +383,8 @@ sparsebuffer_entry *add_entry(sparsebuffer *sb, tcp_seq sequence_num, size_t len
     }
     /* construct new entry */
     sparsebuffer_entry *new_sbe = (sparsebuffer_entry *) malloc(sizeof(sparsebuffer_entry));
-    printf(">>>\n");
-    print_sbuffer_entry(starts_in);
+    //printf(">>>\n");
+    //print_sbuffer_entry(starts_in);
     /* populate sequence number */
     if (starts_in != NULL && starts_in->sequence_num < sequence_num) {
         new_sbe->sequence_num = starts_in->sequence_num;
