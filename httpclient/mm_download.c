@@ -184,7 +184,7 @@ int download_segments( manifest * m, transport * t , long long stime, long throu
             pthread_cond_signal(&t->msg_ready);
           //  pthread_cond_wait( &t->msg_ready, &t->msg_mutex );
             pthread_mutex_unlock(&t->msg_mutex);
- //           printf("Read %d of %d bytes \n", bytes_rx, contentlen);
+            fprintf(stderr, "Read %d of %d bytes \n", bytes_rx, contentlen); fflush(stderr); 
             
         }
         double download_time = gettimelong() - start_time;

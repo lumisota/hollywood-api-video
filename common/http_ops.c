@@ -146,7 +146,9 @@ int get_html_headers(void * sock, char *buf, int size, uint8_t hollywood, uint8_
     {
         /*headers are sent as a single message*/
         uint8_t substream_id;
+	fprintf(stderr,"Calling recv_message....");
         i = recv_message((hlywd_sock * )sock, buf, size, 0, &substream_id);
+	fprintf(stderr,"returned\n");
         if ( i < 0 )
         {
             printf("get_html_headers: Error reading from Hollywood socket \n");
@@ -262,9 +264,10 @@ int read_http_body_partial(void * sock, uint8_t * buf, int buflen, uint8_t holly
     if(hollywood)
     {
         uint8_t substream_id;
-     //   printf("http_read:  "); fflush(stdout);
+        fprintf(stderr, "http_read:  "); fflush(stderr);
+
         ret = recv_message((hlywd_sock * )sock, buf, buflen, 0, &substream_id);
-       // printf("Read %d bytes\n",ret); fflush(stdout);
+        fprintf(stderr, "Read %d bytes\n",ret); fflush(stderr);
         if (ret > 0)
         {
             update_bytes_read(ret);
