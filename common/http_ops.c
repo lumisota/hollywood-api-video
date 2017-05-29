@@ -7,13 +7,13 @@
 //
 
 #include "http_ops.h"
-
+#define HTTP_SUBSTREAM 4
 pthread_t       http_tid;          /*thread id of the av parser thread*/
 static int exit_thread         = 0;
 static long long inst_bytes    = 0;
 static long long inst_time     = 0;
 static pthread_mutex_t http_mutex;      /*mutex for throughput metrics*/
-
+int ContentLength = 0; 
 
 void * print_instantaneous_throughput(void * opaque)
 {
@@ -265,9 +265,16 @@ int read_http_body_partial(void * sock, uint8_t * buf, int buflen, uint8_t holly
     {
         uint8_t substream_id;
         fprintf(stderr, "http_read:  "); fflush(stderr);
+	while(1)
+        {
+            ret = recv_message((hlywd_sock * )sock, buf, buflen, 0, &substream_id);
+            fprintf(stderr, "Read %d bytes on substream %d\n",ret, substream_id); fflush(stderr);
+            if (substream_id == HOLLYWOOD_DATA_SUBSTREAM_TIMELINED || substream_id == HOLLYWOOD_DATA_SUBSTREAM_UNTIMELINED || ret<=0)
+            {
+                break; 
+            }
 
-        ret = recv_message((hlywd_sock * )sock, buf, buflen, 0, &substream_id);
-        fprintf(stderr, "Read %d bytes\n",ret); fflush(stderr);
+        }
         if (ret > 0)
         {
             update_bytes_read(ret);
@@ -357,7 +364,7 @@ int send_resp_headers(void * sock , const char *filename, uint8_t hollywood)
     stat(filename, &st);
     size = st.st_size;
     sprintf(tmp, "Content-Length: %d\r\n", size);
-    
+    ContentLength = size; 
     strcat(buf, tmp);
     
     
@@ -376,7 +383,8 @@ int send_resp_headers(void * sock , const char *filename, uint8_t hollywood)
     
     if(hollywood)
     {
-        return send_message((hlywd_sock *)sock, buf, strlen(buf), 0);
+        printf("HTTP Response: \n%s\n", buf);
+        return send_message_sub((hlywd_sock *)sock, buf, strlen(buf), 0, HOLLYWOOD_HTTP_SUBSTREAM);
     }
     else{
         return write(*((int *) sock), buf, strlen(buf));
@@ -395,7 +403,7 @@ int cat_full_file(hlywd_sock * sock, FILE *fptr)
     
     if ( feof(fptr) )
     {
-        return send_message(sock, buffer, bytes_read, 0);
+        return send_message_sub(sock, buffer, bytes_read, 0, HOLLYWOOD_HTTP_SUBSTREAM);
     }
     
     if(bytes_read == PAGESIZE)
@@ -477,7 +485,7 @@ int not_found(void * sock, uint8_t hollywood)
     
     if ( hollywood )
     {
-        return send_message(sock, buf, strlen(buf), 0);
+        return send_message_sub(sock, buf, strlen(buf), 0, HOLLYWOOD_HTTP_SUBSTREAM);
     }
     else
     {
@@ -506,7 +514,7 @@ int unimplemented(void * sock, uint8_t hollywood)
     
     if ( hollywood )
     {
-        return send_message(sock, buf, strlen(buf), 0);
+        return send_message_sub(sock, buf, strlen(buf), 0, HOLLYWOOD_HTTP_SUBSTREAM);
     }
     else
     {

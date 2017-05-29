@@ -87,8 +87,8 @@ int hollywood_socket(int fd, hlywd_sock *socket, int oo, int pr) {
 	socket->message_q_tail = NULL;
 	socket->message_count = 0;
 	socket->oo = oo;
-    socket->pr = pr;
-    
+        socket->pr = pr;
+
 	socket->current_sequence_num = 0;
 
 	socket->sb = new_sbuffer();
@@ -180,9 +180,9 @@ ssize_t recv_message(hlywd_sock *socket, void *buf, size_t len, int flags, uint8
 	while (socket->message_count == 0) {
 		uint8_t segment[1500+sizeof(tcp_seq)];
 		tcp_seq sequence_num = 0;
-        //printf("(Hollywood[%d:%d]... ",socket->sock_fd, flags);fflush(stdout);
+        fprintf(stderr, "(Hollywood[%d:%d]... ",socket->sock_fd, flags);fflush(stderr);
 		ssize_t segment_len = recv(socket->sock_fd, segment, 1500+sizeof(tcp_seq), flags);
-        //printf(" %d bytes (%x:%x)) ", segment_len, segment[0], segment[segment_len-1]); fflush(stdout);
+        fprintf(stderr, " %d bytes (%x:%x)) ", segment_len, segment[0], segment[segment_len-1]); fflush(stderr);
 
 		if (segment_len <= 0) {
 			return segment_len;

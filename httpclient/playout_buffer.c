@@ -7,7 +7,8 @@
 //
 
 #include "playout_buffer.h"
-
+#define PLAYOUT_BUFFER "PLAYOUT_BUFFER"
+//#define PLAYOUT_BUFFER ""
 
 int is_empty (struct playout_buffer * q)
 {
@@ -61,7 +62,7 @@ int pop_message (struct playout_buffer * q, uint8_t * buf, uint32_t datalen)
     if(q->datalen[q->head]!=0)
     {
         memcpy(q->buf[q->head], q->buf[q->head]+ret, q->datalen[q->head]);
-  //      printf("******Partial Pop seqnum %d, index %d (%d)\n", q->lowest_seqnum, q->head, ret);
+        printdebug(PLAYOUT_BUFFER, "Partial Pop seqnum %d, index %d (%d)\n", q->lowest_seqnum, q->head, ret);
 
     }
     else
@@ -72,7 +73,7 @@ int pop_message (struct playout_buffer * q, uint8_t * buf, uint32_t datalen)
         if (q->head >= MAX_QUEUED_MSGS)
             q->head = q->head - MAX_QUEUED_MSGS;
         q->lowest_seqnum++;
-    //    printf("******Pop seqnum %d, index %d (%d)\n", q->lowest_seqnum, q->head, ret);
+        printdebug(PLAYOUT_BUFFER, "Pop seqnum %d, index %d (%d)\n", q->lowest_seqnum, q->head, ret);
 
 
     }
@@ -114,6 +115,17 @@ int push_message(struct playout_buffer * q, uint8_t * buf, uint32_t new_seq, uin
         q->highest_seqnum = new_seq;
         q->qlen = seq_gap + 1;
     }
+    else /*check for duplicate*/
+    {
+        if (q->datalen[curr_index] != 0)
+        {
+            if(q->datalen[curr_index] == datalen)
+                printdebug(PLAYOUT_BUFFER, "Duplicate message seq : %u (Len new: %d, old: %d)\n", new_seq);
+            else
+                printdebug(PLAYOUT_BUFFER, "ERROR: Mismatched duplicate message seq : %u (Len new: %d, old: %d)\n", new_seq, q->datalen[curr_index], datalen);
+            return -1;
+        }
+    }
     
     if (q->qlen == 0)
     {
@@ -128,7 +140,7 @@ int push_message(struct playout_buffer * q, uint8_t * buf, uint32_t new_seq, uin
     
     q->datalen[curr_index] = datalen;
     
-//    printf("******Push seqnum %d (%d-%d, qlen %d), index %d(%d) (size: %d)\n", new_seq, q->highest_seqnum, q->lowest_seqnum, q->qlen, curr_index, q->head, datalen);
+    printdebug(PLAYOUT_BUFFER, "Push seqnum %d (%d-%d, qlen %d), index %d(%d) (size: %d)\n", new_seq, q->highest_seqnum, q->lowest_seqnum, q->qlen, curr_index, q->head, datalen);
 
     return new_seq;
 }

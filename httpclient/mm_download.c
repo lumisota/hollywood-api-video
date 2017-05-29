@@ -94,7 +94,10 @@ int download_segments( manifest * m, transport * t , long long stime, long throu
         
         http_resp_len = 0 ;
         if( send_get_request (sock, curr_url, t->Hollywood) < 0 )
+        {
+            printf("ERROR: Send GET request failed on Hollywood\n");
             goto END_DOWNLOAD;
+        }
         while (http_resp_len==0)
         {
             http_resp_len = get_html_headers(sock, buf, HTTPHEADERLEN, t->Hollywood, &substream);
@@ -114,15 +117,13 @@ int download_segments( manifest * m, transport * t , long long stime, long throu
             }
             else if (http_resp_len > 0 )
             {
-                if (substream == 2)
+                if (substream != HOLLYWOOD_HTTP_SUBSTREAM)
                 {
-                    printf("SUBSTREAM 2: We should probably add this to the queue\n");
+                    printf("ERROR : SUBSTREAM %d: We should probably add this to the queue\n", substream); fflush(stdout); 
                     http_resp_len = 0;
                 }
             }
-            
         }
-        
         if(strstr(buf, "200 OK")==NULL)
         {
             printf("Request Failed: %s \n", buf);
@@ -169,7 +170,6 @@ int download_segments( manifest * m, transport * t , long long stime, long throu
 
             }
             
-            bytes_rx += ret;
             
             pthread_mutex_lock(&t->msg_mutex);
             
@@ -179,12 +179,13 @@ int download_segments( manifest * m, transport * t , long long stime, long throu
             }
     
             /*Error code not checked, if message push fails, move on, nothing to do*/
-            push_message(t->rx_buf, rx_buf, new_seq, ret);
+            if(push_message(t->rx_buf, rx_buf, new_seq, ret)>=0)
+                bytes_rx += ret;
 
             pthread_cond_signal(&t->msg_ready);
           //  pthread_cond_wait( &t->msg_ready, &t->msg_mutex );
             pthread_mutex_unlock(&t->msg_mutex);
-            fprintf(stderr, "Read %d of %d bytes \n", bytes_rx, contentlen); fflush(stderr); 
+            fprintf(stderr, "Read %d of %d bytes (seq: %u) \n", bytes_rx, contentlen, new_seq); fflush(stderr); 
             
         }
         double download_time = gettimelong() - start_time;

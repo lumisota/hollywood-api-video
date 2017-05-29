@@ -32,6 +32,9 @@
 #define PAGESIZE 500000
 #define HLYWD_MSG_TRAILER 8 /*sizeof(uint32)*2 offset+seq */
 #define HOLLYWOOD_MSG_SIZE 1400
+#define HOLLYWOOD_HTTP_SUBSTREAM 4
+#define HOLLYWOOD_DATA_SUBSTREAM_TIMELINED 2
+#define HOLLYWOOD_DATA_SUBSTREAM_UNTIMELINED 3
 
 int get_content_length( char * buf);
 

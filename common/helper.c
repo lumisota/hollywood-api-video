@@ -17,11 +17,11 @@ void printdebug(const char* source, const char* format, ... )
     va_list args;
     if ( strlen(source)==0)
         return; 
-    fprintf( stdout,"%s: ", source );
+    fprintf( stderr,"%s: ", source );
     va_start( args, format );
-    vfprintf( stdout, format, args );
+    vfprintf( stderr, format, args );
     va_end( args );
-    fprintf( stdout, "\n" );
+    fprintf( stderr, "\n" );
 }
 
 
