@@ -409,7 +409,6 @@ int send_resp_headers(void * sock , const char *filename, uint8_t hollywood)
     
     if(hollywood)
     {
-        printf("HTTP Response: \n%s\n", buf);
         return send_message_sub((hlywd_sock *)sock, buf, strlen(buf), 0, HOLLYWOOD_HTTP_SUBSTREAM);
     }
     else{

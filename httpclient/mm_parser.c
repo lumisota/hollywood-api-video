@@ -500,7 +500,7 @@ void checkstall(int end, struct metrics * m)
     {
         long time_to_decode = m->Tplay + (double)((m->TSnow - m->TS0)*1000);
         //printf("Time to decode : %lld, timenow %lld, time to wait %lld\n", time_to_decode, timenow, time_to_decode -timenow ); fflush(stdout);
-        if ( time_to_decode - 10000 < timenow)
+        if ( time_to_decode < timenow)
         {
             m->Tempty = m->Tplay + ((m->TSnow - m->TS0) * 1000);
             m->Tplay = -1;
@@ -512,9 +512,9 @@ void checkstall(int end, struct metrics * m)
 #ifndef DECODE
         else
         {
-            unsigned long time_to_wait = time_to_decode - timenow;
+            long time_to_wait = time_to_decode - timenow - 10000;
             pthread_mutex_lock(&m->t->msg_mutex);
-            if ( m->t->stream_complete == 0)
+            if ( m->t->stream_complete == 0 && time_to_wait > 0)
             {
                 pthread_mutex_unlock(&m->t->msg_mutex);
                 usleep(time_to_wait);

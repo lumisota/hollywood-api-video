@@ -9,9 +9,9 @@
 #include "mm_download.h"
 
 pthread_t       av_tid;          /*thread id of the av parser thread*/
-#define BUFFER_DURATION 10000 /*seconds*/
+#define BUFFER_DURATION 10000 /*milliseconds*/
 #define IS_DYNAMIC      1
-#define ENCODING_DELAY  2000000
+#define ENCODING_DELAY  3000
 
 
 #define DOWNLOAD "DOWNLOAD"
@@ -83,7 +83,7 @@ int download_segments( manifest * m, transport * t , long long stime, long throu
 
         }
         /*No need to wait if the difference is under 10us */
-        if ((delay = (segment_start * 1000000) - (gettimelong()-stime + ENCODING_DELAY)) > 10000)
+        if ((delay = (segment_start * 1000000) - (gettimelong()-stime + ENCODING_DELAY*1000)) > 10000)
         {
             printdebug(DOWNLOAD, "Encoding Delay: waiting %lld ms \n", delay/1000);
 
