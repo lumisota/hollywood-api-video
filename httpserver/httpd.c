@@ -31,6 +31,7 @@
 #include <stdlib.h>
 #include "media_sender.h"
 #include "../common/http_ops.h"
+extern int verbose;
 
 #define ISspace(x) isspace((int)(x))
 
@@ -40,6 +41,7 @@ uint8_t     Hollywood = 0;
 uint8_t PartialReliability = 0;
 uint32_t offset = 0;     /*offset added to last 4 bytes of the message*/
 uint32_t stream_seq = 0;
+long long starttime = 0;
 
 void * accept_request(void * a);
 void bad_request(int);
@@ -90,7 +92,7 @@ void * accept_request(void * a)
     {
         char *query_string = NULL;
 
-        numchars = get_html_headers(sock, buf, HTTPHEADERLEN, Hollywood, NULL);
+        numchars = get_html_headers(sock, buf, HTTPHEADERLEN, Hollywood, NULL, NULL, NULL);
         
         if (numchars == 0 )
             break;
@@ -126,11 +128,24 @@ void * accept_request(void * a)
             while ((*query_string != '?') && (*query_string != '\0'))
                 query_string++;
         }
+        
 
         sprintf(path, "testfiles%s", url);
         if (path[strlen(path) - 1] == '/')
             strcat(path, "index.html");
+        if (strstr(path, ".mpd")!=NULL)
+            starttime = gettimelong();
+            
         printf("Requested path: %s\n", path); fflush(stdout);
+/*        int segment; char * tmp;
+        tmp = strstr(buf+j+1,"Segment:");
+        if(tmp!=NULL)
+        {
+            segment = atoi(tmp+8);
+            if(segment > 0)
+                printf("Segment is %d\n", segment);
+            
+        }*/
         if (stat(path, &st) == -1)
         {
             not_found(sock, Hollywood);
@@ -296,6 +311,8 @@ int check_arguments(int argc, char* argv[], u_short * port)
             Hollywood=1;
         else if(strcmp(argv[i], "--pr")==0)
             PartialReliability=1;
+        else if(strcmp(argv[i], "--verbose")==0)
+            verbose = 1;
         else
         {
             printf ("Invalid arguments\n");

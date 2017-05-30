@@ -136,12 +136,16 @@ long fetch_manifest(transport * t, char * mpdlink, manifest * media_manifest )
         sock = &(t->sock);
     }
     
-    send_get_request(sock, mpdlink, t->Hollywood);
+    send_get_request(sock, mpdlink, t->Hollywood, 0);
     
     start_time = gettimelong();
-    get_html_headers(sock, buf, HTTPHEADERLEN, t->Hollywood, &substream);
+    if(get_html_headers(sock, buf, HTTPHEADERLEN, t->Hollywood, &substream, NULL, NULL)<=0)
+    {
+        printf("Error: Received no GET response from server\n");
+        return -1;
+    }
     
-    if( t->Hollywood && substream == 2)
+    if (substream == HOLLYWOOD_DATA_SUBSTREAM_TIMELINED || substream == HOLLYWOOD_DATA_SUBSTREAM_UNTIMELINED)
     {
         printf("Error: Received timelined message in manifest GET\n");
         return -1; 

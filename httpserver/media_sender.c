@@ -36,7 +36,8 @@ pthread_mutex_t msg_mutex;      /*mutex of the hlywd_message*/
 extern uint32_t offset;         /*offset added to last 4 bytes of the message*/
 extern uint32_t stream_seq;
 extern int ContentLength;
-static int BytesSent = 0; 
+static int BytesSent = 0;
+#define MEDIA_SENDER "MEDIA_SENDER"
 
 vid_frame *video_frames = NULL;
 
@@ -227,7 +228,7 @@ void *write_to_hollywood(void *hlywd_data_arg) {
         uint32_t tmp; 
 	memcpy(&tmp, msg->message + msg->msg_size - sizeof(uint32_t), sizeof(uint32_t));
         tmp = ntohl(tmp); 
-        fprintf(stderr, "Sending %d of %d (%d) seq: %u\n", BytesSent, ContentLength, msg_len, tmp );  fflush(stdout); 
+        printdebug(MEDIA_SENDER, "Sending %d of %d (%d) seq: %u\n", BytesSent, ContentLength, msg_len, tmp );
         hlywd_data->seq++;
         if (msg_len == -1) {
             printf("Unable to send message over Hollywood\n");

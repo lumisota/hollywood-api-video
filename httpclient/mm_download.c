@@ -9,11 +9,13 @@
 #include "mm_download.h"
 
 pthread_t       av_tid;          /*thread id of the av parser thread*/
-#define BUFFER_DURATION 5000 /*seconds*/
+#define BUFFER_DURATION 10000 /*seconds*/
 #define IS_DYNAMIC      1
+#define ENCODING_DELAY  2000000
 
-//#define DOWNLOAD "DOWNLOAD"
-#define DOWNLOAD ""
+
+#define DOWNLOAD "DOWNLOAD"
+//#define DOWNLOAD ""
 
 extern int endnow; 
 
@@ -30,10 +32,12 @@ int download_segments( manifest * m, transport * t , long long stime, long throu
     char * curr_url                 = NULL;
     int http_resp_len               = 0;
     uint32_t new_seq                = 0;
-    long long start_time            = 0;
+    long long download_start_time            = 0;
     void * sock;
     long buffered_duration          = 0;
     uint8_t substream               = 0;
+    int segment_start               = 0;
+    long long delay;
 
     /*Initialize bola, isDynamic is set to 1 (Live)*/
     curr_bitrate_level = calculateInitialState(m, IS_DYNAMIC, &bola);
@@ -50,36 +54,55 @@ int download_segments( manifest * m, transport * t , long long stime, long throu
     printf("\n");
     while (curr_segment < m->num_of_segments )
     {
+    
         if(curr_segment == 0)
+        {
+            segment_start = 0;
             buffered_duration = 0;
+        }
         else
         {
             pthread_mutex_lock(&t->msg_mutex);
-            buffered_duration = (m->segment_dur * (curr_segment - m->init) * 1000) - t->playout_time;
+            segment_start = m->segment_dur * (curr_segment - m->init);
+            buffered_duration = (segment_start * 1000) - t->playout_time;
             fflush(stdout);
             pthread_mutex_unlock(&t->msg_mutex);
         }
         
         
-        if(buffered_duration > BUFFER_DURATION)
+        if((delay = buffered_duration - BUFFER_DURATION) > 0 )
         {
             /*Delay due to bufferLevel > bufferTarget is added to BOLA placeholder buffer*/
-            long delay =(buffered_duration-BUFFER_DURATION);
-            printdebug(DOWNLOAD, "Buffer full, going to sleep for %ld seconds", delay);
+            printdebug(DOWNLOAD, "Buffer full, going to sleep for %ld milliseconds", delay);
 
             bola.placeholderBuffer+= (float)delay/1000.0;
             usleep(delay*1000);
             pthread_mutex_lock(&t->msg_mutex);
-            buffered_duration = (m->segment_dur * (curr_segment - m->init) * 1000) - t->playout_time;
+            buffered_duration = (segment_start * 1000) - t->playout_time;
             pthread_mutex_unlock(&t->msg_mutex);
 
         }
+        /*No need to wait if the difference is under 10us */
+        if ((delay = (segment_start * 1000000) - (gettimelong()-stime + ENCODING_DELAY)) > 10000)
+        {
+            printdebug(DOWNLOAD, "Encoding Delay: waiting %lld ms \n", delay/1000);
+
+            bola.placeholderBuffer+= (double)delay/1000000.0;
+            usleep(delay);
+            pthread_mutex_lock(&t->msg_mutex);
+            buffered_duration = (segment_start * 1000) - t->playout_time;
+            pthread_mutex_unlock(&t->msg_mutex);
+        }
+
+        
         if(buffered_duration< 0)
         {
             /*This shouldn't happen*/
             printdebug(DOWNLOAD,"Getting negative buffered duration, zeroing it");
             buffered_duration = 0 ; 
         }
+        
+        
         curr_bitrate_level = getMaxIndex(&bola, (float)buffered_duration/1000.0, stime);
         curr_url = m->bitrate_level[curr_bitrate_level].segments[curr_segment];
 
@@ -93,14 +116,14 @@ int download_segments( manifest * m, transport * t , long long stime, long throu
         bytes_rx = 0;
         
         http_resp_len = 0 ;
-        if( send_get_request (sock, curr_url, t->Hollywood) < 0 )
+        if( send_get_request (sock, curr_url, t->Hollywood, segment_start) < 0 )
         {
             printf("ERROR: Send GET request failed on Hollywood\n");
             goto END_DOWNLOAD;
         }
         while (http_resp_len==0)
         {
-            http_resp_len = get_html_headers(sock, buf, HTTPHEADERLEN, t->Hollywood, &substream);
+            http_resp_len = get_html_headers(sock, buf, HTTPHEADERLEN, t->Hollywood, &substream, &new_seq, NULL);
             if( http_resp_len == 0 )
             {
                 close(t->sock);
@@ -109,7 +132,7 @@ int download_segments( manifest * m, transport * t , long long stime, long throu
                     printf("ERROR: TCP Connect failed\n");
                     goto END_DOWNLOAD;
                 }
-                if( send_get_request (sock, curr_url, t->Hollywood) < 0 )
+                if( send_get_request (sock, curr_url, t->Hollywood, segment_start) < 0 )
                 {
                     printf("ERROR: Send GET request failed on Hollywood\n");
                     goto END_DOWNLOAD;
@@ -117,10 +140,35 @@ int download_segments( manifest * m, transport * t , long long stime, long throu
             }
             else if (http_resp_len > 0 )
             {
-                if (substream != HOLLYWOOD_HTTP_SUBSTREAM)
+                if (substream != HOLLYWOOD_HTTP_SUBSTREAM){
+                if (substream == HOLLYWOOD_DATA_SUBSTREAM_TIMELINED || substream == HOLLYWOOD_DATA_SUBSTREAM_UNTIMELINED)
                 {
-                    printf("ERROR : SUBSTREAM %d: We should probably add this to the queue\n", substream); fflush(stdout); 
+                    printdebug(DOWNLOAD, "SUBSTREAM %d: We should probably add this to the queue\n", substream);
+                    pthread_mutex_lock(&t->msg_mutex);
+                    
+                    if(is_full(t->rx_buf, new_seq))
+                    {
+                        pthread_cond_wait( &t->msg_ready, &t->msg_mutex );
+                    }
+                    
+                    /*Error code not checked, if message push fails, move on, nothing to do*/
+                    if(push_message(t->rx_buf, (uint8_t *)buf, new_seq, http_resp_len)>=0)
+                        bytes_rx += http_resp_len;
+                    
+                    pthread_cond_signal(&t->msg_ready);
+                    //  pthread_cond_wait( &t->msg_ready, &t->msg_mutex );
+                    pthread_mutex_unlock(&t->msg_mutex);
+                    printdebug(DOWNLOAD, "Read %d of %d bytes (seq: %u) \n", bytes_rx, contentlen, new_seq);
+
                     http_resp_len = 0;
+                }
+                else if (strstr(buf, "TRY AGAIN")!=NULL)
+                {
+                    /*TODO: Not implemented on the server side*/ 
+                    printdebug(DOWNLOAD, "Server segment not ready, trying again! \n");
+                    http_resp_len = 0;
+
+                }
                 }
             }
         }
@@ -136,7 +184,7 @@ int download_segments( manifest * m, transport * t , long long stime, long throu
             printf("download_segments: Received zero content length, exiting program! \n");
             goto END_DOWNLOAD;
         }
-        start_time = gettimelong();
+        download_start_time = gettimelong();
         
         while (bytes_rx < contentlen )
         {
@@ -185,10 +233,10 @@ int download_segments( manifest * m, transport * t , long long stime, long throu
             pthread_cond_signal(&t->msg_ready);
           //  pthread_cond_wait( &t->msg_ready, &t->msg_mutex );
             pthread_mutex_unlock(&t->msg_mutex);
-            fprintf(stderr, "Read %d of %d bytes (seq: %u) \n", bytes_rx, contentlen, new_seq); fflush(stderr); 
+            printdebug(DOWNLOAD, "Read %d of %d bytes (seq: %u) \n", bytes_rx, contentlen, new_seq);
             
         }
-        double download_time = gettimelong() - start_time;
+        double download_time = gettimelong() - download_start_time;
         saveThroughput(&bola, (long)((double)bytes_rx*8/(download_time/1000000)));  /*bps*/
         ++curr_segment ;
         
@@ -234,7 +282,6 @@ int play_video (struct metrics * metric, manifest * media_manifest , transport *
     pthread_attr_t attr;
 
     metric->stime = gettimelong();
-    
     
     /*Initialize the condition and mutex*/
     pthread_cond_init(&media_transport->msg_ready, NULL);

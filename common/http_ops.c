@@ -14,6 +14,7 @@ static long long inst_bytes    = 0;
 static long long inst_time     = 0;
 static pthread_mutex_t http_mutex;      /*mutex for throughput metrics*/
 int ContentLength = 0; 
+#define HTTPOPS "HTTPOPS"
 
 void * print_instantaneous_throughput(void * opaque)
 {
@@ -136,7 +137,7 @@ int get_content_length( char * buf)
 
 /**********************************************************************/
 
-int get_html_headers(void * sock, char *buf, int size, uint8_t hollywood, uint8_t * substream)
+int get_html_headers(void * sock, char *buf, int size, uint8_t hollywood, uint8_t * substream, uint32_t * seq, uint32_t * offset)
 {
     int i = 0;
     char c = '\0';
@@ -146,18 +147,38 @@ int get_html_headers(void * sock, char *buf, int size, uint8_t hollywood, uint8_
     {
         /*headers are sent as a single message*/
         uint8_t substream_id;
-	fprintf(stderr,"Calling recv_message....");
+        printdebug(HTTPOPS,"Calling recv_message....");
         i = recv_message((hlywd_sock * )sock, buf, size, 0, &substream_id);
-	fprintf(stderr,"returned\n");
+        printdebug(HTTPOPS,"returned\n");
         if ( i < 0 )
         {
             printf("get_html_headers: Error reading from Hollywood socket \n");
             i = 0;
         }
-        if(substream!=NULL)
-            *substream = substream_id;
-
         update_bytes_read(i);
+        if(substream!=NULL && i>0)
+        {
+            *substream = substream_id;
+            if (substream_id == HOLLYWOOD_DATA_SUBSTREAM_TIMELINED || substream_id == HOLLYWOOD_DATA_SUBSTREAM_UNTIMELINED)
+            {
+                i -= HLYWD_MSG_TRAILER;
+                if(i<0)
+                {
+                    printf("ERROR: Received Hollywood message too short while reading HTTP header\n");
+                    exit(1);
+                }
+                if(offset!=NULL)
+                {
+                    memcpy(offset, buf+i, sizeof(uint32_t));
+                    *offset = ntohl(*offset);
+                }
+                if(seq!=NULL)
+                {
+                    memcpy(seq, buf+i+sizeof(uint32_t), sizeof(uint32_t));
+                    *seq = ntohl(*seq);
+                }
+            }
+        }
     }
     else
     {
@@ -197,7 +218,7 @@ int get_html_headers(void * sock, char *buf, int size, uint8_t hollywood, uint8_
 
 /**********************************************************************/
 
-int send_get_request(void * sock, char * url, uint8_t hollywood)
+int send_get_request(void * sock, char * url, uint8_t hollywood, int segment)
 {
     char request[HTTPHEADERLEN]   = "";
     char host[MAXHOSTLEN]      = "";
@@ -209,8 +230,8 @@ int send_get_request(void * sock, char * url, uint8_t hollywood)
         return -1;
     }
 
-    
-    sprintf(request, "GET %s HTTP/1.1\r\nHost: %s\r\nAccept: */*\r\n\r\n", filename, host);
+    /*Segment is the start time of the requested segment in seconds*/
+    sprintf(request, "GET %s HTTP/1.1\r\nHost: %s\r\nAccept: */*\r\nSegment: %d\r\n\r\n", filename, host, segment );
 //    printf("%s\nLENGTH: %d\n", request, strlen(request));
     if(hollywood)
     {
@@ -264,11 +285,11 @@ int read_http_body_partial(void * sock, uint8_t * buf, int buflen, uint8_t holly
     if(hollywood)
     {
         uint8_t substream_id;
-        fprintf(stderr, "http_read:  "); fflush(stderr);
+        printdebug(HTTPOPS, "http_read:  ");
 	while(1)
         {
             ret = recv_message((hlywd_sock * )sock, buf, buflen, 0, &substream_id);
-            fprintf(stderr, "Read %d bytes on substream %d\n",ret, substream_id); fflush(stderr);
+            printdebug(HTTPOPS, "Read %d bytes on substream %d\n",ret, substream_id); 
             if (substream_id == HOLLYWOOD_DATA_SUBSTREAM_TIMELINED || substream_id == HOLLYWOOD_DATA_SUBSTREAM_UNTIMELINED || ret<=0)
             {
                 break; 
@@ -280,6 +301,11 @@ int read_http_body_partial(void * sock, uint8_t * buf, int buflen, uint8_t holly
             update_bytes_read(ret);
 
             ret -= HLYWD_MSG_TRAILER;
+            if(ret<0)
+            {
+                printf("ERROR: Received Hollywood message too short while reading HTTP BODY\n");
+                exit(1);
+            }
             if(offset!=NULL)
             {
                 memcpy(offset, buf+ret, sizeof(uint32_t));

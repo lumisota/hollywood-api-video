@@ -513,7 +513,7 @@ void checkstall(int end, struct metrics * m)
         else
         {
             unsigned long time_to_wait = time_to_decode - timenow;
-	    pthread_mutex_lock(&m->t->msg_mutex);
+            pthread_mutex_lock(&m->t->msg_mutex);
             if ( m->t->stream_complete == 0)
             {
                 pthread_mutex_unlock(&m->t->msg_mutex);
