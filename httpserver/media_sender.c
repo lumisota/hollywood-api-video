@@ -44,7 +44,7 @@ vid_frame *video_frames = NULL;
 /* Add message to the queue of messages*/
 int add_msg_to_queue(struct hlywd_message *msg, struct parse_attr *pparams) {
     uint32_t tmp;
-    
+    offset+=msg->msg_size;
     /* copy offset to end of message */
     tmp = htonl(offset);
     memcpy(msg->message+msg->msg_size, &tmp, sizeof(uint32_t));
@@ -54,7 +54,6 @@ int add_msg_to_queue(struct hlywd_message *msg, struct parse_attr *pparams) {
     memcpy(msg->message+msg->msg_size+sizeof(uint32_t), &tmp, sizeof(uint32_t));
     
     /* update offset to include this message */    
-    offset+=msg->msg_size;
 
     /* update message size to include offset, stream sequence number */
     msg->msg_size+=HLYWD_MSG_TRAILER;

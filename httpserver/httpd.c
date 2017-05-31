@@ -301,7 +301,7 @@ int check_arguments(int argc, char* argv[], u_short * port)
             else
             {
                 printf ("Invalid arguments\n");
-                printf("Usage with TCP Hollywood : %s --port <port number> --hollywood --pr\n", argv[0]);
+                printf("Usage with TCP Hollywood : %s --port <port number> --hollywood --verbose --pr\n", argv[0]);
                 printf("Usage with TCP only : %s --port <port number> \n", argv[0]);
                 printf("Usage with TCP with auto port : %s \n", argv[0]);
                 return -1;

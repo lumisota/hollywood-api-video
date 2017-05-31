@@ -14,6 +14,8 @@ pthread_t       av_tid;          /*thread id of the av parser thread*/
 #define ENCODING_DELAY  3000
 
 
+
+
 #define DOWNLOAD "DOWNLOAD"
 //#define DOWNLOAD ""
 
@@ -38,6 +40,8 @@ int download_segments( manifest * m, transport * t , long long stime, long throu
     uint8_t substream               = 0;
     int segment_start               = 0;
     long long delay;
+    uint32_t end_offset = 0;
+    uint32_t curr_offset;
 
     /*Initialize bola, isDynamic is set to 1 (Live)*/
     curr_bitrate_level = calculateInitialState(m, IS_DYNAMIC, &bola);
@@ -123,7 +127,7 @@ int download_segments( manifest * m, transport * t , long long stime, long throu
         }
         while (http_resp_len==0)
         {
-            http_resp_len = get_html_headers(sock, buf, HTTPHEADERLEN, t->Hollywood, &substream, &new_seq, NULL);
+            http_resp_len = get_html_headers(sock, buf, HTTPHEADERLEN, t->Hollywood, &substream, &new_seq, &curr_offset);
             if( http_resp_len == 0 )
             {
                 close(t->sock);
@@ -184,14 +188,15 @@ int download_segments( manifest * m, transport * t , long long stime, long throu
             printf("download_segments: Received zero content length, exiting program! \n");
             goto END_DOWNLOAD;
         }
+        end_offset+=contentlen;
         download_start_time = gettimelong();
         
-        while (bytes_rx < contentlen )
+        while (bytes_rx < contentlen && curr_offset<end_offset)
         {
             if(endnow)
                 goto END_DOWNLOAD; 
             
-            ret = read_http_body_partial(sock, rx_buf, HOLLYWOOD_MSG_SIZE, t->Hollywood, &new_seq, NULL);
+            ret = read_http_body_partial(sock, rx_buf, HOLLYWOOD_MSG_SIZE, t->Hollywood, &new_seq, &curr_offset);
             
             
             /*Write buffer to file for later use*/
@@ -233,7 +238,7 @@ int download_segments( manifest * m, transport * t , long long stime, long throu
             pthread_cond_signal(&t->msg_ready);
           //  pthread_cond_wait( &t->msg_ready, &t->msg_mutex );
             pthread_mutex_unlock(&t->msg_mutex);
-            printdebug(DOWNLOAD, "Read %d of %d bytes (seq: %u) \n", bytes_rx, contentlen, new_seq);
+            printdebug(DOWNLOAD, "Read %d of %d bytes (seq: %u) %u: %u\n", bytes_rx, contentlen, new_seq, curr_offset, end_offset);
             
         }
         double download_time = gettimelong() - download_start_time;
