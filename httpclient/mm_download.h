@@ -19,8 +19,6 @@
 
 
 
-#define HOLLYWOOD_MSG_SIZE 1400
-
 int init_transport(transport * t);
 
 int play_video (struct metrics * metric, manifest * media_manifest , transport * media_transport, long throughput);

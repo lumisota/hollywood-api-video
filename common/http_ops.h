@@ -25,21 +25,24 @@
 #include "../lib/hollywood.h"
 #include "helper.h"
 
+#define HOLLYWOOD_MSG_SIZE 1400
 #define MAXURLLENGTH 512
-#define HTTPHEADERLEN 2048
+#define HTTPHEADERLEN HOLLYWOOD_MSG_SIZE*2 
 #define MAXHOSTLEN 128
 #define SERVER_STRING "Server: jdbhttpd/0.1.0\r\n"
 #define PAGESIZE 500000
 #define HLYWD_MSG_TRAILER 8 /*sizeof(uint32)*2 offset+seq */
-#define HOLLYWOOD_MSG_SIZE 1400
+#define HOLLYWOOD_HTTP_SUBSTREAM 4
+#define HOLLYWOOD_DATA_SUBSTREAM_TIMELINED 2
+#define HOLLYWOOD_DATA_SUBSTREAM_UNTIMELINED 3
 
 int get_content_length( char * buf);
 
-int get_html_headers(void * sock, char *buf, int size, uint8_t hollywood, uint8_t * substream);
+int get_html_headers(void * sock, char *buf, int size, uint8_t hollywood, uint8_t * substream, uint32_t * seq, uint32_t * offset);
 
 //int receive_response(int fd, struct metrics * metric, uint8_t hollywood);
 
-int send_get_request(void * sock, char * url, uint8_t hollywood);
+int send_get_request(void * sock, char * url, uint8_t hollywood, int segment);
 
 int separate_host_and_filepath(char * url, char * host, char * path);
 

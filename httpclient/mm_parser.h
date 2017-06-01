@@ -19,7 +19,7 @@
 #include "readmpd.h"
 #include "../common/http_ops.h"
 
-#define MIN_PREBUFFER 100 /* in millisecond*/
+#define MIN_PREBUFFER 500 /* in millisecond*/
 #define NUMOFSTREAMS 1
 #define MAX_DASH_INIT_SEGMENT_SIZE 1000
 #define URLLISTSIZE 24

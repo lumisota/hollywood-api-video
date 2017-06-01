@@ -35,6 +35,9 @@ pthread_mutex_t msg_mutex;      /*mutex of the hlywd_message*/
 
 extern uint32_t offset;         /*offset added to last 4 bytes of the message*/
 extern uint32_t stream_seq;
+extern int ContentLength;
+static int BytesSent = 0;
+#define MEDIA_SENDER "MEDIA_SENDER"
 
 vid_frame *video_frames = NULL;
 
@@ -52,7 +55,7 @@ int add_msg_to_queue(struct hlywd_message *msg, struct parse_attr *pparams) {
     
     /* update offset to include this message */    
     offset+=msg->msg_size;
-    
+
     /* update message size to include offset, stream sequence number */
     msg->msg_size+=HLYWD_MSG_TRAILER;
 
@@ -221,7 +224,11 @@ void *write_to_hollywood(void *hlywd_data_arg) {
             depends_on = 0;
         }
         msg_len = send_message_time(hlywd_data->hlywd_socket, msg->message, msg->msg_size, 0, hlywd_data->seq, depends_on, msg->lifetime_ms);
-	fprintf(stderr, "Sending %d of %d\n", msg_len, ); fflush(stderr);
+	BytesSent+=msg->msg_size-8; 
+        uint32_t tmp; 
+	memcpy(&tmp, msg->message + msg->msg_size - sizeof(uint32_t), sizeof(uint32_t));
+        tmp = ntohl(tmp); 
+        printdebug(MEDIA_SENDER, "Sending %d of %d (%d) seq: %u\n", BytesSent, ContentLength, msg_len, tmp );
         hlywd_data->seq++;
         if (msg_len == -1) {
             printf("Unable to send message over Hollywood\n");
@@ -276,6 +283,7 @@ int send_media_over_hollywood(hlywd_sock * sock, FILE *fptr, int seq, char *src_
         video_frames = new_frame; 
     }
     
+    BytesSent = 0; 
     /* Initialize the condition and mutex */
     pthread_cond_init(&msg_ready, NULL);
     pthread_mutex_init(&msg_mutex, NULL);
