@@ -586,9 +586,9 @@ void printmetric(struct metrics metric, transport media_transport )
     printf("%d;",           metric.numofstalls); //num of stalls
     printf("%.0f;",         (metric.numofstalls>0 ? (metric.totalstalltime/metric.numofstalls/1000) : 0)); // av stall duration
     printf("%.0f;",         metric.totalstalltime/1000); // total stall time
-    printf("%lld;",         media_transport.total_bytes_received);
-    printf("%lld;",         media_transport.total_bytes_pushed);
-    printf("%d;",         media_transport.late_or_duplicate_packets);
+    printf("%lld;",         media_transport.rx_buf->total_bytes_received);
+    printf("%lld;",         media_transport.rx_buf->total_bytes_pushed);
+    printf("%d;",         media_transport.rx_buf->late_or_duplicate_packets);
 
     fflush(stdout); 
     
