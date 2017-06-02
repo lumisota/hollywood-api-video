@@ -159,10 +159,11 @@ int download_segments( manifest * m, transport * t , long long stime, long throu
                     
                     /*Error code not checked, if message push fails, move on, nothing to do*/
                     if(push_message(t->rx_buf, (uint8_t *)buf, new_seq, http_resp_len)>=0)
+                    {
                         bytes_rx += http_resp_len;
                     
-                    pthread_cond_signal(&t->msg_ready);
-                    //  pthread_cond_wait( &t->msg_ready, &t->msg_mutex );
+                        pthread_cond_signal(&t->msg_ready);
+                    }
                     pthread_mutex_unlock(&t->msg_mutex);
                     printdebug(DOWNLOAD, "Read %d of %d bytes (seq: %u) \n", bytes_rx, contentlen, new_seq);
 
@@ -235,9 +236,11 @@ int download_segments( manifest * m, transport * t , long long stime, long throu
     
             /*Error code not checked, if message push fails, move on, nothing to do*/
             if(push_message(t->rx_buf, rx_buf, new_seq, ret)>=0)
+            {
                 bytes_rx += ret;
 
-            pthread_cond_signal(&t->msg_ready);
+                pthread_cond_signal(&t->msg_ready);
+            }
           //  pthread_cond_wait( &t->msg_ready, &t->msg_mutex );
             pthread_mutex_unlock(&t->msg_mutex);
             printdebug(DOWNLOAD, "Read %d of %d bytes (seq: %u) %u: %u\n", bytes_rx, contentlen, new_seq, curr_offset, end_offset);
