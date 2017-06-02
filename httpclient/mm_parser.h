@@ -31,6 +31,8 @@ enum stream_type {
 };
 
 typedef struct {
+    int init_segment_downloaded;
+    pthread_cond_t  init_ready;      /*indicates that init segment has been downloaded*/
     pthread_cond_t  msg_ready;      /*indicates that a new message has been received*/
     pthread_mutex_t msg_mutex;      /*mutex of the message*/
     uint8_t Hollywood;
@@ -79,7 +81,7 @@ struct metrics
 
 
 int stall_imminent(struct metrics * metric);
-void printmetric(struct metrics metric);
+void printmetric(struct metrics metric, transport media_transport );
 void * mm_parser(void * opaque);
 void checkstall(int end, struct metrics * metric);
 int init_metrics(struct metrics *metric);

@@ -124,6 +124,12 @@ static int mm_read(void * opaque, uint8_t *buf, int buf_size)
     int ret ;
     
     pthread_mutex_lock(&t->msg_mutex);
+    if (t->init_segment_downloaded == 0 )
+    {
+        pthread_cond_wait( &t->init_ready, &t->msg_mutex );
+        t->init_segment_downloaded = 1;
+    }
+
 
     if (is_empty(t->rx_buf))
     {
@@ -568,7 +574,7 @@ void checkstall(int end, struct metrics * m)
 }
 
 
-void printmetric(struct metrics metric)
+void printmetric(struct metrics metric, transport media_transport )
 {    
     printf("ALL.1;");
     printf("%lld;",         (metric.etime-metric.stime)/1000);   //download time
@@ -579,7 +585,10 @@ void printmetric(struct metrics metric)
 
     printf("%d;",           metric.numofstalls); //num of stalls
     printf("%.0f;",         (metric.numofstalls>0 ? (metric.totalstalltime/metric.numofstalls/1000) : 0)); // av stall duration
-    printf("%.0f\n",         metric.totalstalltime/1000); // total stall time
+    printf("%.0f;",         metric.totalstalltime/1000); // total stall time
+    printf("%lld;",         media_transport.total_bytes_received);
+    printf("%lld;",         media_transport.total_bytes_pushed);
+    printf("%d;",         media_transport.late_or_duplicate_packets);
 
     fflush(stdout); 
     

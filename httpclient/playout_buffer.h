@@ -26,6 +26,9 @@ struct playout_buffer
 {
     uint8_t buf[MAX_QUEUED_MSGS][HOLLYWOOD_MSG_SIZE];
     uint32_t datalen[MAX_QUEUED_MSGS];
+    int late_or_duplicate_packets;
+    long long total_bytes_pushed;
+    long long total_bytes_received; 
     int head;
     int qlen;
     uint32_t lowest_seqnum;

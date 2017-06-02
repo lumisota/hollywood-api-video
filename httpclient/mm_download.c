@@ -67,6 +67,8 @@ int download_segments( manifest * m, transport * t , long long stime, long throu
         else
         {
             pthread_mutex_lock(&t->msg_mutex);
+            if(t->init_segment_downloaded==0)
+                pthread_cond_signal(&t->init_ready);
             segment_start = m->segment_dur * (curr_segment - m->init);
             buffered_duration = (segment_start * 1000) - t->playout_time;
             fflush(stdout);
@@ -243,6 +245,7 @@ int download_segments( manifest * m, transport * t , long long stime, long throu
         }
         double download_time = gettimelong() - download_start_time;
         saveThroughput(&bola, (long)((double)bytes_rx*8/(download_time/1000000)));  /*bps*/
+
         ++curr_segment ;
         
         
@@ -260,6 +263,7 @@ END_DOWNLOAD:
 //    t->stream_complete = 1;
     
     pthread_cond_signal(&t->msg_ready);
+    pthread_cond_signal(&t->init_ready);
     pthread_mutex_unlock(&t->msg_mutex);
     
     return 0;
@@ -273,7 +277,8 @@ int init_transport(transport * t)
     t->fptr             = NULL;
     t->stream_complete  = 0;
     t->playout_time     = 0;
-    t->OO               = 0; 
+    t->OO               = 0;
+    t->init_segment_downloaded = 0; 
     t->rx_buf  = malloc(sizeof(struct playout_buffer));
     memzero(t->rx_buf, sizeof(struct playout_buffer) );
     sprintf(t->host, "");
@@ -290,6 +295,7 @@ int play_video (struct metrics * metric, manifest * media_manifest , transport *
     
     /*Initialize the condition and mutex*/
     pthread_cond_init(&media_transport->msg_ready, NULL);
+    pthread_cond_init(&media_transport->init_ready, NULL);
     pthread_mutex_init(&media_transport->msg_mutex, NULL);
         
     pthread_attr_init(&attr);

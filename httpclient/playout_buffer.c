@@ -84,6 +84,7 @@ int pop_message (struct playout_buffer * q, uint8_t * buf, uint32_t datalen)
 
 int push_message(struct playout_buffer * q, uint8_t * buf, uint32_t new_seq, uint32_t datalen)
 {
+    q->total_bytes_received+=datalen;
     if (datalen > HOLLYWOOD_MSG_SIZE)
     {
         printf("playout_buffer: Message to be queued is too long (%d bytes)\n", datalen);
@@ -100,6 +101,7 @@ int push_message(struct playout_buffer * q, uint8_t * buf, uint32_t new_seq, uin
     else if (seq_gap < 0)
     {
         printf("playout_buffer: Irregular sequence number %u, expired (CURR head: %u)\n", new_seq, q->lowest_seqnum);
+        q->late_or_duplicate_packets++;
         return -1;
     }
     
@@ -141,6 +143,8 @@ int push_message(struct playout_buffer * q, uint8_t * buf, uint32_t new_seq, uin
     q->datalen[curr_index] = datalen;
     
     printdebug(PLAYOUT_BUFFER, "Push seqnum %d (%d-%d, qlen %d), index %d(%d) (size: %d)\n", new_seq, q->highest_seqnum, q->lowest_seqnum, q->qlen, curr_index, q->head, datalen);
+    
+    q->total_bytes_pushed+=datalen;
 
     return new_seq;
 }

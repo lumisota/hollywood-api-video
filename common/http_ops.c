@@ -327,6 +327,10 @@ int read_http_body_partial(void * sock, uint8_t * buf, int buflen, uint8_t holly
         {
             *seq = *seq+1;
         }
+        if(offset!=NULL)
+        {
+            *offset+=ret; 
+        }
     }
     
     return ret;

@@ -287,7 +287,7 @@ int main(int argc, char *argv[])
     }
 
     if(play_video(&metric, &media_manifest, &media_transport, initial_throughput)==0)
-        printmetric(metric); 
+        printmetric(metric, media_transport);
     
     exit_http_operations(); 
     fclose(media_transport.fptr);
