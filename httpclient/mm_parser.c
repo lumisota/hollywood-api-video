@@ -588,7 +588,7 @@ void printmetric(struct metrics metric, transport media_transport )
     printf("%.0f;",         metric.totalstalltime/1000); // total stall time
     printf("%lld;",         media_transport.rx_buf->total_bytes_received);
     printf("%lld;",         media_transport.rx_buf->total_bytes_pushed);
-    printf("%d;",         media_transport.rx_buf->late_or_duplicate_packets);
+    printf("%d\n",         media_transport.rx_buf->late_or_duplicate_packets);
 
     fflush(stdout); 
     

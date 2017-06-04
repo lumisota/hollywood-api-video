@@ -144,7 +144,7 @@ int download_segments( manifest * m, transport * t , long long stime, long throu
                     goto END_DOWNLOAD;
                 }
             }
-            else if (http_resp_len > 0 )
+            else if (http_resp_len > 0 && t->Hollywood)
             {
                 if (substream != HOLLYWOOD_HTTP_SUBSTREAM){
                 if (substream == HOLLYWOOD_DATA_SUBSTREAM_TIMELINED || substream == HOLLYWOOD_DATA_SUBSTREAM_UNTIMELINED)
@@ -169,19 +169,12 @@ int download_segments( manifest * m, transport * t , long long stime, long throu
 
                     http_resp_len = 0;
                 }
-                else if (strstr(buf, "TRY AGAIN")!=NULL)
-                {
-                    /*TODO: Not implemented on the server side*/ 
-                    printdebug(DOWNLOAD, "Server segment not ready, trying again! \n");
-                    http_resp_len = 0;
-
-                }
                 }
             }
         }
         if(strstr(buf, "200 OK")==NULL)
         {
-            printf("Request Failed: %s \n", buf);
+            printf("Request Failed (resp len: %d): %s \n",  http_resp_len, buf);
             goto END_DOWNLOAD;
         }
         
@@ -194,7 +187,7 @@ int download_segments( manifest * m, transport * t , long long stime, long throu
         end_offset+=contentlen;
         download_start_time = gettimelong();
         
-        while (bytes_rx < contentlen && curr_offset<end_offset)
+        while (bytes_rx < contentlen && (curr_offset < end_offset || t->Hollywood == 0 ) )
         {
             if(endnow)
                 goto END_DOWNLOAD; 
@@ -263,10 +256,16 @@ END_DOWNLOAD:
     while( !is_empty(t->rx_buf))
         pthread_cond_wait( &t->msg_ready, &t->msg_mutex );
     
-//    t->stream_complete = 1;
+    /*Signal continuously to avoid block condition, until the parser has awaken*/
+    while(t->init_segment_downloaded == 0)
+    {
+        pthread_cond_signal(&t->msg_ready);
+        pthread_cond_signal(&t->init_ready);
+        pthread_mutex_unlock(&t->msg_mutex);
+        usleep(10000);
+        pthread_mutex_lock(&t->msg_mutex);
+    }
     
-    pthread_cond_signal(&t->msg_ready);
-    pthread_cond_signal(&t->init_ready);
     pthread_mutex_unlock(&t->msg_mutex);
     
     return 0;

@@ -184,10 +184,10 @@ int get_html_headers(void * sock, char *buf, int size, uint8_t hollywood, uint8_
     {
         while (i < size - 1)
         {
-            n = recv(*((int *)sock), &c, 1, 0);;
+            n = recv(*((int *)sock), &c, 1, 0);
             update_bytes_read(n);
 
-           // printf("%02X: %d\n", c, n); fflush(stdout);
+            //printf("%02X: %d\n", c, n); fflush(stdout);
             if (n > 0)
             {
                 buf[i] = c;
@@ -195,7 +195,7 @@ int get_html_headers(void * sock, char *buf, int size, uint8_t hollywood, uint8_
             }
             else if (n==0)
             {
-              //  printf("get_html_headers: socket disconnected\n");
+                printdebug(HTTPOPS, "get_html_headers: socket disconnected\n");
                 break;
             }
             else
@@ -211,7 +211,7 @@ int get_html_headers(void * sock, char *buf, int size, uint8_t hollywood, uint8_
    // printf("get_html_headers: Read n bytes: %d", i);
     }
     buf[i] = '\0';
-   // printf("Received response : %s\n", buf);
+    printdebug(HTTPOPS, "Received message (Len %d): %s\n", i, buf);
     return(i);
 }
 
@@ -232,7 +232,7 @@ int send_get_request(void * sock, char * url, uint8_t hollywood, int segment)
 
     /*Segment is the start time of the requested segment in seconds*/
     sprintf(request, "GET %s HTTP/1.1\r\nHost: %s\r\nAccept: */*\r\nSegment: %d\r\n\r\n", filename, host, segment );
-//    printf("%s\nLENGTH: %d\n", request, strlen(request));
+    printdebug(HTTPOPS, "Request : %s\nLENGTH: %d\n", request, strlen(request));
     if(hollywood)
     {
         return send_message((hlywd_sock *)sock, request, strlen(request), 0);
@@ -410,7 +410,7 @@ int send_resp_headers(void * sock , const char *filename, uint8_t hollywood)
         strcat(buf, "Content-Type: unknown\r\n");
     
     strcat(buf, "\r\n");
-    
+    printdebug(HTTPOPS, "Sending response : %s", buf);
     if(hollywood)
     {
         return send_message_sub((hlywd_sock *)sock, buf, strlen(buf), 0, HOLLYWOOD_HTTP_SUBSTREAM);
