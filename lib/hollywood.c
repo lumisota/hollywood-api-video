@@ -38,8 +38,6 @@
 #include <string.h>
 #include <stdlib.h>
 #include <sys/time.h>
-#include <fcntl.h>
-#include <errno.h>
 
 #ifndef __APPLE__
 #define TCP_OODELIVERY 27
@@ -83,9 +81,6 @@ int hollywood_socket(int fd, hlywd_sock *socket, int oo, int pr) {
 	result = setsockopt(fd, IPPROTO_TCP, TCP_PRELIABILITY, (char *) &pr, sizeof(int));
 	#endif
 
-    /* Set the socket to be non-blocking */
-    fcntl(fd, F_SETFL, O_NONBLOCK);
-    
 	/* Initialise Hollywood socket metadata */
 	socket->sock_fd = fd;
 	socket->message_q_head = NULL;
@@ -187,8 +182,11 @@ ssize_t recv_message(hlywd_sock *socket, void *buf, size_t len, int flags, uint8
 	while (socket->message_count == 0) {
 		uint8_t segment[1500+sizeof(tcp_seq)];
 		tcp_seq sequence_num = 0;
-        errno = 0;
+        //printf("(Hollywood[%d:%d]... ",socket->sock_fd, flags);
+        //fflush(stdout);
 		ssize_t segment_len = recv(socket->sock_fd, segment, 1500+sizeof(tcp_seq), flags);
+        //printf(" %d bytes (%x:%x)) ", segment_len, segment[0], segment[segment_len-1]); fflush(stdout);
+        //printf("received %d bytes..\n", segment_len);
 		if (segment_len <= 0) {
 			return segment_len;
 		}
