@@ -137,9 +137,9 @@ long fetch_manifest(transport * t, char * mpdlink, manifest * media_manifest )
     }
     
     send_get_request(sock, mpdlink, t->Hollywood, 0);
-    
+    printf("Request for manifest has been sent \n"); fflush(stdout); 
     start_time = gettimelong();
-    if(get_html_headers(sock, buf, HTTPHEADERLEN, t->Hollywood, &substream, NULL, NULL)<=0)
+    if(get_html_headers(sock, buf, HTTPHEADERLEN, t->Hollywood, &substream, NULL, NULL, HTTP_FIRST_RESPONSE_TIMEOUT)<=0)
     {
         printf("Error: Received no GET response from server\n");
         return -1;
@@ -165,7 +165,8 @@ long fetch_manifest(transport * t, char * mpdlink, manifest * media_manifest )
     else if (contentlen == 0)
         printf("Received no content length for manifest file \n");
 
-    bytes_rx = read_to_memory (sock, memory, contentlen, t->Hollywood);
+    bytes_rx = read_to_memory (sock, memory, contentlen, t->Hollywood, HTTP_FIRST_RESPONSE_TIMEOUT);
+
     if(bytes_rx<=0)
     {
         printf("Unable to receive mpd file \n");
@@ -183,7 +184,6 @@ long fetch_manifest(transport * t, char * mpdlink, manifest * media_manifest )
         }
         return Throughput;
     }
-    
 
     return -1;
 

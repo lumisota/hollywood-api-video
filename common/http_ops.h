@@ -35,10 +35,11 @@
 #define HOLLYWOOD_HTTP_SUBSTREAM 4
 #define HOLLYWOOD_DATA_SUBSTREAM_TIMELINED 2
 #define HOLLYWOOD_DATA_SUBSTREAM_UNTIMELINED 3
+#define HOLLYWOOD_RECV_TIMEOUT 100 /*milliseconds*/
 
 int get_content_length( char * buf);
 
-int get_html_headers(void * sock, char *buf, int size, uint8_t hollywood, uint8_t * substream, uint32_t * seq, uint32_t * offset);
+int get_html_headers(void * sock, char *buf, int size, uint8_t hollywood, uint8_t * substream, uint32_t * seq, uint32_t * offset, int timeout);
 
 //int receive_response(int fd, struct metrics * metric, uint8_t hollywood);
 
@@ -46,7 +47,7 @@ int send_get_request(void * sock, char * url, uint8_t hollywood, int segment);
 
 int separate_host_and_filepath(char * url, char * host, char * path);
 
-int read_to_memory (void * sock, char * memory, int contentlen, uint8_t hollywood);
+int read_to_memory (void * sock, char * memory, int contentlen, uint8_t hollywood, int timeout);
 
 int connect_tcp_port (char * host, char * port, uint8_t hollywood, void * sock, uint8_t OO);
 

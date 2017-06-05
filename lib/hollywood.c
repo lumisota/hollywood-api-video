@@ -64,6 +64,10 @@ void destroy_sb_entry(sparsebuffer_entry *sb_entry);
 void print_sbuffer(sparsebuffer *sb);
 sparsebuffer_entry *add_entry(sparsebuffer *sb, tcp_seq sequence_num, size_t length, uint8_t *data);
 
+
+
+
+
 /* Creates a new Hollywood socket */
 int hollywood_socket(int fd, hlywd_sock *socket, int oo, int pr) {
 	int flag = 1;
@@ -83,9 +87,20 @@ int hollywood_socket(int fd, hlywd_sock *socket, int oo, int pr) {
 	result = setsockopt(fd, IPPROTO_TCP, TCP_PRELIABILITY, (char *) &pr, sizeof(int));
 	#endif
 
-    /* Set the socket to be non-blocking */
-    fcntl(fd, F_SETFL, O_NONBLOCK);
+
+    if ((flag = fcntl(fd, F_GETFL, 0)) < 0)
+    {
+        printf("Unable to set socket to O_NONBLOCK\n");
+        return -1;
+    }
     
+    
+    if (fcntl(fd, F_SETFL, flag | O_NONBLOCK) < 0)
+    {
+        printf("Unable to set socket to O_NONBLOCK\n");
+        return -1;
+    } 
+        
 	/* Initialise Hollywood socket metadata */
 	socket->sock_fd = fd;
 	socket->message_q_head = NULL;
@@ -97,8 +112,82 @@ int hollywood_socket(int fd, hlywd_sock *socket, int oo, int pr) {
 	socket->current_sequence_num = 0;
 
 	socket->sb = new_sbuffer();
+    
 	return result;
 }
+
+/*
+ Params:
+ fd         -  (int) socket file descriptor
+ buffer     - (char*) buffer to hold data
+ len        - (int) maximum number of bytes to recv()
+ flags      - (int) flags (as the fourth param to recv() )
+ timeout    - (int) timeout in milliseconds
+ Results:
+ int        - The same as recv, but -2 == TIMEOUT
+ */
+int recv_nb(int fd, uint8_t *buffer, int len, int flags, int timeout) {
+    
+    fd_set readset;
+    int result, iof = -1;
+    struct timeval tv;
+    
+    FD_ZERO(&readset);
+    FD_SET(fd, &readset);
+    if (timeout > 0)
+    {
+        if( timeout >= 1000)
+        {
+            tv.tv_sec = timeout/1000;
+            tv.tv_usec = (timeout %1000)* 1000;
+        }
+        else
+        {
+            tv.tv_sec = 0;
+            tv.tv_usec = timeout * 1000;
+            
+        }
+      //  printf("NONBLOCK ::: Settint timeoug %d s, %d us\t",tv.tv_sec, tv.tv_usec );
+        result = select(fd+1, &readset, NULL, NULL, &tv);
+    }
+    else
+    {
+        result = select(fd+1, &readset, NULL, NULL, NULL);
+    }
+   // printf("Return: %d \n", result);
+    if (result < 0)
+    {
+        printf("Select failed for some reason\n");
+        return -1;
+    }
+    else if (result > 0 && FD_ISSET(fd, &readset)) {
+        return recv(fd, buffer, len, flags);
+    }
+    return -2;
+}
+
+/*
+ Params:
+ fd         -  (int) socket file descriptor
+ buffer     - (char*) buffer to hold data
+ len        - (int) number of bytes to send()
+ flags      - (int) flags (as the fourth param to send() )
+ Results:
+ int        - The same as send
+ */
+int send_nb(int fd, uint8_t *buffer, int len, int flags) {
+    int ret = 0;
+    int bytes_sent = 0;
+    while ( bytes_sent < len)
+    {
+        ret = send(fd, buffer, len, flags);
+        if(ret<=0)
+            return ret;
+        bytes_sent += ret;
+    }
+    return bytes_sent;
+}
+
 
 /* Set the play-out delay to pd_ms, a value in ms */
 void set_playout_delay(hlywd_sock *socket, int pd_ms) {
@@ -138,7 +227,7 @@ ssize_t send_message_time(hlywd_sock *socket, const void *buf, size_t len, int f
 	    free(preencode_buf);
 	    printf("sub-stream id: %c\n", encoded_message[metadata_start]);
 	    /* send, returning sent size to application */
-	    return send(socket->sock_fd, encoded_message, encoded_len+5+2*sizeof(struct timespec)+2, flags);
+	    return send_nb(socket->sock_fd, encoded_message, encoded_len+5+2*sizeof(struct timespec)+2, flags);
     } else {
         return send_message(socket, buf, len, flags);
     }
@@ -169,7 +258,7 @@ ssize_t send_message_sub(hlywd_sock *socket, const void *buf, size_t len, int fl
 	/* send, returning sent size to application */
 	//fprintf(stderr, "[hlywd_lib] sending message (size: %d)\n", len);
     //fflush(stderr);
-	return send(socket->sock_fd, encoded_message, encoded_len+2, flags);
+	return send_nb(socket->sock_fd, encoded_message, encoded_len+2, flags);
 }
 
 /* Sends a message */
@@ -182,14 +271,15 @@ size_t encoded_len(size_t len) {
 	return ceil(2 + 1.04*len) + 2;
 }
 
-/* Receives a message */
-ssize_t recv_message(hlywd_sock *socket, void *buf, size_t len, int flags, uint8_t *substream_id) {
+/* Receives a message, returns -2 for timeout, timeout in milliseconds */
+ssize_t recv_message(hlywd_sock *socket, void *buf, size_t len, int flags, uint8_t *substream_id, int timeout) {
 	while (socket->message_count == 0) {
 		uint8_t segment[1500+sizeof(tcp_seq)];
 		tcp_seq sequence_num = 0;
         errno = 0;
-		ssize_t segment_len = recv(socket->sock_fd, segment, 1500+sizeof(tcp_seq), flags);
+		ssize_t segment_len = recv_nb(socket->sock_fd, segment, 1500+sizeof(tcp_seq), flags, timeout);
 		if (segment_len <= 0) {
+            printf("returning from receive %d\n", segment_len);
 			return segment_len;
 		}
 		if (socket->oo) {

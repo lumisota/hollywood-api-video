@@ -17,6 +17,8 @@
 #include "readmpd.h"
 #include "bola.h"
 
+/* The logic is that the delay of the first packet may be high but subsequent jitter would be lower. */
+#define HTTP_FIRST_RESPONSE_TIMEOUT 2000 /*milliseconds*/
 
 
 int init_transport(transport * t);
