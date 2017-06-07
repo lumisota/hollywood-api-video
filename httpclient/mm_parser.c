@@ -152,7 +152,16 @@ static int mm_read(void * opaque, uint8_t *buf, int buf_size)
             ++t->rx_buf->lost_packets;
         }
         else if (ret > 0)
+        {
+            if(fwrite (buf , sizeof(uint8_t), ret, t->fptr)!=ret)
+            {
+                if (ferror (t->fptr))
+                    printf ("download_segments: Error Writing to file\n");
+                perror("File writing error occured: ");
+                return -1;
+            }
             break; 
+        }
         else 
         {
             if ( t->stream_complete == 1)

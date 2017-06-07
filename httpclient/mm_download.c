@@ -193,16 +193,10 @@ int download_segments( manifest * m, transport * t , long long stime, long throu
             ret = read_http_body_partial(sock, rx_buf, HOLLYWOOD_MSG_SIZE, t->Hollywood, &new_seq, &curr_offset);
             
             
-            if (ret<0)
+            if (ret<=0)
             {
                 perror("ERROR: download_segments: Socket recv failed: ");
                 goto END_DOWNLOAD;
-            }
-            else
-            {
-                printf("download_segments: Received 0 bytes, connection closed\n");
-                goto END_DOWNLOAD;
-
             }
             
             
