@@ -33,8 +33,6 @@
 #include "../common/http_ops.h"
 extern int verbose;
 
-#define CONNECTION_TIMEOUT 10000 /*milliseconds*/
-
 #define ISspace(x) isspace((int)(x))
 
 #define SERVER_STRING "Server: jdbhttpd/0.1.0\r\n"
@@ -94,9 +92,9 @@ void * accept_request(void * a)
     {
         char *query_string = NULL;
 
-        numchars = get_html_headers(sock, buf, HTTPHEADERLEN, Hollywood, NULL, NULL, NULL, CONNECTION_TIMEOUT);
+        numchars = get_html_headers(sock, buf, HTTPHEADERLEN, Hollywood, NULL, NULL, NULL);
         
-        if (numchars <= 0 )
+        if (numchars == 0 )
             break;
         num_of_requests++;
         i = 0; j = 0;

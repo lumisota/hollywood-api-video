@@ -129,7 +129,7 @@ int download_segments( manifest * m, transport * t , long long stime, long throu
         }
         while (http_resp_len==0)
         {
-            http_resp_len = get_html_headers(sock, buf, HTTPHEADERLEN, t->Hollywood, &substream, &new_seq, &curr_offset, HTTP_FIRST_RESPONSE_TIMEOUT);
+            http_resp_len = get_html_headers(sock, buf, HTTPHEADERLEN, t->Hollywood, &substream, &new_seq, &curr_offset);
             if( http_resp_len == 0 )
             {
                 close(t->sock);
@@ -187,7 +187,7 @@ int download_segments( manifest * m, transport * t , long long stime, long throu
         end_offset+=contentlen;
         download_start_time = gettimelong();
         
-        while (bytes_rx < contentlen && ret!=-2 )
+        while (bytes_rx < contentlen && (curr_offset < end_offset || t->Hollywood == 0 ) )
         {
             if(endnow)
                 goto END_DOWNLOAD; 
@@ -209,8 +209,6 @@ int download_segments( manifest * m, transport * t , long long stime, long throu
             }
             else if (ret<0)
             {
-                if ( ret == -2 )
-                    break;
                 perror("ERROR: download_segments: Socket recv failed: ");
                 goto END_DOWNLOAD;
             }
@@ -245,7 +243,7 @@ int download_segments( manifest * m, transport * t , long long stime, long throu
         saveThroughput(&bola, (long)((double)bytes_rx*8/(download_time/1000000)));  /*bps*/
 
         ++curr_segment ;
-
+        
         
     }
 

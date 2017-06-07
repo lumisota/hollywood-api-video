@@ -137,7 +137,7 @@ int get_content_length( char * buf)
 
 /**********************************************************************/
 
-int get_html_headers(void * sock, char *buf, int size, uint8_t hollywood, uint8_t * substream, uint32_t * seq, uint32_t * offset, int timeout)
+int get_html_headers(void * sock, char *buf, int size, uint8_t hollywood, uint8_t * substream, uint32_t * seq, uint32_t * offset)
 {
     int i = 0;
     char c = '\0';
@@ -148,20 +148,12 @@ int get_html_headers(void * sock, char *buf, int size, uint8_t hollywood, uint8_
         /*headers are sent as a single message*/
         uint8_t substream_id;
         printdebug(HTTPOPS,"Calling recv_message....");
-        i = recv_message((hlywd_sock * )sock, buf, size, 0, &substream_id, timeout);
+        i = recv_message((hlywd_sock * )sock, buf, size, 0, &substream_id);
         printdebug(HTTPOPS,"returned\n");
         if ( i < 0 )
         {
-            if ( i == -2)
-            {
-                printdebug(HTTPOPS, "Timeout occurred while receiving\n");
-                return i;
-            }
-            else
-            {
-                perror("get_html_headers: Error reading from Hollywood socket \n");
-                i = 0;
-            }
+            printf("get_html_headers: Error reading from Hollywood socket \n");
+            i = 0;
         }
         update_bytes_read(i);
         if(substream!=NULL && i>0)
@@ -204,7 +196,6 @@ int get_html_headers(void * sock, char *buf, int size, uint8_t hollywood, uint8_
             else if (n==0)
             {
                 printdebug(HTTPOPS, "get_html_headers: socket disconnected\n");
-                i = 0;
                 break;
             }
             else
@@ -295,9 +286,9 @@ int read_http_body_partial(void * sock, uint8_t * buf, int buflen, uint8_t holly
     {
         uint8_t substream_id;
         printdebug(HTTPOPS, "http_read:  ");
-        while(1)
+	while(1)
         {
-            ret = recv_message((hlywd_sock * )sock, buf, buflen, 0, &substream_id, HOLLYWOOD_RECV_TIMEOUT);
+            ret = recv_message((hlywd_sock * )sock, buf, buflen, 0, &substream_id);
             printdebug(HTTPOPS, "Read %d bytes on substream %d\n",ret, substream_id); 
             if (substream_id == HOLLYWOOD_DATA_SUBSTREAM_TIMELINED || substream_id == HOLLYWOOD_DATA_SUBSTREAM_UNTIMELINED || ret<=0)
             {
@@ -348,7 +339,7 @@ int read_http_body_partial(void * sock, uint8_t * buf, int buflen, uint8_t holly
 /**********************************************************************/
 
 
-int read_to_memory (void * sock, char * memory, int contentlen, uint8_t hollywood, int timeout)
+int read_to_memory (void * sock, char * memory, int contentlen, uint8_t hollywood)
 {
     int ret             = 0;
     int bytes_written   = 0;
@@ -359,25 +350,23 @@ int read_to_memory (void * sock, char * memory, int contentlen, uint8_t hollywoo
         if(hollywood)
         {
             uint8_t substream_id;
-            ret = recv_message((hlywd_sock * )sock, memory + bytes_written, contentlen - bytes_written, 0, &substream_id, timeout);
+            ret = recv_message((hlywd_sock * )sock, memory + bytes_written, contentlen - bytes_written, 0, &substream_id);
+            update_bytes_read(ret);
 
         }
         else
         {
             ret = recv(*((int *)sock), memory + bytes_written, contentlen - bytes_written, 0);
+            update_bytes_read(ret);
         }
 
         if ( ret > 0 )
-        {
-            update_bytes_read(ret);
             bytes_written += ret;
-        }
         else
         {
             printf("read_to_memory: Received return value %d while reading socket\n", ret);
-            return ret;
         }
-    }while(bytes_written < contentlen);
+    }while(ret > 0 && bytes_written < contentlen);
     
  //   printf(" received\n");
     

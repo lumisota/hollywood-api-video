@@ -19,8 +19,8 @@
 
 
 #define MAX_SUPPORTED_BITRATE_LEVELS 24
-//#define READMPD ""
-#define READMPD "READMPD"
+#define READMPD ""
+//#define READMPD "READMPD"
 
 
 typedef struct
