@@ -41,6 +41,7 @@ typedef struct {
     FILE * fptr;
     hlywd_sock h_sock;
     uint8_t stream_complete;
+    uint8_t parser_exited;
     char port[6];
     char path[380];
     char host[128];

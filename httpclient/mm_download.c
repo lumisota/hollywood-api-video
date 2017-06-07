@@ -67,6 +67,12 @@ int download_segments( manifest * m, transport * t , long long stime, long throu
         else
         {
             pthread_mutex_lock(&t->msg_mutex);
+            if(t->parser_exited)
+            {
+                t->stream_complete = 1;
+                pthread_mutex_unlock(&t->msg_mutex);
+                goto END_DOWNLOAD;
+            }
             if(t->init_segment_downloaded==0 && curr_segment > 1)
                 pthread_cond_signal(&t->init_ready);
             segment_start = m->segment_dur * (curr_segment - m->init);
@@ -193,28 +199,10 @@ int download_segments( manifest * m, transport * t , long long stime, long throu
             ret = read_http_body_partial(sock, rx_buf, HOLLYWOOD_MSG_SIZE, t->Hollywood, &new_seq, &curr_offset);
             
             
-            /*Write buffer to file for later use*/
-            if(ret>0)
-            {
-                if(fwrite (rx_buf , sizeof(uint8_t), ret, t->fptr)!=ret)
-                {
-                    if (ferror (t->fptr))
-                        printf ("download_segments: Error Writing to file\n");
-                    perror("File writing error occured: ");
-                    goto END_DOWNLOAD;
-                }
-                
-            }
-            else if (ret<0)
+            if (ret<=0)
             {
                 perror("ERROR: download_segments: Socket recv failed: ");
                 goto END_DOWNLOAD;
-            }
-            else
-            {
-                printf("download_segments: Received 0 bytes, connection closed\n");
-                goto END_DOWNLOAD;
-
             }
             
             
@@ -274,11 +262,12 @@ int init_transport(transport * t)
 {
     t->Hollywood        = 0;
     t->sock             = -1;
-    t->fptr             = NULL;
     t->stream_complete  = 0;
     t->playout_time     = 0;
     t->OO               = 0;
-    t->init_segment_downloaded = 0; 
+    t->fptr             = NULL; 
+    t->init_segment_downloaded = 0;
+    t->parser_exited    = 0; 
     t->rx_buf  = malloc(sizeof(struct playout_buffer));
     memzero(t->rx_buf, sizeof(struct playout_buffer) );
     sprintf(t->host, "");

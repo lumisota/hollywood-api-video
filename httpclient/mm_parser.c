@@ -146,21 +146,26 @@ static int mm_read(void * opaque, uint8_t *buf, int buf_size)
     
     while (1){
         ret = pop_message (t->rx_buf, buf, buf_size);
-	if(ret==0)
-        {
+        if(ret==0) {
             ++t->rx_buf->lost_packets;
         }
-        else if (ret > 0)
-            break; 
-        else 
-        {
-            if ( t->stream_complete == 1)
+        else if (ret > 0) {
+            /*Write buffer to file for later use*/
+            if(fwrite (buf , sizeof(uint8_t), ret, t->fptr)!=ret)
             {
+                if (ferror (t->fptr))
+                    printf ("download_segments: Error Writing to file\n");
+                perror("File writing error occured: ");
+                return -1;
+            }
+            break;
+        }
+        else {
+            if ( t->stream_complete == 1) {
                 pthread_mutex_unlock(&t->msg_mutex);
                 return 0;
             }
-            else
-            {
+            else {
                 pthread_cond_wait( &t->msg_ready, &t->msg_mutex );
             }
         } 
@@ -171,7 +176,7 @@ static int mm_read(void * opaque, uint8_t *buf, int buf_size)
 
     pthread_mutex_unlock(&t->msg_mutex);
 
-    return ret; 
+    return ret;
 }
 
 
@@ -453,7 +458,10 @@ end:
     avformat_close_input(&fmt_ctx);
     av_frame_free(&frame);
     av_free(video_dst_data[0]);
-    
+    pthread_mutex_lock(&m->t->msg_mutex);
+    m->t->parser_exited = 1; 
+    pthread_mutex_unlock(&m->t->msg_mutex);
+
     m->etime = gettimelong();
 	return m;
 }
@@ -462,8 +470,8 @@ end:
 int init_metrics(struct metrics *metric)
 {
     memzero(metric, sizeof(*metric));
-    metric->t                       =NULL;
-    metric->Tplay                    =-1;
+    metric->t                       = NULL;
+    metric->Tplay                   = -1;
     metric->T0                      = -1;
     metric->htime                   = gettimelong();
     metric->Tempty                   = -1;
