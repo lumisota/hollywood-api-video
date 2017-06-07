@@ -10,6 +10,8 @@
 #define PLAYOUT_BUFFER "PLAYOUT_BUFFER"
 //#define PLAYOUT_BUFFER ""
 
+static int seq_tracker = -1; 
+
 int is_empty (struct playout_buffer * q)
 {
     if (q->qlen == 0)
@@ -67,6 +69,7 @@ int pop_message (struct playout_buffer * q, uint8_t * buf, uint32_t datalen)
     }
     else
     {
+
         memzero (q->buf[q->head], HOLLYWOOD_MSG_SIZE);
         q->qlen --;
         q->head = q->head + 1;
@@ -143,7 +146,6 @@ int push_message(struct playout_buffer * q, uint8_t * buf, uint32_t new_seq, uin
     q->datalen[curr_index] = datalen;
     
     printdebug(PLAYOUT_BUFFER, "Push seqnum %d (%d-%d, qlen %d), index %d(%d) (size: %d)\n", new_seq, q->highest_seqnum, q->lowest_seqnum, q->qlen, curr_index, q->head, datalen);
-    
     q->total_bytes_pushed+=datalen;
 
     return new_seq;

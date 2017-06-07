@@ -193,19 +193,7 @@ int download_segments( manifest * m, transport * t , long long stime, long throu
             ret = read_http_body_partial(sock, rx_buf, HOLLYWOOD_MSG_SIZE, t->Hollywood, &new_seq, &curr_offset);
             
             
-            /*Write buffer to file for later use*/
-            if(ret>0)
-            {
-                if(fwrite (rx_buf , sizeof(uint8_t), ret, t->fptr)!=ret)
-                {
-                    if (ferror (t->fptr))
-                        printf ("download_segments: Error Writing to file\n");
-                    perror("File writing error occured: ");
-                    goto END_DOWNLOAD;
-                }
-                
-            }
-            else if (ret<0)
+            if (ret<0)
             {
                 perror("ERROR: download_segments: Socket recv failed: ");
                 goto END_DOWNLOAD;

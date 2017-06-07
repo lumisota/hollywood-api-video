@@ -24,7 +24,7 @@ static enum AVPixelFormat pix_fmt;
 static AVStream *video_stream = NULL, *audio_stream = NULL;
 static const char *src_filename = NULL;
 
-
+static int tracker_seq = 0;
 static uint8_t *video_dst_data[4] = {NULL};
 static int      video_dst_linesize[4];
 static int video_dst_bufsize;
@@ -148,6 +148,7 @@ static int mm_read(void * opaque, uint8_t *buf, int buf_size)
         ret = pop_message (t->rx_buf, buf, buf_size);
 	if(ret==0)
         {
+            printf("Packet Lost %d\n",t->rx_buf->lost_packets ); fflush(stdout); 
             ++t->rx_buf->lost_packets;
         }
         else if (ret > 0)
