@@ -29,6 +29,7 @@ struct playout_buffer
     int late_or_duplicate_packets;
     long long total_bytes_pushed;
     long long total_bytes_received; 
+    int lost_packets;
     int head;
     int qlen;
     uint32_t lowest_seqnum;
