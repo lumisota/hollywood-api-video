@@ -88,13 +88,12 @@ void * accept_request(void * a)
         sock = a ;
     }
     
-    while (num_of_requests < 100)
+    while (1)
     {
         char *query_string = NULL;
 
         numchars = get_html_headers(sock, buf, HTTPHEADERLEN, Hollywood, NULL, NULL, NULL);
-        
-        if (numchars == 0 )
+        if (numchars <= 0 )
             break;
         num_of_requests++;
         i = 0; j = 0;

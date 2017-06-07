@@ -223,11 +223,11 @@ void *write_to_hollywood(void *hlywd_data_arg) {
             depends_on = 0;
         }
         msg_len = send_message_time(hlywd_data->hlywd_socket, msg->message, msg->msg_size, 0, hlywd_data->seq, depends_on, msg->lifetime_ms);
-	BytesSent+=msg->msg_size-8; 
-        uint32_t tmp; 
-	memcpy(&tmp, msg->message + msg->msg_size - sizeof(uint32_t), sizeof(uint32_t));
-        tmp = ntohl(tmp); 
-        printdebug(MEDIA_SENDER, "Sending %d of %d (%d) seq: %u\n", BytesSent, ContentLength, msg_len, tmp );
+//	BytesSent+=msg->msg_size-8; 
+//        uint32_t tmp; 
+//	memcpy(&tmp, msg->message + msg->msg_size - sizeof(uint32_t), sizeof(uint32_t));
+//        tmp = ntohl(tmp); 
+//        printdebug(MEDIA_SENDER, "Sending %d of %d (%d) seq: %u\n", BytesSent, ContentLength, msg_len, tmp );
         hlywd_data->seq++;
         if (msg_len == -1) {
             printf("Unable to send message over Hollywood\n");

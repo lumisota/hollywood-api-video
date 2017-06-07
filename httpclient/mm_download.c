@@ -9,7 +9,7 @@
 #include "mm_download.h"
 
 pthread_t       av_tid;          /*thread id of the av parser thread*/
-#define BUFFER_DURATION 10000 /*milliseconds*/
+#define BUFFER_DURATION 6000 /*milliseconds*/
 #define IS_DYNAMIC      1
 #define ENCODING_DELAY  3000
 
@@ -40,8 +40,8 @@ int download_segments( manifest * m, transport * t , long long stime, long throu
     uint8_t substream               = 0;
     int segment_start               = 0;
     long long delay;
-    uint32_t end_offset = 0;
-    uint32_t curr_offset;
+    uint32_t end_offset             = 0;
+    uint32_t curr_offset            = 0;
 
     /*Initialize bola, isDynamic is set to 1 (Live)*/
     curr_bitrate_level = calculateInitialState(m, IS_DYNAMIC, &bola);
@@ -67,7 +67,7 @@ int download_segments( manifest * m, transport * t , long long stime, long throu
         else
         {
             pthread_mutex_lock(&t->msg_mutex);
-            if(t->init_segment_downloaded==0)
+            if(t->init_segment_downloaded==0 && curr_segment > 1)
                 pthread_cond_signal(&t->init_ready);
             segment_start = m->segment_dur * (curr_segment - m->init);
             buffered_duration = (segment_start * 1000) - t->playout_time;
@@ -88,7 +88,7 @@ int download_segments( manifest * m, transport * t , long long stime, long throu
             pthread_mutex_unlock(&t->msg_mutex);
 
         }
-        /*No need to wait if the difference is under 10us */
+        /*No need to wait if the difference is under 10us 
         if ((delay = (segment_start * 1000000) - (gettimelong()-stime + ENCODING_DELAY*1000)) > 10000)
         {
             printdebug(DOWNLOAD, "Encoding Delay: waiting %lld ms \n", delay/1000);
@@ -100,7 +100,7 @@ int download_segments( manifest * m, transport * t , long long stime, long throu
             pthread_mutex_unlock(&t->msg_mutex);
         }
 
-        
+        */
         if(buffered_duration< 0)
         {
             /*This shouldn't happen*/
@@ -120,11 +120,11 @@ int download_segments( manifest * m, transport * t , long long stime, long throu
         //            curr_bitrate_level--;
         
         bytes_rx = 0;
-        
+        download_start_time = gettimelong();
         http_resp_len = 0 ;
         if( send_get_request (sock, curr_url, t->Hollywood, segment_start) < 0 )
         {
-            printf("ERROR: Send GET request failed on Hollywood\n");
+            perror("ERROR: Send GET request failed on Hollywood\n");
             goto END_DOWNLOAD;
         }
         while (http_resp_len==0)
@@ -161,7 +161,6 @@ int download_segments( manifest * m, transport * t , long long stime, long throu
                     if(push_message(t->rx_buf, (uint8_t *)buf, new_seq, http_resp_len)>=0)
                     {
                         bytes_rx += http_resp_len;
-                    
                         pthread_cond_signal(&t->msg_ready);
                     }
                     pthread_mutex_unlock(&t->msg_mutex);
@@ -184,10 +183,9 @@ int download_segments( manifest * m, transport * t , long long stime, long throu
             printf("download_segments: Received zero content length, exiting program! \n");
             goto END_DOWNLOAD;
         }
-        end_offset+=contentlen;
-        download_start_time = gettimelong();
-        
-        while (bytes_rx < contentlen && (curr_offset < end_offset || t->Hollywood == 0 ) )
+        end_offset = contentlen;
+        curr_offset = 0; 
+        while ((bytes_rx < contentlen && !t->Hollywood) || (curr_offset < end_offset && t->Hollywood) )
         {
             if(endnow)
                 goto END_DOWNLOAD; 

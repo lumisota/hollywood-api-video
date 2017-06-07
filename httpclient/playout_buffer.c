@@ -41,13 +41,13 @@ int pop_message (struct playout_buffer * q, uint8_t * buf, uint32_t datalen)
     int ret;
     if (q->qlen == 0)
     {
-   //     printf("playout_buffer: No message to pop, queue empty\n");
+        printf("playout_buffer: No message to pop, queue empty\n");
         return -1;
     }
     
     if (datalen < q->datalen[q->head])
     {
-       // printf("playout_buffer: Buffer is not big enough for popped message (%d bytes)\n", datalen);
+        printf("playout_buffer: Buffer is not big enough for popped message (%d bytes)\n", datalen);
         ret = datalen;
     }
     else
@@ -100,7 +100,7 @@ int push_message(struct playout_buffer * q, uint8_t * buf, uint32_t new_seq, uin
     }
     else if (seq_gap < 0)
     {
-        printf("playout_buffer: Irregular sequence number %u, expired (CURR head: %u)\n", new_seq, q->lowest_seqnum);
+       // printf("playout_buffer: Irregular sequence number %u, expired (CURR head: %u)\n", new_seq, q->lowest_seqnum);
         q->late_or_duplicate_packets++;
         return -1;
     }
