@@ -144,22 +144,34 @@ static int mm_read(void * opaque, uint8_t *buf, int buf_size)
         }
     }
     
-    do{
+    while (1){
         ret = pop_message (t->rx_buf, buf, buf_size);
-        ++t->rx_buf->lost_packets;
-    }while (ret==0);
+	if(ret==0)
+        {
+            ++t->rx_buf->lost_packets;
+        }
+        else if (ret > 0)
+            break; 
+        else 
+        {
+            if ( t->stream_complete == 1)
+            {
+                pthread_mutex_unlock(&t->msg_mutex);
+                return 0;
+            }
+            else
+            {
+                pthread_cond_wait( &t->msg_ready, &t->msg_mutex );
+            }
+        } 
 
-    if(ret<0)
-        return 0;
-    else if (ret <= buf_size)
-    {
-        pthread_cond_signal(&t->msg_ready);
     }
-    
+
+    pthread_cond_signal(&t->msg_ready);
+
     pthread_mutex_unlock(&t->msg_mutex);
-    
-    return ret;
-    
+
+    return ret; 
 }
 
 
@@ -593,7 +605,7 @@ void printmetric(struct metrics metric, transport media_transport )
     printf("%.0f;",         metric.totalstalltime/1000); // total stall time
     printf("%lld;",         media_transport.rx_buf->total_bytes_received);
     printf("%lld;",         media_transport.rx_buf->total_bytes_pushed);
-    printf("%d\n",         media_transport.rx_buf->late_or_duplicate_packets);
+    printf("%d;",         media_transport.rx_buf->late_or_duplicate_packets);
     printf("%d\n",         media_transport.rx_buf->lost_packets);
 
     fflush(stdout); 
