@@ -7,6 +7,11 @@ SERVER_OBJ=media_sender.o httpd.o tsdemux.o
 SERVER_SRC=media_sender.c httpd.c tsdemux.c
 SERVER_HDR=tsdemux.h media_sender.h
 
+SERVER_TL_DIR=timeless_server
+SERVER_TL_OBJ=media_sender_timeless.o httpd_timeless.o 
+SERVER_TL_SRC=media_sender_timeless.c httpd_timeless.c 
+SERVER_TL_HDR=media_sender_timeless.h
+
 CLIENT_DIR=httpclient
 CLIENT_OBJ=mm_parser.o httpc.o playout_buffer.o readmpd.o mm_download.o bola.o
 CLIENT_SRC=mm_parser.c httpc.c playout_buffer.c readmpd.c mm_download.c bola.c
@@ -23,10 +28,10 @@ LIB_OBJ=hollywood.o cobs.o
 LIB_DIR=lib
 
 
-all: httpd httpc
+all: httpd httpc httptl
 
 clean:
-	rm httpd httpc $(SERVER_OBJ) $(LIB_OBJ) $(CLIENT_OBJ) $(COMMON_OBJ)
+	rm httpd httpc httptl $(SERVER_TL_OBJ) $(SERVER_OBJ) $(LIB_OBJ) $(CLIENT_OBJ) $(COMMON_OBJ)
 
 testfiles:
 	wget http://www.netlab.tkk.fi/tutkimus/rtc/BBB_8bitrates_hd.tar.gz
@@ -41,6 +46,8 @@ $(COMMON_OBJ): $(patsubst %,$(COMMON_DIR)/%, $(COMMON_HDR))
 $(SERVER_OBJ): $(patsubst %,$(SERVER_DIR)/%, $(SERVER_HDR))
 	$(CC) $(CCFLAGS) $(SERVER_DIR)/$*.c -o $*.o 
 
+$(SERVER_TL_OBJ): $(patsubst %,$(SERVER_TL_DIR)/%, $(SERVER_TL_HDR))
+	$(CC) $(CCFLAGS) $(SERVER_TL_DIR)/$*.c -o $*.o 
 
 $(CLIENT_OBJ): $(patsubst %,$(CLIENT_DIR)/%, $(CLIENT_HDR))
 	$(CC) $(CCFLAGS) $(CLIENT_DIR)/$*.c -o $*.o 
@@ -51,6 +58,9 @@ $(LIB_OBJ): $(patsubst %,$(LIB_DIR)/%, $(LIB_HDR))
 
 httpd: $(COMMON_OBJ) $(SERVER_OBJ) $(LIB_OBJ) testfiles
 	$(CC) -o httpd $(SERVER_OBJ) $(COMMON_OBJ) $(LIB_OBJ) $(LDFLAGS) 
+
+httptl: $(COMMON_OBJ) $(SERVER_TL_OBJ) $(LIB_OBJ) testfiles
+	$(CC) -o httptl $(SERVER_TL_OBJ) $(COMMON_OBJ) $(LIB_OBJ) $(LDFLAGS) 
 
 httpc: $(COMMON_OBJ) $(CLIENT_OBJ) $(LIB_OBJ) testfiles
 	$(CC) -o httpc $(CLIENT_OBJ) $(COMMON_OBJ) $(LIB_OBJ) $(LDFLAGS) 

@@ -119,7 +119,7 @@ int download_segments( manifest * m, transport * t , long long stime, long throu
         curr_url = m->bitrate_level[curr_bitrate_level].segments[curr_segment];
 
        // printf("PLAYOUT: ")
-        printf("BUFFER: %lld %lld %ld %d %d %ld\n", (gettimelong()-stime)/1000, t->playout_time, buffered_duration, curr_bitrate_level, curr_segment, m->bitrate_level[curr_bitrate_level].bitrate);
+        printf("BUFFER: %lld %lld %ld %d %d %ld (%u:%u(%d))\n", (gettimelong()-stime)/1000, t->playout_time, buffered_duration, curr_bitrate_level, curr_segment, m->bitrate_level[curr_bitrate_level].bitrate, curr_offset, end_offset, bytes_rx);
        // printf("\nFinished request for segment %d (Buffer len: %d s). Content len: %d, bytes rx: %d at level : %d\n", curr_segment - 1, buffered_duration/1000 , contentlen, bytes_rx, curr_bitrate_level); fflush(stdout);
         
         //        if (curr_segment % 5 == 0 && curr_bitrate_level > 14)
@@ -167,7 +167,6 @@ int download_segments( manifest * m, transport * t , long long stime, long throu
                     if(push_message(t->rx_buf, (uint8_t *)buf, new_seq, http_resp_len)>=0)
                     {
                         bytes_rx += http_resp_len;
-                        pthread_cond_signal(&t->msg_ready);
                     }
                     pthread_mutex_unlock(&t->msg_mutex);
                     printdebug(DOWNLOAD, "Read %d of %d bytes (seq: %u) \n", bytes_rx, contentlen, new_seq);
@@ -191,7 +190,7 @@ int download_segments( manifest * m, transport * t , long long stime, long throu
         }
         end_offset = contentlen;
         curr_offset = 0; 
-        while ((bytes_rx < contentlen && !t->Hollywood) || (curr_offset < end_offset && t->Hollywood) )
+        while ((bytes_rx < contentlen && !t->Hollywood) || ((curr_offset < end_offset ||  bytes_rx < 0.80*contentlen )&& t->Hollywood) )
         {
             if(endnow)
                 goto END_DOWNLOAD; 
@@ -218,13 +217,14 @@ int download_segments( manifest * m, transport * t , long long stime, long throu
             {
                 bytes_rx += ret;
 
-                pthread_cond_signal(&t->msg_ready);
             }
           //  pthread_cond_wait( &t->msg_ready, &t->msg_mutex );
             pthread_mutex_unlock(&t->msg_mutex);
             printdebug(DOWNLOAD, "Read %d of %d bytes (seq: %u) %u: %u\n", bytes_rx, contentlen, new_seq, curr_offset, end_offset);
             
         }
+        pthread_cond_signal(&t->msg_ready);
+
         double download_time = gettimelong() - download_start_time;
         saveThroughput(&bola, (long)((double)bytes_rx*8/(download_time/1000000)));  /*bps*/
 
