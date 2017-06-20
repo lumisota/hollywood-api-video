@@ -95,6 +95,39 @@ int hollywood_socket(int fd, hlywd_sock *socket, int oo, int pr) {
 	return result;
 }
 
+
+int recv_nb(int fd, uint8_t *buffer, int len, int flags, int timeout) {
+    
+    fd_set readset;
+    int result, iof = -1;
+    struct timeval tv;
+    
+    FD_ZERO(&readset);
+    FD_SET(fd, &readset);
+    if (timeout > 0)
+    {
+        tv.tv_sec = timeout;
+        tv.tv_usec = 0;
+        result = select(fd+1, &readset, NULL, NULL, &tv);
+    }
+    else
+    {
+        result = select(fd+1, &readset, NULL, NULL, NULL);
+    }
+   // printf("Return: %d \n", result);
+    if (result < 0)
+    {
+        printf("Select failed for some reason\n");
+        return -1;
+    }
+    else if (result > 0 && FD_ISSET(fd, &readset)) {
+        printf("Read socket set by select.. trying\n"); fflush(stdout); 
+        return recv(fd, buffer, len, flags);
+    }
+    return -2;
+}
+
+
 /* Set the play-out delay to pd_ms, a value in ms */
 void set_playout_delay(hlywd_sock *socket, int pd_ms) {
 	int pd_ns = pd_ms * 1000000;
@@ -178,13 +211,19 @@ size_t encoded_len(size_t len) {
 }
 
 /* Receives a message */
-ssize_t recv_message(hlywd_sock *socket, void *buf, size_t len, int flags, uint8_t *substream_id) {
+ssize_t recv_message(hlywd_sock *socket, void *buf, size_t len, int flags, uint8_t *substream_id, int timeout_s) {
 	while (socket->message_count == 0) {
 		uint8_t segment[1500+sizeof(tcp_seq)];
 		tcp_seq sequence_num = 0;
+		ssize_t segment_len;
         //printf("(Hollywood[%d:%d]... ",socket->sock_fd, flags);
         //fflush(stdout);
-		ssize_t segment_len = recv(socket->sock_fd, segment, 1500+sizeof(tcp_seq), flags);
+        if(timeout_s>0) {
+    		segment_len = recv_nb(socket->sock_fd, segment, 1500+sizeof(tcp_seq), flags, timeout_s);
+    	}
+        else {   
+		    segment_len = recv(socket->sock_fd, segment, 1500+sizeof(tcp_seq), flags);
+		}
         //printf(" %d bytes (%x:%x)) ", segment_len, segment[0], segment[segment_len-1]); fflush(stdout);
         //printf("received %d bytes..\n", segment_len);
 		if (segment_len <= 0) {

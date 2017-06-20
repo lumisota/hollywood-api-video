@@ -127,6 +127,8 @@ int connect_tcp_port (char * host, char * port, uint8_t hollywood, void * sock, 
 int get_content_length( char * buf)
 {
     char * tmp;
+    if(strstr(buf, "200 OK")==NULL)
+        return 0; 
     
     if((tmp = strstr(buf, "Content-Length:")) != NULL)
         return atoi (tmp+15);
@@ -148,7 +150,7 @@ int get_html_headers(void * sock, char *buf, int size, uint8_t hollywood, uint8_
         /*headers are sent as a single message*/
         uint8_t substream_id;
         printdebug(HTTPOPS,"Calling recv_message....");
-        i = recv_message((hlywd_sock * )sock, buf, size, 0, &substream_id);
+        i = recv_message((hlywd_sock * )sock, buf, size, 0, &substream_id, 0);
         printdebug(HTTPOPS,"returned\n");
         if ( i < 0 )
         {
@@ -288,7 +290,7 @@ int read_http_body_partial(void * sock, uint8_t * buf, int buflen, uint8_t holly
         printdebug(HTTPOPS, "http_read:  ");
 	while(1)
         {
-            ret = recv_message((hlywd_sock * )sock, buf, buflen, 0, &substream_id);
+            ret = recv_message((hlywd_sock * )sock, buf, buflen, 0, &substream_id, 0);
             printdebug(HTTPOPS, "Read %d bytes on substream %d\n",ret, substream_id); 
             if (substream_id == HOLLYWOOD_DATA_SUBSTREAM_TIMELINED || substream_id == HOLLYWOOD_DATA_SUBSTREAM_UNTIMELINED || ret<=0)
             {
@@ -350,7 +352,7 @@ int read_to_memory (void * sock, char * memory, int contentlen, uint8_t hollywoo
         if(hollywood)
         {
             uint8_t substream_id;
-            ret = recv_message((hlywd_sock * )sock, memory + bytes_written, contentlen - bytes_written, 0, &substream_id);
+            ret = recv_message((hlywd_sock * )sock, memory + bytes_written, contentlen - bytes_written, 0, &substream_id, 0);
             update_bytes_read(ret);
 
         }

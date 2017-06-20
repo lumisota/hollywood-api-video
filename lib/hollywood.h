@@ -86,6 +86,6 @@ ssize_t send_message_time(hlywd_sock *socket, const void *buf, size_t len, int f
 ssize_t send_message_sub(hlywd_sock *socket, const void *buf, size_t len, int flags, uint8_t substream_id);
 ssize_t send_message(hlywd_sock *socket, const void *buf, size_t len, int flags);
 
-ssize_t recv_message(hlywd_sock *socket, void *buf, size_t len, int flags, uint8_t *substream_id);
+ssize_t recv_message(hlywd_sock *socket, void *buf, size_t len, int flags, uint8_t *substream_id, int timeout_s);
 
 #endif

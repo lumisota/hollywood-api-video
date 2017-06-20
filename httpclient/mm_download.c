@@ -12,14 +12,81 @@ pthread_t       av_tid;          /*thread id of the av parser thread*/
 #define BUFFER_DURATION 6000 /*milliseconds*/
 #define IS_DYNAMIC      1
 #define ENCODING_DELAY  3000
-
-
-
-
 #define DOWNLOAD "DOWNLOAD"
 //#define DOWNLOAD ""
-
 extern int endnow; 
+
+int add_to_queue(uint8_t * buf, uint32_t len, transport * t, uint32_t new_seq)
+{
+    int ret = 0; 
+    pthread_mutex_lock(&t->msg_mutex);
+                    
+    if(is_full(t->rx_buf, new_seq))
+    {
+        pthread_cond_wait( &t->msg_ready, &t->msg_mutex );
+    }
+                    
+    /*Error code not checked, if message push fails, move on, nothing to do*/
+    if(push_message(t->rx_buf, (uint8_t *)buf, new_seq, len)>0)
+    {
+        pthread_cond_signal(&t->msg_ready);
+        ret = len;
+    }
+    pthread_mutex_unlock(&t->msg_mutex);
+    return ret; 
+}
+
+
+int monitor_socket_for_delayed_packets(void * sock, char * buf, int len,  transport * t, int delay, double * download_time, long long download_start_time){
+
+    uint8_t substream            = 0;
+    uint32_t seq                    = 0;
+    uint32_t offset                 = 0;
+    long long exit_time             = gettimelong() + (delay * 1000000);
+    int ret                         = 0; 
+    int timeout_s                   = (exit_time - gettimelong())/1000000;
+    int bytes_rx                    = 0;
+    //    printf("Monitroring for delayed packets\n");fflush(stdout);  
+    while (timeout_s > 0)
+    {
+        ret = recv_message((hlywd_sock * )sock, buf, len, 0, &substream, timeout_s);
+        if( ret == -2 ) {
+            printf("Select monitor timed out (bytes rx: %d) \n", bytes_rx); 
+            return bytes_rx; 
+        }
+        else if (ret>0) {
+            if (substream == HOLLYWOOD_DATA_SUBSTREAM_TIMELINED || substream == HOLLYWOOD_DATA_SUBSTREAM_UNTIMELINED)
+            {
+                ret -= HLYWD_MSG_TRAILER;
+                if(ret<0)
+                {
+                    printf("ERROR: Received Hollywood message too short while reading HTTP header\n");
+                    exit(1);
+                }
+                memcpy(&offset, buf+ret, sizeof(uint32_t));
+                offset = ntohl(offset);
+                            
+                memcpy(&seq, buf+ret+sizeof(uint32_t), sizeof(uint32_t));
+                seq = ntohl(seq);
+ 
+                printdebug(DOWNLOAD, "SUBSTREAM %d: Received packets while in wait condition\n", substream);
+                int i = add_to_queue(buf, ret, t, seq); 
+                if (i > 0)
+                {
+                    bytes_rx += i; 
+                    *download_time = gettimelong() - download_start_time; 
+                }
+                timeout_s = (exit_time - gettimelong())/1000000;
+            }
+        }
+        else 
+            return -1; 
+    }
+    
+    return bytes_rx; 
+
+}
+
 
 int download_segments( manifest * m, transport * t , long long stime, long throughput)
 {
@@ -42,33 +109,29 @@ int download_segments( manifest * m, transport * t , long long stime, long throu
     long long delay;
     uint32_t end_offset             = 0;
     uint32_t curr_offset            = 0;
+    double download_time            = 0.0; 
 
     /*Initialize bola, isDynamic is set to 1 (Live)*/
     curr_bitrate_level = calculateInitialState(m, IS_DYNAMIC, &bola);
     saveThroughput(&bola, throughput);  /*bps*/
 
-    if ( t->Hollywood)
-    {
+    if ( t->Hollywood) {
         sock = &(t->h_sock);
     }
-    else
-    {
+    else {
         sock = &(t->sock);
     }
-    printf("\n");
-    while (curr_segment < m->num_of_segments )
-    {
     
-        if(curr_segment == 0)
-        {
+    printf("\n");
+    while (curr_segment < m->num_of_segments ){
+    
+        if(curr_segment == 0) {
             segment_start = 0;
             buffered_duration = 0;
         }
-        else
-        {
+        else {
             pthread_mutex_lock(&t->msg_mutex);
-            if(t->parser_exited)
-            {
+            if(t->parser_exited) {
                 t->stream_complete = 1;
                 pthread_mutex_unlock(&t->msg_mutex);
                 goto END_DOWNLOAD;
@@ -82,13 +145,21 @@ int download_segments( manifest * m, transport * t , long long stime, long throu
         }
         
         
-        if((delay = buffered_duration - BUFFER_DURATION) > 0 )
-        {
+        if((delay = (buffered_duration - BUFFER_DURATION)) >= 1000 ) {
             /*Delay due to bufferLevel > bufferTarget is added to BOLA placeholder buffer*/
             printdebug(DOWNLOAD, "Buffer full, going to sleep for %ld milliseconds", delay);
-
-            bola.placeholderBuffer+= (float)delay/1000.0;
-            usleep(delay*1000);
+            if ( t->Hollywood) {
+                int i = monitor_socket_for_delayed_packets(sock, rx_buf, HOLLYWOOD_MSG_SIZE, t, delay/1000, &download_time, download_start_time);
+                if (i > 0)
+                    bytes_rx+=i;
+                else
+                    bola.placeholderBuffer+= (float)delay/1000.0; 
+            }
+            else
+            {
+                usleep(delay*1000); 
+                bola.placeholderBuffer+= (float)delay/1000.0;
+            }
             pthread_mutex_lock(&t->msg_mutex);
             buffered_duration = (segment_start * 1000) - t->playout_time;
             pthread_mutex_unlock(&t->msg_mutex);
@@ -107,24 +178,19 @@ int download_segments( manifest * m, transport * t , long long stime, long throu
         }
 
         */
-        if(buffered_duration< 0)
-        {
+        if(buffered_duration< 0) {
             /*This shouldn't happen*/
             printdebug(DOWNLOAD,"Getting negative buffered duration, zeroing it");
             buffered_duration = 0 ; 
         }
-        
+
+        saveThroughput(&bola, (long)((double)bytes_rx*8/(download_time/1000000)));  /*bps*/
         
         curr_bitrate_level = getMaxIndex(&bola, (float)buffered_duration/1000.0, stime);
         curr_url = m->bitrate_level[curr_bitrate_level].segments[curr_segment];
 
-       // printf("PLAYOUT: ")
         printf("BUFFER: %lld %lld %ld %d %d %ld (%u:%u(%d))\n", (gettimelong()-stime)/1000, t->playout_time, buffered_duration, curr_bitrate_level, curr_segment, m->bitrate_level[curr_bitrate_level].bitrate, curr_offset, end_offset, bytes_rx);
-       // printf("\nFinished request for segment %d (Buffer len: %d s). Content len: %d, bytes rx: %d at level : %d\n", curr_segment - 1, buffered_duration/1000 , contentlen, bytes_rx, curr_bitrate_level); fflush(stdout);
-        
-        //        if (curr_segment % 5 == 0 && curr_bitrate_level > 14)
-        //            curr_bitrate_level--;
-        
+
         bytes_rx = 0;
         download_start_time = gettimelong();
         http_resp_len = 0 ;
@@ -136,59 +202,34 @@ int download_segments( manifest * m, transport * t , long long stime, long throu
         while (http_resp_len==0)
         {
             http_resp_len = get_html_headers(sock, buf, HTTPHEADERLEN, t->Hollywood, &substream, &new_seq, &curr_offset);
+            
             if( http_resp_len == 0 )
             {
                 close(t->sock);
-                if((t->sock = connect_tcp_port (t->host, t->port, t->Hollywood, sock, t->OO))<0)
-                {
+                if((t->sock = connect_tcp_port (t->host, t->port, t->Hollywood, sock, t->OO))<0) {
                     printf("ERROR: TCP Connect failed\n");
                     goto END_DOWNLOAD;
                 }
-                if( send_get_request (sock, curr_url, t->Hollywood, segment_start) < 0 )
-                {
+                if( send_get_request (sock, curr_url, t->Hollywood, segment_start) < 0 ) {
                     printf("ERROR: Send GET request failed on Hollywood\n");
                     goto END_DOWNLOAD;
                 }
             }
-            else if (http_resp_len > 0 && t->Hollywood)
-            {
+            else if (http_resp_len > 0 && t->Hollywood) {
                 if (substream != HOLLYWOOD_HTTP_SUBSTREAM){
-                if (substream == HOLLYWOOD_DATA_SUBSTREAM_TIMELINED || substream == HOLLYWOOD_DATA_SUBSTREAM_UNTIMELINED)
-                {
-                    printdebug(DOWNLOAD, "SUBSTREAM %d: We should probably add this to the queue\n", substream);
-                    pthread_mutex_lock(&t->msg_mutex);
-                    
-                    if(is_full(t->rx_buf, new_seq))
-                    {
-                        pthread_cond_wait( &t->msg_ready, &t->msg_mutex );
+                    if (substream == HOLLYWOOD_DATA_SUBSTREAM_TIMELINED || substream == HOLLYWOOD_DATA_SUBSTREAM_UNTIMELINED) {
+                        bytes_rx += add_to_queue(rx_buf, http_resp_len, t, new_seq); 
+                        http_resp_len = 0;
                     }
-                    
-                    /*Error code not checked, if message push fails, move on, nothing to do*/
-                    if(push_message(t->rx_buf, (uint8_t *)buf, new_seq, http_resp_len)>0)
-                    {
-		        pthread_cond_signal(&t->msg_ready);
-                        bytes_rx += http_resp_len;
-                    }
-                    pthread_mutex_unlock(&t->msg_mutex);
-                    printdebug(DOWNLOAD, "Read %d of %d bytes (seq: %u) \n", bytes_rx, contentlen, new_seq);
-
-                    http_resp_len = 0;
-                }
                 }
             }
         }
-        if(strstr(buf, "200 OK")==NULL)
-        {
-            printf("Request Failed (resp len: %d): %s \n",  http_resp_len, buf);
+        
+        if ((contentlen = get_content_length(buf)) == 0) {
+            printf("HTTP Response error: \n%s\n", buf);
             goto END_DOWNLOAD;
         }
         
-        contentlen = get_content_length(buf);
-        if (contentlen == 0)
-        {
-            printf("download_segments: Received zero content length, exiting program! \n");
-            goto END_DOWNLOAD;
-        }
         end_offset = contentlen;
         curr_offset = 0; 
         while ((bytes_rx < contentlen && !t->Hollywood) || ((curr_offset < end_offset ||  bytes_rx < 0.80*contentlen )&& t->Hollywood) )
@@ -206,28 +247,12 @@ int download_segments( manifest * m, transport * t , long long stime, long throu
             }
             
             
-            pthread_mutex_lock(&t->msg_mutex);
-            
-            if(is_full(t->rx_buf, new_seq))
-            {
-                pthread_cond_wait( &t->msg_ready, &t->msg_mutex );
-            }
-    
-            /*Error code not checked, if message push fails, move on, nothing to do*/
-            if(push_message(t->rx_buf, rx_buf, new_seq, ret)>0)
-            {
-                bytes_rx += ret;
-	        pthread_cond_signal(&t->msg_ready);
-
-            }
-          //  pthread_cond_wait( &t->msg_ready, &t->msg_mutex );
-            pthread_mutex_unlock(&t->msg_mutex);
-            printdebug(DOWNLOAD, "Read %d of %d bytes (seq: %u) %u: %u\n", bytes_rx, contentlen, new_seq, curr_offset, end_offset);
+            bytes_rx += add_to_queue(rx_buf, ret, t, new_seq); 
             
         }
 
-        double download_time = gettimelong() - download_start_time;
-        saveThroughput(&bola, (long)((double)bytes_rx*8/(download_time/1000000)));  /*bps*/
+        download_time = gettimelong() - download_start_time;
+
 
         ++curr_segment ;
         
