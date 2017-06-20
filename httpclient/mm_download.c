@@ -51,7 +51,7 @@ int monitor_socket_for_delayed_packets(void * sock, char * buf, int len,  transp
     {
         ret = recv_message((hlywd_sock * )sock, buf, len, 0, &substream, timeout_s);
         if( ret == -2 ) {
-            printf("Select monitor timed out (bytes rx: %d) \n", bytes_rx); 
+          //  printf("Select monitor timed out (bytes rx: %d) \n", bytes_rx); 
             return bytes_rx; 
         }
         else if (ret>0) {
