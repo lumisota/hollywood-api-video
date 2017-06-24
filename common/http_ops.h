@@ -31,14 +31,14 @@
 #define MAXHOSTLEN 128
 #define SERVER_STRING "Server: jdbhttpd/0.1.0\r\n"
 #define PAGESIZE 500000
-#define HLYWD_MSG_TRAILER 8 /*sizeof(uint32)*2 offset+seq */
+#define HLYWD_MSG_TRAILER 16 /*sizeof(uint64)*2 offset+seq */
 #define HOLLYWOOD_HTTP_SUBSTREAM 4
 #define HOLLYWOOD_DATA_SUBSTREAM_TIMELINED 2
 #define HOLLYWOOD_DATA_SUBSTREAM_UNTIMELINED 3
 
 int get_content_length( char * buf);
 
-int get_html_headers(void * sock, char *buf, int size, uint8_t hollywood, uint8_t * substream, uint32_t * seq, uint32_t * offset);
+int get_html_headers(void * sock, char *buf, int size, uint8_t hollywood, uint8_t * substream, uint32_t * seq, uint64_t * offset);
 
 //int receive_response(int fd, struct metrics * metric, uint8_t hollywood);
 
@@ -58,7 +58,7 @@ int not_found(void * sock, uint8_t hollywood);
 
 int unimplemented(void * sock, uint8_t hollywood);
 
-int read_http_body_partial(void * sock, uint8_t * buf, int buflen, uint8_t hollywood, uint32_t * seq, uint32_t * offset);
+int read_http_body_partial(void * sock, uint8_t * buf, int buflen, uint8_t hollywood, uint32_t * seq, uint64_t * offset);
 
 void exit_http_operations();
 

@@ -15,6 +15,7 @@ static long long inst_time     = 0;
 static pthread_mutex_t http_mutex;      /*mutex for throughput metrics*/
 int ContentLength = 0; 
 #define HTTPOPS "HTTPOPS"
+#define DEFAULT_HOLLYWOOD_HTTP_TIMEOUT 1 /*seconds*/
 
 void * print_instantaneous_throughput(void * opaque)
 {
@@ -139,7 +140,7 @@ int get_content_length( char * buf)
 
 /**********************************************************************/
 
-int get_html_headers(void * sock, char *buf, int size, uint8_t hollywood, uint8_t * substream, uint32_t * seq, uint32_t * offset)
+int get_html_headers(void * sock, char *buf, int size, uint8_t hollywood, uint8_t * substream, uint32_t * seq, uint64_t * offset)
 {
     int i = 0;
     char c = '\0';
@@ -171,13 +172,11 @@ int get_html_headers(void * sock, char *buf, int size, uint8_t hollywood, uint8_
                 }
                 if(offset!=NULL)
                 {
-                    memcpy(offset, buf+i, sizeof(uint32_t));
-                    *offset = ntohl(*offset);
+                    *offset = atouint64 (buf+i);
                 }
                 if(seq!=NULL)
                 {
-                    memcpy(seq, buf+i+sizeof(uint32_t), sizeof(uint32_t));
-                    *seq = ntohl(*seq);
+                    *seq = atouint32 (buf+i+sizeof(offset));
                 }
             }
         }
@@ -281,7 +280,7 @@ int separate_host_and_filepath(char * url, char * host, char * path)
 /**********************************************************************/
 
 
-int read_http_body_partial(void * sock, uint8_t * buf, int buflen, uint8_t hollywood, uint32_t * seq, uint32_t * offset)
+int read_http_body_partial(void * sock, uint8_t * buf, int buflen, uint8_t hollywood, uint32_t * seq, uint64_t * offset)
 {
     int ret;
     if(hollywood)
@@ -290,7 +289,7 @@ int read_http_body_partial(void * sock, uint8_t * buf, int buflen, uint8_t holly
         printdebug(HTTPOPS, "http_read:  ");
 	while(1)
         {
-            ret = recv_message((hlywd_sock * )sock, buf, buflen, 0, &substream_id, 0);
+            ret = recv_message((hlywd_sock * )sock, buf, buflen, 0, &substream_id, 1);
             printdebug(HTTPOPS, "Read %d bytes on substream %d\n",ret, substream_id); 
             if (substream_id == HOLLYWOOD_DATA_SUBSTREAM_TIMELINED || substream_id == HOLLYWOOD_DATA_SUBSTREAM_UNTIMELINED || ret<=0)
             {
@@ -310,13 +309,11 @@ int read_http_body_partial(void * sock, uint8_t * buf, int buflen, uint8_t holly
             }
             if(offset!=NULL)
             {
-                memcpy(offset, buf+ret, sizeof(uint32_t));
-                *offset = ntohl(*offset);
+                *offset = atouint64 (buf+ret);
             }
             if(seq!=NULL)
             {
-                memcpy(seq, buf+ret+sizeof(uint32_t), sizeof(uint32_t));
-                *seq = ntohl(*seq);
+                *seq = atouint32 (buf+ret+sizeof(offset));
             }
         }
     }

@@ -16,6 +16,7 @@
 
 extern int verbose;
 int endnow = 0; 
+int buffer_dur_ms = DEFAULT_BUFFER_DURATION; 
 #define ISspace(x) isspace((int)(x))
 /**********************************************************************/
 //
@@ -46,7 +47,7 @@ int endnow = 0;
 
 void print_instructions(char * prog)
 {
-    printf("Usage : %s --port <port number> --mpd <mpd link/url> --out <output file> [--verbose] [--oo] [--prebuf x (ms)]\n", prog);
+    printf("Usage : %s --port <port number> --mpd <mpd link/url> --out <output file> [--verbose] [--oo] [--prebuf x (ms)] [--bufferlen x (ms)]\n", prog);
 }
 
 
@@ -97,6 +98,17 @@ int check_arguments(int argc, char* argv[], char * port, char * mpdlink, char * 
         {
             ++i; 
             *prebuf = atoi(argv[i]);
+        }
+        else if(strcmp(argv[i], "--bufferlen")==0)
+        {
+            ++i; 
+            buffer_dur_ms = atoi(argv[i]);
+            if(buffer_dur_ms < 1000)
+            {
+                printf("Invalid bufferlen argument, value in ms, must be greater than 1000ms\n"); 
+                print_instructions(argv[0]); 
+                return -1; 
+            }
         }
         else if(strcmp(argv[i], "--oo")==0)
             *OO=1;
@@ -269,7 +281,8 @@ int main(int argc, char *argv[])
     media_transport.OO = oo;
     metric.stime = gettimelong();
     metric.t = &media_transport;
-    metric.minbufferlen = prebuf; 
+    metric.minbufferlen = prebuf;
+     
 
     initialize_http_operations(metric.stime);
 

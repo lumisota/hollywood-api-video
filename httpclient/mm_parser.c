@@ -14,9 +14,13 @@
 )
 
 
+
 #define SEC2PICO UINT64_C(1000000000000)
 //#define SEC2NANO 1000000000
 #define SEC2MILI 1000
+
+
+extern int buffer_dur_ms; 
 static uint minbuffer = MIN_PREBUFFER;
 static AVCodecContext *video_dec_ctx = NULL, *audio_dec_ctx;
 static int width, height;
@@ -146,7 +150,7 @@ static int mm_read(void * opaque, uint8_t *buf, int buf_size)
     
     while (1){
         ret = pop_message (t->rx_buf, buf, buf_size);
-	if(ret==0)
+	    if(ret==0)
         {
             ++t->rx_buf->lost_packets;
         }
@@ -603,20 +607,31 @@ void checkstall(int end, struct metrics * m)
 
 void printmetric(struct metrics metric, transport media_transport )
 {    
-    printf("ALL.1;");
-    printf("%lld;",         (metric.etime-metric.stime)/1000);   //download time
-    printf("%ld;",          metric.minbufferlen); 
-    printf("%"PRIu64";",    metric.TSnow); // duration
-    printf("%.0f;",         metric.startup/1000); /*startup delay*/
-    printf("%.0f;",         metric.initialprebuftime/1000); // Initial prebuf time
+    printf("ALL.1,");
+    if(media_transport.Hollywood){
+        if(media_transport.OO)
+            printf("Prot:Hollywood_OOO,");
+        else 
+            printf("Prot:Hollywood_Ordered,");
+    }
+    else
+        printf("Prot:TCP,");
 
-    printf("%d;",           metric.numofstalls); //num of stalls
-    printf("%.0f;",         (metric.numofstalls>0 ? (metric.totalstalltime/metric.numofstalls/1000) : 0)); // av stall duration
-    printf("%.0f;",         metric.totalstalltime/1000); // total stall time
-    printf("%lld;",         media_transport.rx_buf->total_bytes_received);
-    printf("%lld;",         media_transport.rx_buf->total_bytes_pushed);
-    printf("%d;",         media_transport.rx_buf->late_or_duplicate_packets);
-    printf("%d\n",         media_transport.rx_buf->lost_packets);
+    printf("BufferLen_ms:%d,",          buffer_dur_ms); 
+    printf("PreBufLen_ms:%ld,",         metric.minbufferlen); 
+    printf("ReBufLen_ms:%ld,",          metric.minbufferlen/2); 
+    printf("DownloadTime_ms:%lld,",         (metric.etime-metric.stime)/1000);   //download time
+    printf("Duration_ms:%"PRIu64",",    metric.TSnow); // duration
+    printf("StartupDelay_ms:%.0f,",         metric.startup/1000); /*startup delay*/
+    printf("PrebufferingTime_ms:%.0f,",         metric.initialprebuftime/1000); // Initial prebuf time
+
+    printf("Stalls:%d,",           metric.numofstalls); //num of stalls
+    printf("AvStallDur_ms:%.0f,",         (metric.numofstalls>0 ? (metric.totalstalltime/metric.numofstalls/1000) : 0)); // av stall duration
+    printf("TotalStallDur_ms:%.0f,",         metric.totalstalltime/1000); // total stall time
+    printf("TotalBytesrx:%lld,",         media_transport.rx_buf->total_bytes_received);
+    printf("TotalBytesUsed:%lld,",         media_transport.rx_buf->total_bytes_pushed);
+    printf("LateOrDuplicatepkts:%d,",         media_transport.rx_buf->late_or_duplicate_packets);
+    printf("DiscardedPackets:%d\n",         media_transport.rx_buf->lost_packets);
 
     fflush(stdout); 
     

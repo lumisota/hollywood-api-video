@@ -9,12 +9,12 @@
 #include "mm_download.h"
 
 pthread_t       av_tid;          /*thread id of the av parser thread*/
-#define BUFFER_DURATION 6000 /*milliseconds*/
 #define IS_DYNAMIC      1
 #define ENCODING_DELAY  3000
 #define DOWNLOAD "DOWNLOAD"
 //#define DOWNLOAD ""
 extern int endnow; 
+extern int buffer_dur_ms; 
 
 int add_to_queue(uint8_t * buf, uint32_t len, transport * t, uint32_t new_seq)
 {
@@ -41,7 +41,7 @@ int monitor_socket_for_delayed_packets(void * sock, char * buf, int len,  transp
 
     uint8_t substream            = 0;
     uint32_t seq                    = 0;
-    uint32_t offset                 = 0;
+    uint64_t offset                 = 0;
     long long exit_time             = gettimelong() + (delay * 1000000);
     int ret                         = 0; 
     int timeout_s                   = (exit_time - gettimelong())/1000000;
@@ -63,11 +63,9 @@ int monitor_socket_for_delayed_packets(void * sock, char * buf, int len,  transp
                     printf("ERROR: Received Hollywood message too short while reading HTTP header\n");
                     exit(1);
                 }
-                memcpy(&offset, buf+ret, sizeof(uint32_t));
-                offset = ntohl(offset);
-                            
-                memcpy(&seq, buf+ret+sizeof(uint32_t), sizeof(uint32_t));
-                seq = ntohl(seq);
+
+                offset = atouint64 (buf+ret);;                           
+                seq = atouint32 (buf+ret+sizeof(offset));
  
                 printdebug(DOWNLOAD, "SUBSTREAM %d: Received packets while in wait condition\n", substream);
                 int i = add_to_queue(buf, ret, t, seq); 
@@ -107,8 +105,9 @@ int download_segments( manifest * m, transport * t , long long stime, long throu
     uint8_t substream               = 0;
     int segment_start               = 0;
     long long delay;
-    uint32_t end_offset             = 0;
-    uint32_t curr_offset            = 0;
+    uint64_t end_offset             = 0;
+    uint64_t curr_offset            = 0;
+    uint64_t highest_offset         = 0;
     double download_time            = 0.0; 
 
     /*Initialize bola, isDynamic is set to 1 (Live)*/
@@ -145,7 +144,7 @@ int download_segments( manifest * m, transport * t , long long stime, long throu
         }
         
         
-        if((delay = (buffered_duration - BUFFER_DURATION)) >= 1000 ) {
+        if((delay = (buffered_duration - buffer_dur_ms)) >= 1000 ) {
             /*Delay due to bufferLevel > bufferTarget is added to BOLA placeholder buffer*/
             printdebug(DOWNLOAD, "Buffer full, going to sleep for %ld milliseconds", delay);
             if ( t->Hollywood) {
@@ -189,7 +188,7 @@ int download_segments( manifest * m, transport * t , long long stime, long throu
         curr_bitrate_level = getMaxIndex(&bola, (float)buffered_duration/1000.0, stime);
         curr_url = m->bitrate_level[curr_bitrate_level].segments[curr_segment];
 
-        printf("BUFFER: %lld %lld %ld %d %d %ld (%u:%u(%d))\n", (gettimelong()-stime)/1000, t->playout_time, buffered_duration, curr_bitrate_level, curr_segment, m->bitrate_level[curr_bitrate_level].bitrate, curr_offset, end_offset, bytes_rx);
+        printf("BUFFER: %lld %lld %ld %d %d %ld (%lu:%lu(%d))\n", (gettimelong()-stime)/1000, t->playout_time, buffered_duration, curr_bitrate_level, curr_segment, m->bitrate_level[curr_bitrate_level].bitrate, curr_offset, end_offset, bytes_rx);
 
         bytes_rx = 0;
         download_start_time = gettimelong();
@@ -230,17 +229,21 @@ int download_segments( manifest * m, transport * t , long long stime, long throu
             goto END_DOWNLOAD;
         }
         
-        end_offset = contentlen;
-        curr_offset = 0; 
-        while ((bytes_rx < contentlen && !t->Hollywood) || ((curr_offset < end_offset ||  bytes_rx < 0.80*contentlen )&& t->Hollywood) )
+        end_offset += contentlen;
+        while ((bytes_rx < contentlen && !t->Hollywood) || ((highest_offset < end_offset ||  bytes_rx < 0.80*contentlen )&& t->Hollywood) )
         {
             if(endnow)
                 goto END_DOWNLOAD; 
             
             ret = read_http_body_partial(sock, rx_buf, HOLLYWOOD_MSG_SIZE, t->Hollywood, &new_seq, &curr_offset);
-            
-            
-            if (ret<=0)
+            if(highest_offset<curr_offset)
+                highest_offset = curr_offset;
+            if(ret==-2)
+            {
+                printdebug(DOWNLOAD,"Timeout occurred while receiving for HTTP body\n"); 
+                break;
+            }
+            else if (ret<=0)
             {
                 perror("ERROR: download_segments: Socket recv failed: ");
                 goto END_DOWNLOAD;

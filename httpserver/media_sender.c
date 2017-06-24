@@ -33,7 +33,7 @@ pthread_t       h_tid;          /*thread id of the tcp hollywood sender thread*/
 pthread_cond_t  msg_ready;      /*indicates whether a full message is ready to be sent*/
 pthread_mutex_t msg_mutex;      /*mutex of the hlywd_message*/
 
-extern uint32_t offset;         /*offset added to last 4 bytes of the message*/
+extern uint64_t offset;         /*offset added to last 4 bytes of the message*/
 extern uint32_t stream_seq;
 extern int ContentLength;
 static int BytesSent = 0;
@@ -43,18 +43,15 @@ vid_frame *video_frames = NULL;
 
 /* Add message to the queue of messages*/
 int add_msg_to_queue(struct hlywd_message *msg, struct parse_attr *pparams) {
-    uint32_t tmp;
-    offset+=msg->msg_size;
-    /* copy offset to end of message */
-    tmp = htonl(offset);
-    memcpy(msg->message+msg->msg_size, &tmp, sizeof(uint32_t));
-    
-    /* copy stream sequence number to end of message */
-    tmp = htonl(stream_seq);
-    memcpy(msg->message+msg->msg_size+sizeof(uint32_t), &tmp, sizeof(uint32_t));
     
     /* update offset to include this message */    
-
+    offset+=msg->msg_size;
+    /* copy offset to end of message */
+    uint64toa(msg->message+msg->msg_size, offset); 
+    
+    /* copy stream sequence number to end of message */
+    uint32toa(msg->message+msg->msg_size+sizeof(offset), stream_seq); 
+    
     /* update message size to include offset, stream sequence number */
     msg->msg_size+=HLYWD_MSG_TRAILER;
 

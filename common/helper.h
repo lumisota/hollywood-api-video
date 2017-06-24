@@ -43,4 +43,8 @@ static inline time_t gettimeshort()
 	return start.tv_sec;
 }
 
+uint64_t atouint32 (unsigned char* buf);
+int uint64toa (unsigned char* res, uint64_t val);
+uint64_t atouint64 (unsigned char* buf);
+int uint32toa (unsigned char* res, uint64_t val);
 #endif /* HELPER_H_ */

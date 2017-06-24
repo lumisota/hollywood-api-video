@@ -17,7 +17,7 @@
 #include "readmpd.h"
 #include "bola.h"
 
-
+#define DEFAULT_BUFFER_DURATION 6000 /*milliseconds*/
 
 int init_transport(transport * t);
 
