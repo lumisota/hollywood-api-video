@@ -62,14 +62,43 @@ stream *get_stream(uint16_t pid) {
     } else {
         return cur_stream;
     }
-}   
+}
+
+#define TS_PACKET_LEN 188
+#define FREAD_CHUNK_SIZE TS_PACKET_LEN*10000
+
+size_t chunk_fread(char ** pkt_buf, FILE * ts)
+{
+    static char buf[FREAD_CHUNK_SIZE];
+    static int offset = 0; 
+    static int bytes_left = 0;
+    int ret_size; 
+
+    if (bytes_left <= 0)
+    {
+        offset = 0;  
+        bytes_left = fread(buf, 1, FREAD_CHUNK_SIZE, ts); 
+        if (bytes_left<=0)
+            return bytes_left;
+    }
+
+    if (bytes_left >= TS_PACKET_LEN)
+        ret_size = TS_PACKET_LEN; 
+    else
+        ret_size = bytes_left; 
+
+    bytes_left -= ret_size;
+    *pkt_buf = buf+offset;
+    offset += ret_size; 
+    return ret_size;
+}
 
 vid_frame *get_frames(struct parse_attr *p) {        
     /* open TS file */
     FILE *ts = fopen(p->src_filename, "r");
 
     uint64_t packet_num = 1;
-    char pkt_buf[188];
+    char * pkt_buf = NULL;
     
     size_t bytes_read_total = 0;
     
@@ -81,21 +110,21 @@ vid_frame *get_frames(struct parse_attr *p) {
     last_frame->next = NULL;
     
     for(packet_num = 1;;packet_num++) {
-        size_t bytes_read = fread(pkt_buf, 1, 188, ts);
+        size_t bytes_read = chunk_fread(&pkt_buf, ts);
         bytes_read_total += bytes_read;
 
-        if (bytes_read != 188) {
+        if (bytes_read != TS_PACKET_LEN) {
             break;
         }
 
         const char *ptr = pkt_buf;
-        const char *end_ptr = ptr + 188;
+        const char *end_ptr = ptr + TS_PACKET_LEN;
         
         if (ptr[0] != 0x47) {
             /* TS sync byte */
             break;
         }
-                
+        
         uint16_t pid = to_int(ptr+1);
         uint8_t flags = to_byte(ptr+3);
     
