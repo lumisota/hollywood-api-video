@@ -39,7 +39,7 @@ extern int verbose;
 
 uint8_t     Hollywood = 0;
 uint8_t PartialReliability = 0;
-uint32_t offset = 0;     /*offset added to last 4 bytes of the message*/
+uint64_t offset = 0;     /*offset added to last 4 bytes of the message*/
 uint32_t stream_seq = 0;
 long long starttime = 0;
 

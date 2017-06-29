@@ -121,7 +121,6 @@ int recv_nb(int fd, uint8_t *buffer, int len, int flags, int timeout) {
         return -1;
     }
     else if (result > 0 && FD_ISSET(fd, &readset)) {
-        printf("Read socket set by select.. trying\n"); fflush(stdout); 
         return recv(fd, buffer, len, flags);
     }
     return -2;

@@ -50,7 +50,8 @@ int add_msg_to_queue(struct hlywd_message *msg, struct parse_attr *pparams) {
     uint64toa(msg->message+msg->msg_size, offset); 
     
     /* copy stream sequence number to end of message */
-    uint32toa(msg->message+msg->msg_size+sizeof(offset), stream_seq); 
+    uint32toa(msg->message+msg->msg_size+sizeof(uint64_t), stream_seq); 
+    //printf("Lenght: %d OFFSET: %llu SEQ : %u\n", msg->msg_size, offset, stream_seq);
     
     /* update message size to include offset, stream sequence number */
     msg->msg_size+=HLYWD_MSG_TRAILER;
@@ -309,7 +310,7 @@ int send_media_over_hollywood(hlywd_sock * sock, FILE *fptr, int seq, char *src_
     pthread_join(h_tid, NULL);
     
     seq = hlywd_data.seq;
-    offset = 0;
+    //offset = 0;
     
     /* Destroy the attr, mutex & condition */
     pthread_attr_destroy(&attr);

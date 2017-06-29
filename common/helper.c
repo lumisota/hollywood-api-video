@@ -113,13 +113,13 @@ uint64_t atouint64 (unsigned char* buf)
     if(endianness==LITTLEENDIAN)
     {
         memcpy(&res,(unsigned char*) buf+7,1);
-        memcpy((char*)&res+1,(unsigned char*) buf+6,1);
-        memcpy((char*)&res+2,(unsigned char*) buf+5,1);
-        memcpy((char*)&res+3,(unsigned char*) buf+4,1);
-        memcpy((char*)&res+4,(unsigned char*) buf+3,1);
-        memcpy((char*)&res+5,(unsigned char*) buf+2,1);
-        memcpy((char*)&res+6,(unsigned char*) buf+1,1);
-        memcpy((char*)&res+7,(unsigned char*) buf,1);
+        memcpy((unsigned char*)&res+1,(unsigned char*) buf+6,1);
+        memcpy((unsigned char*)&res+2,(unsigned char*) buf+5,1);
+        memcpy((unsigned char*)&res+3,(unsigned char*) buf+4,1);
+        memcpy((unsigned char*)&res+4,(unsigned char*) buf+3,1);
+        memcpy((unsigned char*)&res+5,(unsigned char*) buf+2,1);
+        memcpy((unsigned char*)&res+6,(unsigned char*) buf+1,1);
+        memcpy((unsigned char*)&res+7,(unsigned char*) buf,1);
     }
     else
     {
@@ -134,13 +134,13 @@ int uint64toa (unsigned char* res, uint64_t val)
     if(endianness==LITTLEENDIAN)
     {
         memcpy(res,(unsigned char*)&val+7,1);
-        memcpy((char*)res+1,(unsigned char*) &val+6,1);
-        memcpy((char*)res+2,(unsigned char*) &val+5,1);
-        memcpy((char*)res+3,(unsigned char*) &val+4,1);
-        memcpy((char*)res+4,(unsigned char*) &val+3,1);
-        memcpy((char*)res+5,(unsigned char*) &val+2,1);
-        memcpy((char*)res+6,(unsigned char*) &val+1,1);
-        memcpy((char*)res+7,(unsigned char*) &val,1);
+        memcpy((unsigned char*)res+1,(unsigned char*) &val+6,1);
+        memcpy((unsigned char*)res+2,(unsigned char*) &val+5,1);
+        memcpy((unsigned char*)res+3,(unsigned char*) &val+4,1);
+        memcpy((unsigned char*)res+4,(unsigned char*) &val+3,1);
+        memcpy((unsigned char*)res+5,(unsigned char*) &val+2,1);
+        memcpy((unsigned char*)res+6,(unsigned char*) &val+1,1);
+        memcpy((unsigned char*)res+7,(unsigned char*) &val,1);
     }
     else
     {
@@ -156,10 +156,10 @@ uint64_t atouint32 (unsigned char* buf)
     uint64_t res=0;
     if(endianness==LITTLEENDIAN)
     {
-        memcpy((char*)&res+4,(unsigned char*) buf+3,1);
-        memcpy((char*)&res+5,(unsigned char*) buf+2,1);
-        memcpy((char*)&res+6,(unsigned char*) buf+1,1);
-        memcpy((char*)&res+7,(unsigned char*) buf,1);
+        memcpy((unsigned char*)&res,(unsigned char*) buf+3,1);
+        memcpy((unsigned char*)&res+1,(unsigned char*) buf+2,1);
+        memcpy((unsigned char*)&res+2,(unsigned char*) buf+1,1);
+        memcpy((unsigned char*)&res+3,(unsigned char*) buf,1);
     }
     else
     {
@@ -173,10 +173,10 @@ int uint32toa (unsigned char* res, uint64_t val)
     int endianness = hostendianness();
     if(endianness==LITTLEENDIAN)
     {
-        memcpy((char*)res+4,(unsigned char*) &val+3,1);
-        memcpy((char*)res+5,(unsigned char*) &val+2,1);
-        memcpy((char*)res+6,(unsigned char*) &val+1,1);
-        memcpy((char*)res+7,(unsigned char*) &val,1);
+        memcpy((unsigned char*)res,(unsigned char*) &val+3,1);
+        memcpy((unsigned char*)res+1,(unsigned char*) &val+2,1);
+        memcpy((unsigned char*)res+2,(unsigned char*) &val+1,1);
+        memcpy((unsigned char*)res+3,(unsigned char*) &val,1);
     }
     else
     {

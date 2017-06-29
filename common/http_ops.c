@@ -176,7 +176,7 @@ int get_html_headers(void * sock, char *buf, int size, uint8_t hollywood, uint8_
                 }
                 if(seq!=NULL)
                 {
-                    *seq = atouint32 (buf+i+sizeof(offset));
+                    *seq = atouint32 (buf+i+sizeof(*offset));
                 }
             }
         }
@@ -313,8 +313,10 @@ int read_http_body_partial(void * sock, uint8_t * buf, int buflen, uint8_t holly
             }
             if(seq!=NULL)
             {
-                *seq = atouint32 (buf+ret+sizeof(offset));
+                *seq = atouint32 (buf+ret+sizeof(uint64_t));
             }
+            //printf("Lenght: %d OFFSET: %lu SEQ : %u\n", ret, *offset, *seq);
+            //printf("1. Received packet size %d, offset %lu, seq %u\n", ret, *offset, *seq); 
         }
     }
     else

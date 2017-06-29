@@ -188,7 +188,7 @@ int download_segments( manifest * m, transport * t , long long stime, long throu
         curr_bitrate_level = getMaxIndex(&bola, (float)buffered_duration/1000.0, stime);
         curr_url = m->bitrate_level[curr_bitrate_level].segments[curr_segment];
 
-        printf("BUFFER: %lld %lld %ld %d %d %ld (%lu:%lu(%d))\n", (gettimelong()-stime)/1000, t->playout_time, buffered_duration, curr_bitrate_level, curr_segment, m->bitrate_level[curr_bitrate_level].bitrate, curr_offset, end_offset, bytes_rx);
+        printf("BUFFER: %lld %lld %ld %d %d %ld (%llu:%llu (%d))\n", (gettimelong()-stime)/1000, t->playout_time, buffered_duration, curr_bitrate_level, curr_segment, m->bitrate_level[curr_bitrate_level].bitrate, curr_offset, end_offset, bytes_rx);
 
         bytes_rx = 0;
         download_start_time = gettimelong();
@@ -236,6 +236,7 @@ int download_segments( manifest * m, transport * t , long long stime, long throu
                 goto END_DOWNLOAD; 
             
             ret = read_http_body_partial(sock, rx_buf, HOLLYWOOD_MSG_SIZE, t->Hollywood, &new_seq, &curr_offset);
+            //printf("2. Received packet size %d, offset %" PRIu64 ", seq %u\n", ret, curr_offset, new_seq); 
             if(highest_offset<curr_offset)
                 highest_offset = curr_offset;
             if(ret==-2)
