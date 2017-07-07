@@ -273,7 +273,7 @@ END_DOWNLOAD:
         pthread_cond_wait( &t->msg_ready, &t->msg_mutex );
     
     /*Signal continuously to avoid block condition, until the parser has awaken*/
-    while(t->init_segment_downloaded == 0)
+    while( t->parser_exited == 0 )
     {
         pthread_cond_signal(&t->msg_ready);
         pthread_cond_signal(&t->init_ready);

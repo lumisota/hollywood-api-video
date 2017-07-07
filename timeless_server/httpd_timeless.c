@@ -39,7 +39,7 @@ extern int verbose;
 
 uint8_t     Hollywood = 0;
 uint8_t PartialReliability = 0;
-uint32_t offset = 0;     /*offset added to last 4 bytes of the message*/
+uint64_t offset = 0;     /*offset added to last 4 bytes of the message*/
 uint32_t stream_seq = 0;
 long long starttime = 0;
 
@@ -136,7 +136,7 @@ void * accept_request(void * a)
             starttime = gettimelong();
             
         printf("Requested path: %s\n", path); fflush(stdout);
-/*        int segment; char * tmp;
+        /*int segment; char * tmp;
         tmp = strstr(buf+j+1,"Segment:");
         if(tmp!=NULL)
         {
@@ -198,8 +198,6 @@ void error_die(const char *sc)
  perror(sc);
  exit(1);
 }
-
-
 
 /**********************************************************************/
 /* Send a regular file to the client.  Use headers, and report
@@ -325,8 +323,6 @@ int check_arguments(int argc, char* argv[], u_short * port)
 }
 
 /**********************************************************************/
-
-
 int main(int argc, char *argv[])
 {
     int server_sock = -1;

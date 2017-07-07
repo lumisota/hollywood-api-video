@@ -459,6 +459,7 @@ void * mm_parser(void * opaque)
 #endif
     
 end:
+    printf("Finished parsing stream\n"); 
     avcodec_close(video_dec_ctx);
     avcodec_close(audio_dec_ctx);
     avformat_close_input(&fmt_ctx);
