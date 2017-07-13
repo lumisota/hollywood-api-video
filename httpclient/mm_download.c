@@ -135,8 +135,15 @@ int download_segments( manifest * m, transport * t , long long stime, long throu
                 pthread_mutex_unlock(&t->msg_mutex);
                 goto END_DOWNLOAD;
             }
-            if(t->init_segment_downloaded==0 && curr_segment > 1)
-                pthread_cond_signal(&t->init_ready);
+            if(t->p_status == P_READY)
+            {
+                printf("Signalling condition\n"); 
+                pthread_cond_signal(&t->queue_ready);
+            }
+            if(t->p_status==P_STARTUP)
+                t->p_status=P_STANDBY;
+            else if(t->p_status==P_STANDBY)
+                t->p_status=P_READY; 
             segment_start = m->segment_dur * (curr_segment - m->init);
             buffered_duration = (segment_start * 1000) - t->playout_time;
             fflush(stdout);
@@ -259,7 +266,8 @@ int download_segments( manifest * m, transport * t , long long stime, long throu
 
 
         ++curr_segment ;
-        
+
+            
         
     }
 
@@ -276,7 +284,7 @@ END_DOWNLOAD:
     while( t->parser_exited == 0 )
     {
         pthread_cond_signal(&t->msg_ready);
-        pthread_cond_signal(&t->init_ready);
+        pthread_cond_signal(&t->queue_ready);
         pthread_mutex_unlock(&t->msg_mutex);
         usleep(10000);
         pthread_mutex_lock(&t->msg_mutex);
@@ -296,7 +304,7 @@ int init_transport(transport * t)
     t->playout_time     = 0;
     t->OO               = 0;
     t->fptr             = NULL; 
-    t->init_segment_downloaded = 0;
+    t->p_status = P_STARTUP;    
     t->parser_exited    = 0; 
     t->rx_buf  = malloc(sizeof(struct playout_buffer));
     memzero(t->rx_buf, sizeof(struct playout_buffer) );
@@ -314,7 +322,7 @@ int play_video (struct metrics * metric, manifest * media_manifest , transport *
     
     /*Initialize the condition and mutex*/
     pthread_cond_init(&media_transport->msg_ready, NULL);
-    pthread_cond_init(&media_transport->init_ready, NULL);
+    pthread_cond_init(&media_transport->queue_ready, NULL);
     pthread_mutex_init(&media_transport->msg_mutex, NULL);
         
     pthread_attr_init(&attr);

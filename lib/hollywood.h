@@ -88,4 +88,6 @@ ssize_t send_message(hlywd_sock *socket, const void *buf, size_t len, int flags)
 
 ssize_t recv_message(hlywd_sock *socket, void *buf, size_t len, int flags, uint8_t *substream_id, int timeout_s);
 
+ssize_t send_message_time_sub(hlywd_sock *socket, const void *buf, size_t len, int flags, uint16_t sequence_num, uint16_t depends_on, int lifetime_ms, uint8_t substream_id);
+
 #endif

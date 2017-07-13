@@ -24,6 +24,12 @@
 #define MAX_DASH_INIT_SEGMENT_SIZE 1000
 #define URLLISTSIZE 24
 
+enum parser_status {
+    P_STARTUP = 0, 
+    P_STANDBY = 1, 
+    P_READY = 2, 
+    P_RUNNING = 3 
+};
 
 enum stream_type {
     STREAM_VIDEO = 0,
@@ -31,8 +37,9 @@ enum stream_type {
 };
 
 typedef struct {
-    int init_segment_downloaded;
-    pthread_cond_t  init_ready;      /*indicates that init segment has been downloaded*/
+    enum parser_status p_status;
+    int last_parsed_segment;                 
+    pthread_cond_t  queue_ready;      /*indicates that init segment has been downloaded*/
     pthread_cond_t  msg_ready;      /*indicates that a new message has been received*/
     pthread_mutex_t msg_mutex;      /*mutex of the message*/
     uint8_t Hollywood;

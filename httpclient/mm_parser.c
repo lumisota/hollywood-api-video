@@ -20,6 +20,8 @@
 #define SEC2MILI 1000
 
 
+int stream_finished = 0; 
+
 extern int buffer_dur_ms; 
 static uint minbuffer = MIN_PREBUFFER;
 static AVCodecContext *video_dec_ctx = NULL, *audio_dec_ctx;
@@ -128,10 +130,11 @@ static int mm_read(void * opaque, uint8_t *buf, int buf_size)
     int ret ;
     
     pthread_mutex_lock(&t->msg_mutex);
-    if (t->init_segment_downloaded == 0 )
+    if (t->p_status != P_RUNNING )
     {
-        pthread_cond_wait( &t->init_ready, &t->msg_mutex );
-        t->init_segment_downloaded = 1;
+        pthread_cond_wait( &t->queue_ready, &t->msg_mutex );
+        t->p_status = P_RUNNING;
+        printf("Parser is running\n"); fflush(stdout); 
     }
 
 
@@ -139,6 +142,7 @@ static int mm_read(void * opaque, uint8_t *buf, int buf_size)
     {
         if ( t->stream_complete == 1)
         {
+            stream_finished = 1; 
             pthread_mutex_unlock(&t->msg_mutex);
             return 0;
         }
@@ -168,6 +172,7 @@ static int mm_read(void * opaque, uint8_t *buf, int buf_size)
         else 
         {
             if ( t->stream_complete == 1) {
+                stream_finished = 1; 
                 pthread_mutex_unlock(&t->msg_mutex);
                 return 0;
             }
@@ -551,19 +556,17 @@ void checkstall(int end, struct metrics * m)
         else
         {
             long time_to_wait = time_to_decode - timenow;
-            pthread_mutex_lock(&m->t->msg_mutex);
-            if ( m->t->stream_complete == 0 && time_to_wait > 10000)
+            if (stream_finished == 0 && time_to_wait > 10000)
             {
-                pthread_mutex_unlock(&m->t->msg_mutex);
                 usleep(time_to_wait);
-            }
-            else
-            {
-                pthread_mutex_unlock(&m->t->msg_mutex);
             }
         }
 #endif
         pthread_mutex_lock(&m->t->msg_mutex);
+        if(m->Tplay < -1)
+        {
+            m->t->p_status = P_STARTUP; 
+        }
         m->t->playout_time = m->TSnow;
         pthread_mutex_unlock(&m->t->msg_mutex);
         

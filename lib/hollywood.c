@@ -41,6 +41,8 @@
 
 #ifndef __APPLE__
 #define TCP_OODELIVERY 27
+#define DEFAULT_TIMED_SUBSTREAM_ID 2 
+#define DEFAULT_UNTIMED_SUBSTREAM_ID 3 
 //#define TCP_PRELIABILITY 28
 #endif 
 /* Message queue functions */
@@ -136,7 +138,7 @@ void set_playout_delay(hlywd_sock *socket, int pd_ms) {
 
 #ifdef TCP_PRELIABILITY
 /* Sends a time-lined message */
-ssize_t send_message_time(hlywd_sock *socket, const void *buf, size_t len, int flags, uint16_t sequence_num, uint16_t depends_on, int lifetime_ms) {
+ssize_t send_message_time_sub(hlywd_sock *socket, const void *buf, size_t len, int flags, uint16_t sequence_num, uint16_t depends_on, int lifetime_ms, uint8_t substream_id) {
     if (socket->pr == 1) {
 	    /* Add sub-stream ID (2) to start of unencoded data */
 	    uint8_t substream_id = 2;
@@ -153,7 +155,7 @@ ssize_t send_message_time(hlywd_sock *socket, const void *buf, size_t len, int f
 	    encoded_message[encoded_len+1] = '\0';
 	    size_t metadata_start = encoded_len+2;
 	    /* add partial reliability metadata */
-	    encoded_message[metadata_start] = 2;
+	    encoded_message[metadata_start] = substream_id;
 	    memcpy(encoded_message+metadata_start+1, &sequence_num, 2);
 	    memcpy(encoded_message+metadata_start+3, &depends_on, 2);
 	    struct timespec lifetime;
@@ -171,10 +173,14 @@ ssize_t send_message_time(hlywd_sock *socket, const void *buf, size_t len, int f
     }
 }
 #else
-ssize_t send_message_time(hlywd_sock *socket, const void *buf, size_t len, int flags, uint16_t sequence_num, uint16_t depends_on, int lifetime_ms) {
-	return send_message(socket, buf, len, flags);
+ssize_t send_message_time_sub(hlywd_sock *socket, const void *buf, size_t len, int flags, uint16_t sequence_num, uint16_t depends_on, int lifetime_ms, uint8_t substream_id) {
+	return send_message_sub(socket, buf, len, flags, substream_id);
 }
 #endif
+
+ssize_t send_message_time(hlywd_sock *socket, const void *buf, size_t len, int flags, uint16_t sequence_num, uint16_t depends_on, int lifetime_ms) {
+    send_message_time_sub(socket, buf, len, flags, sequence_num, depends_on, lifetime_ms, DEFAULT_TIMED_SUBSTREAM_ID);
+}
 
 /* Sends a non-time-lined message */
 ssize_t send_message_sub(hlywd_sock *socket, const void *buf, size_t len, int flags, uint8_t substream_id) {
@@ -201,7 +207,7 @@ ssize_t send_message_sub(hlywd_sock *socket, const void *buf, size_t len, int fl
 
 /* Sends a message */
 ssize_t send_message(hlywd_sock *socket, const void *buf, size_t len, int flags) {
-	return send_message_sub(socket, buf, len, flags, 3);
+	return send_message_sub(socket, buf, len, flags, DEFAULT_UNTIMED_SUBSTREAM_ID);
 }
 
 /* Calculates maximum encoded message size */
