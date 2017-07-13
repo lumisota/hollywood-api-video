@@ -40,6 +40,8 @@
 #define MIN(a,b) (((a)<(b))?(a):(b))
 #define MAX(a,b) (((a)>(b))?(a):(b))
 
+#define SEQNUM_MEMORYQ_LEN 1000
+
 typedef struct message {
 	uint8_t *data;
 	size_t len;
@@ -60,9 +62,18 @@ typedef struct sparsebuffer {
 	sparsebuffer_entry *tail;
 } sparsebuffer;
 
+typedef struct seq_num_array{
+	tcp_seq seq_num[SEQNUM_MEMORYQ_LEN]; 
+    int index; 
+}seq_num_manager; 
+
 typedef struct hlywd_sock {
 	int sock_fd;
 	struct timespec playout_delay;
+
+/*SA: Message queue for complete messages. 
+    Messages are added with add_message when the whole message is received, 
+    and delivered to the application via dequeue_message*/
 
 	/* Message queue */
 	message *message_q_head;
@@ -73,7 +84,10 @@ typedef struct hlywd_sock {
 	
 	/* Current sequence number, when OO_DELIVERY not enabled */
 	tcp_seq current_sequence_num;
-
+	/*Received sequence numbers*/ 
+    seq_num_manager old_segments; 
+    
+    
 	int oo;
 	int pr;
 } hlywd_sock;

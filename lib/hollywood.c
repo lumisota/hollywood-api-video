@@ -92,7 +92,12 @@ int hollywood_socket(int fd, hlywd_sock *socket, int oo, int pr) {
     socket->pr = pr;
     
 	socket->current_sequence_num = 0;
-
+    socket->old_segments.index = 0;
+    for (int i = 0; i < SEQNUM_MEMORYQ_LEN; i++) 
+    {
+        socket->old_segments.seq_num[i] = 0; 
+    }
+ 
 	socket->sb = new_sbuffer();
 	return result;
 }
@@ -179,7 +184,7 @@ ssize_t send_message_time_sub(hlywd_sock *socket, const void *buf, size_t len, i
 #endif
 
 ssize_t send_message_time(hlywd_sock *socket, const void *buf, size_t len, int flags, uint16_t sequence_num, uint16_t depends_on, int lifetime_ms) {
-    send_message_time_sub(socket, buf, len, flags, sequence_num, depends_on, lifetime_ms, DEFAULT_TIMED_SUBSTREAM_ID);
+    return send_message_time_sub(socket, buf, len, flags, sequence_num, depends_on, lifetime_ms, DEFAULT_TIMED_SUBSTREAM_ID);
 }
 
 /* Sends a non-time-lined message */
@@ -215,6 +220,21 @@ size_t encoded_len(size_t len) {
 	return ceil(2 + 1.04*len) + 2;
 }
 
+int is_duplicate (hlywd_sock *socket, tcp_seq sequence_num)
+{
+    for (int i = 0; i < SEQNUM_MEMORYQ_LEN; i++) 
+    {
+        if (sequence_num == socket->old_segments.seq_num[i])
+            return 1; 
+    }
+    socket->old_segments.seq_num[socket->old_segments.index] = sequence_num; 
+    socket->old_segments.index++; 
+    if(socket->old_segments.index >= SEQNUM_MEMORYQ_LEN)
+        socket->old_segments.index = 0; 
+    return 0;
+
+}
+
 /* Receives a message */
 ssize_t recv_message(hlywd_sock *socket, void *buf, size_t len, int flags, uint8_t *substream_id, int timeout_s) {
 	while (socket->message_count == 0) {
@@ -238,6 +258,8 @@ ssize_t recv_message(hlywd_sock *socket, void *buf, size_t len, int flags, uint8
 			if (segment_len >= sizeof(tcp_seq)) {
 				memcpy(&sequence_num, segment+(segment_len-4), 4);
 				segment_len -= 4;
+				if (is_duplicate(socket, sequence_num))
+				    continue; 
 			}
 		} else {
 		    //fprintf(stderr, "[hlywd_lib] receiving %d\n", segment_len);
