@@ -1,6 +1,6 @@
 CC=gcc
-CCFLAGS=-std=gnu99 -c -g -Wall -I/usr/local/include `xml2-config --cflags`
-LDFLAGS=-L/usr/local/lib -lm -lpthread -lavformat -lavcodec -lavutil -lswresample `xml2-config --libs` -lz -ldl 
+CCFLAGS=-std=gnu99 -c -g -Wall -I/Users/sahsan/Documents/libraries/include `xml2-config --cflags`
+LDFLAGS=-L/Users/sahsan/Documents/libraries/lib -lm -lpthread -lavformat -lavcodec -lavutil -lswresample `xml2-config --libs` -lz -ldl 
 
 SERVER_DIR=httpserver
 SERVER_OBJ=media_sender.o httpd.o tsdemux.o
@@ -34,7 +34,7 @@ clean:
 	rm httpd httpc httptl $(SERVER_TL_OBJ) $(SERVER_OBJ) $(LIB_OBJ) $(CLIENT_OBJ) $(COMMON_OBJ)
 
 testfiles:
-	wget http://www.netlab.tkk.fi/tutkimus/rtc/BBB_8bitrates_hd.tar.gz
+	curl http://www.netlab.tkk.fi/tutkimus/rtc/BBB_8bitrates_hd.tar.gz > BBB_8bitrates_hd.tar.gz
 	tar -zxvf BBB_8bitrates_hd.tar.gz
 	mkdir testfiles
 	mv BBB_8bitrates_hd testfiles/.
