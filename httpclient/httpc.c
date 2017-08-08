@@ -15,6 +15,7 @@
 #include "mm_download.h"
 
 extern int verbose;
+int algo = 0; /*0 - BOLA, 1 - PANDA */
 int endnow = 0; 
 int buffer_dur_ms = DEFAULT_BUFFER_DURATION; 
 #define ISspace(x) isspace((int)(x))
@@ -114,6 +115,9 @@ int check_arguments(int argc, char* argv[], char * port, char * mpdlink, char * 
             *OO=1;
         else if(strcmp(argv[i], "--verbose")==0)
             verbose = 1;
+        else if(strcmp(argv[i], "--panda")==0)
+            algo = 1;
+
         else
         {
             printf ("Invalid arguments\n");
@@ -299,7 +303,7 @@ int main(int argc, char *argv[])
         printdebug(READMPD, " %s\n", media_manifest.bitrate_level[i].segments[media_manifest.num_of_segments-1]);
     }
 
-    if(play_video(&metric, &media_manifest, &media_transport, initial_throughput)==0)
+    if(play_video(&metric, &media_manifest, &media_transport, initial_throughput, algo)==0)
         printmetric(metric, media_transport);
     
     exit_http_operations(); 

@@ -13,9 +13,9 @@ SERVER_TL_SRC=media_sender_timeless.c httpd_timeless.c
 SERVER_TL_HDR=media_sender_timeless.h
 
 CLIENT_DIR=httpclient
-CLIENT_OBJ=mm_parser.o httpc.o playout_buffer.o readmpd.o mm_download.o bola.o
-CLIENT_SRC=mm_parser.c httpc.c playout_buffer.c readmpd.c mm_download.c bola.c
-CLIENT_HDR=mm_parser.h playout_buffer.h readmpd.h mm_download.h bola.h
+CLIENT_OBJ=mm_parser.o httpc.o playout_buffer.o readmpd.o mm_download.o bola.o panda.o
+CLIENT_SRC=mm_parser.c httpc.c playout_buffer.c readmpd.c mm_download.c bola.c panda.c
+CLIENT_HDR=mm_parser.h playout_buffer.h readmpd.h mm_download.h bola.h panda.h
 
 COMMON_DIR=common
 COMMON_OBJ=http_ops.o helper.o
