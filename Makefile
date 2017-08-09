@@ -1,6 +1,6 @@
 CC=gcc
-CCFLAGS=-std=gnu99 -c -g -Wall -I/usr/local/include `xml2-config --cflags`
-LDFLAGS=-L/usr/local/lib -lm -lpthread -lavformat -lavcodec -lavutil -lswresample `xml2-config --libs` -lz -ldl 
+CCFLAGS=-std=gnu99 -c -g -Wall -I/Users/sahsan/Documents/libraries/include `xml2-config --cflags`
+LDFLAGS=-L/Users/sahsan/Documents/libraries/lib -lm -lpthread -lavformat -lavcodec -lavutil -lswresample `xml2-config --libs` -lz -ldl 
 
 SERVER_DIR=httpserver
 SERVER_OBJ=media_sender.o httpd.o tsdemux.o
@@ -13,9 +13,9 @@ SERVER_TL_SRC=media_sender_timeless.c httpd_timeless.c
 SERVER_TL_HDR=media_sender_timeless.h
 
 CLIENT_DIR=httpclient
-CLIENT_OBJ=mm_parser.o httpc.o playout_buffer.o readmpd.o mm_download.o bola.o
-CLIENT_SRC=mm_parser.c httpc.c playout_buffer.c readmpd.c mm_download.c bola.c
-CLIENT_HDR=mm_parser.h playout_buffer.h readmpd.h mm_download.h bola.h
+CLIENT_OBJ=mm_parser.o httpc.o playout_buffer.o readmpd.o mm_download.o bola.o panda.o
+CLIENT_SRC=mm_parser.c httpc.c playout_buffer.c readmpd.c mm_download.c bola.c panda.c
+CLIENT_HDR=mm_parser.h playout_buffer.h readmpd.h mm_download.h bola.h panda.h
 
 COMMON_DIR=common
 COMMON_OBJ=http_ops.o helper.o
@@ -34,7 +34,7 @@ clean:
 	rm httpd httpc httptl $(SERVER_TL_OBJ) $(SERVER_OBJ) $(LIB_OBJ) $(CLIENT_OBJ) $(COMMON_OBJ)
 
 testfiles:
-	wget http://www.netlab.tkk.fi/tutkimus/rtc/BBB_8bitrates_hd.tar.gz
+	curl http://www.netlab.tkk.fi/tutkimus/rtc/BBB_8bitrates_hd.tar.gz > BBB_8bitrates_hd.tar.gz
 	tar -zxvf BBB_8bitrates_hd.tar.gz
 	mkdir testfiles
 	mv BBB_8bitrates_hd testfiles/.

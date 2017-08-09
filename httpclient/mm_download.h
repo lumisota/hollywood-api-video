@@ -16,11 +16,12 @@
 #include "../common/http_ops.h"
 #include "readmpd.h"
 #include "bola.h"
+#include "panda.h"
 
 #define DEFAULT_BUFFER_DURATION 16000 /*milliseconds*/
 
 int init_transport(transport * t);
 
-int play_video (struct metrics * metric, manifest * media_manifest , transport * media_transport, long throughput);
+int play_video (struct metrics * metric, manifest * media_manifest , transport * media_transport, long throughput, int algo);
 
 #endif /* defined(____mm_download__) */
