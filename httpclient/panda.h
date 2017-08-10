@@ -3,20 +3,30 @@
 //  
 //
 //  Created by Ahsan Saba on 02/08/2017.
-//
+//  The code is a slightly modified version of Li Zhi's implementation of PANDA
+//  to make it compatible with our own client. 
 //
 
 #ifndef panda_h
 #define panda_h
 
 #include <stdio.h>
+
 #include "../common/helper.h"
 #include "readmpd.h"
 
 
 #endif /* panda_h */
 
-/* Download */
+
+/* __MAX and __MIN: self explanatory */
+#ifndef __MAX
+#   define __MAX(a, b)   ( ((a) > (b)) ? (a) : (b) )
+#endif
+#ifndef __MIN
+#   define __MIN(a, b)   ( ((a) < (b)) ? (a) : (b) )
+#endif
+
 struct panda_state
 {
     uint64_t bitrates[MAX_SUPPORTED_BITRATE_LEVELS];

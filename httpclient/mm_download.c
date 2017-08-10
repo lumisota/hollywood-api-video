@@ -135,40 +135,47 @@ int download_segments_panda( manifest * m, transport * t , long long stime, long
                 pthread_mutex_unlock(&t->msg_mutex);
                 goto END_DOWNLOAD;
             }
-            if(t->init_segment_downloaded==0 && curr_segment > 1)
+            if(t->p_status == P_READY)
             {
-                pthread_cond_signal(&t->init_ready);
+                pthread_cond_signal(&t->queue_ready);
                 panda_enabled = 1;
             }
+            if(t->p_status==P_STARTUP)
+                t->p_status=P_STANDBY;
+            else if(t->p_status==P_STANDBY)
+                t->p_status=P_READY; 
             segment_start = m->segment_dur * (curr_segment - m->init);
             buffered_duration = (segment_start * 1000) - t->playout_time;
+            printf("Buffered Duration %ld, (segment_start %ld, playout_time %ld)\n",  buffered_duration,segment_start, t->playout_time);
             fflush(stdout);
             pthread_mutex_unlock(&t->msg_mutex);
         }
         
         curr_bitrate_level = BandwidthAdaptation(throughput, &panda,
-                                                 download_time,
+                                                 download_time/1000000,
                                                  &target_inter_request_time,
-                                                 &target_bitrate, buffered_duration,
+                                                 &target_bitrate, buffered_duration/1000,
                                                  &target_avg_bitrate, &rate_limit,
                                                  curr_bitrate_level, panda_enabled);
         curr_url = m->bitrate_level[curr_bitrate_level].segments[curr_segment];
         
         if(target_inter_request_time >= 1000 ) {
+                    /*Delay due to bufferLevel > bufferTarget is added to BOLA placeholder buffer*/
             printdebug(DOWNLOAD, "Buffer full, going to sleep for %ld milliseconds", delay);
             if ( t->Hollywood) {
                 int i = monitor_socket_for_delayed_packets(sock, rx_buf, HOLLYWOOD_MSG_SIZE, t, delay/1000, &download_time, download_start_time);
                 if (i > 0)
                     bytes_rx+=i;
+                
             }
             else
             {
-                usleep(delay*1000);
+                usleep(delay*1000); 
             }
             pthread_mutex_lock(&t->msg_mutex);
             buffered_duration = (segment_start * 1000) - t->playout_time;
             pthread_mutex_unlock(&t->msg_mutex);
-            
+
         }
 
         if(buffered_duration < 0) {
@@ -176,10 +183,9 @@ int download_segments_panda( manifest * m, transport * t , long long stime, long
             printdebug(DOWNLOAD,"Getting negative buffered duration, zeroing it");
             buffered_duration = 0 ;
         }
-        
-        
+
         printf("BUFFER: %lld %lld %ld %d %d %ld (%llu:%llu (%d))\n", (gettimelong()-stime)/1000, t->playout_time, buffered_duration, curr_bitrate_level, curr_segment, m->bitrate_level[curr_bitrate_level].bitrate, curr_offset, end_offset, bytes_rx);
-        
+
         bytes_rx = 0;
         download_start_time = gettimelong();
         http_resp_len = 0 ;
@@ -207,7 +213,7 @@ int download_segments_panda( manifest * m, transport * t , long long stime, long
             else if (http_resp_len > 0 && t->Hollywood) {
                 if (substream != HOLLYWOOD_HTTP_SUBSTREAM){
                     if (substream == HOLLYWOOD_DATA_SUBSTREAM_TIMELINED || substream == HOLLYWOOD_DATA_SUBSTREAM_UNTIMELINED) {
-                        bytes_rx += add_to_queue(rx_buf, http_resp_len, t, new_seq);
+                        bytes_rx += add_to_queue(rx_buf, http_resp_len, t, new_seq); 
                         http_resp_len = 0;
                     }
                 }
@@ -223,15 +229,15 @@ int download_segments_panda( manifest * m, transport * t , long long stime, long
         while ((bytes_rx < contentlen && !t->Hollywood) || ((highest_offset < end_offset ||  bytes_rx < 0.80*contentlen )&& t->Hollywood) )
         {
             if(endnow)
-            goto END_DOWNLOAD;
+                goto END_DOWNLOAD; 
             
             ret = read_http_body_partial(sock, rx_buf, HOLLYWOOD_MSG_SIZE, t->Hollywood, &new_seq, &curr_offset);
-            //printf("2. Received packet size %d, offset %" PRIu64 ", seq %u\n", ret, curr_offset, new_seq);
+            //printf("2. Received packet size %d, offset %" PRIu64 ", seq %u\n", ret, curr_offset, new_seq); 
             if(highest_offset<curr_offset)
-            highest_offset = curr_offset;
+                highest_offset = curr_offset;
             if(ret==-2)
             {
-                printdebug(DOWNLOAD,"Timeout occurred while receiving for HTTP body\n");
+                printdebug(DOWNLOAD,"Timeout occurred while receiving for HTTP body\n"); 
                 break;
             }
             else if (ret<=0)
@@ -241,32 +247,34 @@ int download_segments_panda( manifest * m, transport * t , long long stime, long
             }
             
             
-            bytes_rx += add_to_queue(rx_buf, ret, t, new_seq);
+            bytes_rx += add_to_queue(rx_buf, ret, t, new_seq); 
             
         }
-        
+
         download_time = gettimelong() - download_start_time;
-        
-        
+
+
         ++curr_segment ;
-        
+
+            
         
     }
+
     
 END_DOWNLOAD:
     pthread_mutex_lock(&t->msg_mutex);
     
-    printf("Stream has finished downloading %d of %d \n", curr_segment,  m->num_of_segments); fflush(stdout);
-    
-    t->stream_complete = 1;
+    printf("Stream has finished downloading %d of %d \n", curr_segment,  m->num_of_segments); fflush(stdout); 
+
+    t->stream_complete = 1;    
     while( !is_empty(t->rx_buf))
-    pthread_cond_wait( &t->msg_ready, &t->msg_mutex );
+        pthread_cond_wait( &t->msg_ready, &t->msg_mutex );
     
-    /*Signal continuously to avoid block condition, until the parser has awaken */
-    while(t->init_segment_downloaded == 0)
+    /*Signal continuously to avoid block condition, until the parser has awaken*/
+    while( t->parser_exited == 0 )
     {
         pthread_cond_signal(&t->msg_ready);
-        pthread_cond_signal(&t->init_ready);
+        pthread_cond_signal(&t->queue_ready);
         pthread_mutex_unlock(&t->msg_mutex);
         usleep(10000);
         pthread_mutex_lock(&t->msg_mutex);
