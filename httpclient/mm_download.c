@@ -150,7 +150,6 @@ int download_segments_panda( manifest * m, transport * t , long long stime, long
             fflush(stdout);
             pthread_mutex_unlock(&t->msg_mutex);
         }
-        
         curr_bitrate_level = BandwidthAdaptation(throughput, &panda,
                                                  download_time/1000000,
                                                  &target_inter_request_time,
@@ -253,11 +252,10 @@ int download_segments_panda( manifest * m, transport * t , long long stime, long
 
         download_time = gettimelong() - download_start_time;
 
+        throughput =  (long)((double)bytes_rx*8/(download_time/1000000));
 
         ++curr_segment ;
 
-            
-        
     }
 
     

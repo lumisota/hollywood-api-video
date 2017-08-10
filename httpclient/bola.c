@@ -23,7 +23,9 @@ float getStableBufferTime()
 void saveThroughput (struct bola_state * bola , long curr_throughput)
 {
     static int index = 0;
-    
+    if (curr_throughput < 0) 
+        return; 
+        
     bola->throughput[index] = curr_throughput;
     
     ++index;

@@ -66,7 +66,7 @@ int BandwidthAdaptation(long tput, struct panda_state * panda,
     
     int candidate_stream;
     uint64_t candidate_bitrate;
-    printf("Panda:%d, download_duration: %ld, buffer_duration: %ld, tput: %ld \n", panda_enabled, download_duration, buffer_duration, tput);  
+//    printf("Panda:%d, download_duration: %ld, buffer_duration: %ld, tput: %ld \n", panda_enabled, download_duration, buffer_duration, tput);  
     if (panda_enabled)
     {
         long actual_duration=__MAX(download_duration,panda->segment_duration);
@@ -87,7 +87,7 @@ int BandwidthAdaptation(long tput, struct panda_state * panda,
         /* prevent target bitrate dropping too low */
         if ((float)(*target_bitrate)<((float)lowest_bitrate/(1-e)))
             *target_bitrate=(uint64_t)((float)lowest_bitrate/(1-e));
-        printf("target_bitrate=%"PRIu64"\n",*target_bitrate);
+//        printf("target_bitrate=%"PRIu64"\n",*target_bitrate);
         
         /* SMOOTHING */
         uint64_t prev_target_avg_bitrate=*target_avg_bitrate;
@@ -98,14 +98,14 @@ int BandwidthAdaptation(long tput, struct panda_state * panda,
                                                 a *(actual_duration/panda->segment_duration) *
                                                 ((float)prev_target_avg_bitrate - (float)(*target_bitrate))));
         
-        printf("target_avg_bitrate=%"PRIu64"\n",*target_avg_bitrate);
+//        printf("target_avg_bitrate=%"PRIu64"\n",*target_avg_bitrate);
         
         /* leeoz: make sure target_rate can't be lower than
          the actual bitrate of the first seg */
         *target_avg_bitrate=(uint64_t)__MAX((float)(*target_avg_bitrate),
                                             lowest_bitrate);
         
-        printf("target_avg_bitrate=%"PRIu64"\n",*target_avg_bitrate);
+//        printf("target_avg_bitrate=%"PRIu64"\n",*target_avg_bitrate);
         
         /* RATE LIMITING */
         *rate_limit=100000000; /* bit/s */
@@ -140,7 +140,7 @@ int BandwidthAdaptation(long tput, struct panda_state * panda,
         *target_inter_request_time=(uint64_t)((float)panda->segment_duration *
                                              candidate_bitrate / (*target_avg_bitrate) +
                                              b * ((float)buffer_duration - B0));
-        printf("target_inter_request_time=%ld\n",*target_inter_request_time);
+//        printf("target_inter_request_time=%ld\n",*target_inter_request_time);
         
         // Cap max buffer duration
         uint64_t tirt=*target_inter_request_time;

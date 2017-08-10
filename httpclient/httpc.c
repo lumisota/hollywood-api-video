@@ -191,7 +191,7 @@ long fetch_manifest(transport * t, char * mpdlink, manifest * media_manifest )
     {
        // double download_time = gettimelong() - start_time;
         long long download_time =gettimelong() - start_time;
-        Throughput = (long)((double)bytes_rx*8000000/download_time);  /*bps*/
+        Throughput = (long)((double)bytes_rx*8000000/(double)download_time);  /*bps*/
         if(read_mpddata(memory, mpdlink, media_manifest)<0)
         {
             printf("Unable to parse mpd file\n");
@@ -302,7 +302,6 @@ int main(int argc, char *argv[])
         printdebug(READMPD, " %s\n", media_manifest.bitrate_level[i].segments[0]);
         printdebug(READMPD, " %s\n", media_manifest.bitrate_level[i].segments[media_manifest.num_of_segments-1]);
     }
-
     if(play_video(&metric, &media_manifest, &media_transport, initial_throughput, algo)==0)
         printmetric(metric, media_transport);
     
