@@ -11,8 +11,8 @@
 pthread_t       av_tid;          /*thread id of the av parser thread*/
 #define IS_DYNAMIC      1
 #define ENCODING_DELAY  3000
-#define DOWNLOAD "DOWNLOAD"
-//#define DOWNLOAD ""
+//#define DOWNLOAD "DOWNLOAD"
+#define DOWNLOAD ""
 extern int endnow; 
 extern int buffer_dur_ms; 
 
@@ -146,7 +146,7 @@ int download_segments_panda( manifest * m, transport * t , long long stime, long
                 t->p_status=P_READY; 
             segment_start = m->segment_dur * (curr_segment - m->init);
             buffered_duration = (segment_start * 1000) - t->playout_time;
-            printf("Buffered Duration %ld, (segment_start %ld, playout_time %ld)\n",  buffered_duration,segment_start, t->playout_time);
+            //printf("Buffered Duration %ld, (segment_start %ld, playout_time %ld)\n",  buffered_duration,segment_start, t->playout_time);
             fflush(stdout);
             pthread_mutex_unlock(&t->msg_mutex);
         }
@@ -156,6 +156,7 @@ int download_segments_panda( manifest * m, transport * t , long long stime, long
                                                  &target_bitrate, buffered_duration/1000,
                                                  &target_avg_bitrate, &rate_limit,
                                                  curr_bitrate_level, panda_enabled);
+	curr_bitrate_level = 3; 
         curr_url = m->bitrate_level[curr_bitrate_level].segments[curr_segment];
         
         if(target_inter_request_time >= 1000 ) {
@@ -212,7 +213,7 @@ int download_segments_panda( manifest * m, transport * t , long long stime, long
             else if (http_resp_len > 0 && t->Hollywood) {
                 if (substream != HOLLYWOOD_HTTP_SUBSTREAM){
                     if (substream == HOLLYWOOD_DATA_SUBSTREAM_TIMELINED || substream == HOLLYWOOD_DATA_SUBSTREAM_UNTIMELINED) {
-                        bytes_rx += add_to_queue(rx_buf, http_resp_len, t, new_seq); 
+                        bytes_rx += add_to_queue(buf, http_resp_len, t, new_seq); 
                         http_resp_len = 0;
                     }
                 }
@@ -423,7 +424,7 @@ int download_segments( manifest * m, transport * t , long long stime, long throu
             else if (http_resp_len > 0 && t->Hollywood) {
                 if (substream != HOLLYWOOD_HTTP_SUBSTREAM){
                     if (substream == HOLLYWOOD_DATA_SUBSTREAM_TIMELINED || substream == HOLLYWOOD_DATA_SUBSTREAM_UNTIMELINED) {
-                        bytes_rx += add_to_queue(rx_buf, http_resp_len, t, new_seq); 
+                        bytes_rx += add_to_queue(buf, http_resp_len, t, new_seq); 
                         http_resp_len = 0;
                     }
                 }

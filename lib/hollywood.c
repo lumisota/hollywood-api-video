@@ -191,7 +191,9 @@ ssize_t send_message_time(hlywd_sock *socket, const void *buf, size_t len, int f
 ssize_t send_message_sub(hlywd_sock *socket, const void *buf, size_t len, int flags, uint8_t substream_id) {
     //printf("sending a message with length %d..\n", len);
 	/* Add sub-stream ID to start of unencoded data */
-	uint8_t *preencode_buf = (uint8_t *) malloc(len+1);
+        uint8_t * tmp = (uint8_t * ) buf;
+        //printf("Message: %2x%2x%2x%2x:%2x%2x%2x%2x\n",tmp[0],tmp[1],tmp[2],tmp[3],tmp[len-8],tmp[len-7],tmp[len-6],tmp[len-5]);	
+        uint8_t *preencode_buf = (uint8_t *) malloc(len+1);
 	memcpy(preencode_buf, &substream_id, 1);
 	memcpy(preencode_buf+1, buf, len);
 	len++;
@@ -258,8 +260,8 @@ ssize_t recv_message(hlywd_sock *socket, void *buf, size_t len, int flags, uint8
 			if (segment_len >= sizeof(tcp_seq)) {
 				memcpy(&sequence_num, segment+(segment_len-4), 4);
 				segment_len -= 4;
-				if (is_duplicate(socket, sequence_num))
-				    continue; 
+			//	if (is_duplicate(socket, sequence_num))
+			//	    continue; 
 			}
 		} else {
 		    //fprintf(stderr, "[hlywd_lib] receiving %d\n", segment_len);
@@ -292,6 +294,7 @@ size_t dequeue_message(hlywd_sock *socket, uint8_t *buf, uint8_t *substream_id) 
 		free(dequeued_msg->data-1);
 		free(dequeued_msg);
 		socket->message_count--;
+                //printf("Message: %2x%2x%2x%2x:%2x%2x%2x%2x\n",buf[0],buf[1],buf[2],buf[3],buf[return_len-8],buf[return_len-7],buf[return_len-6],buf[return_len-5]);
 		return return_len;
 	} else {
 		return -1;

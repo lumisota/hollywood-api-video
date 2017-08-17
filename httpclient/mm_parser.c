@@ -21,7 +21,6 @@
 
 
 int stream_finished = 0; 
-
 extern int buffer_dur_ms; 
 static uint minbuffer = MIN_PREBUFFER;
 static AVCodecContext *video_dec_ctx = NULL, *audio_dec_ctx;

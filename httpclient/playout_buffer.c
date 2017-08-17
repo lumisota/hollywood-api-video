@@ -65,10 +65,12 @@ int pop_message (struct playout_buffer * q, uint8_t * buf, uint32_t datalen)
     {
         memcpy(q->buf[q->head], q->buf[q->head]+ret, q->datalen[q->head]);
         printdebug(PLAYOUT_BUFFER, "Partial Pop seqnum %d, index %d (%d)\n", q->lowest_seqnum, q->head, ret);
+        //printf("PLAYOUT_BUFFER: Partial Pop %d %d %d \n", q->lowest_seqnum, q->head, ret);
 
     }
     else
     {
+        //printf("PLAYOUTBUFFER: Full Pop %d %d %d [%2x%2x%2x%2x]\n", q->lowest_seqnum, q->head, ret,buf[0],buf[1],buf[2],buf[3]);
 
         memzero (q->buf[q->head], HOLLYWOOD_MSG_SIZE);
         q->qlen --;
@@ -146,6 +148,7 @@ int push_message(struct playout_buffer * q, uint8_t * buf, uint32_t new_seq, uin
     q->datalen[curr_index] = datalen;
     
     printdebug(PLAYOUT_BUFFER, "Push seqnum %d (%d-%d, qlen %d), index %d(%d) (size: %d)\n", new_seq, q->highest_seqnum, q->lowest_seqnum, q->qlen, curr_index, q->head, datalen);
+//    printf("PLAYOUTBUFFER: Full Push %d %d %d [%2x%2x%2x%2x]\n", new_seq, curr_index, datalen,q->buf[curr_index][0],q->buf[curr_index][1],q->buf[curr_index][2],q->buf[curr_index][3]);
     q->total_bytes_pushed+=datalen;
 
     return new_seq;
