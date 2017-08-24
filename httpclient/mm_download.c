@@ -156,7 +156,6 @@ int download_segments_panda( manifest * m, transport * t , long long stime, long
                                                  &target_bitrate, buffered_duration/1000,
                                                  &target_avg_bitrate, &rate_limit,
                                                  curr_bitrate_level, panda_enabled);
-	curr_bitrate_level = 3; 
         curr_url = m->bitrate_level[curr_bitrate_level].segments[curr_segment];
         
         if(target_inter_request_time >= 1000 ) {
