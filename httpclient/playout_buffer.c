@@ -130,6 +130,7 @@ int push_message(struct playout_buffer * q, uint8_t * buf, uint32_t new_seq, uin
                 printdebug(PLAYOUT_BUFFER, "Duplicate message seq : %u (Len new: %d, old: %d)\n", new_seq);
             else
                 printdebug(PLAYOUT_BUFFER, "ERROR: Mismatched duplicate message seq : %u (Len new: %d, old: %d)\n", new_seq, q->datalen[curr_index], datalen);
+            q->late_or_duplicate_packets++;
             return -1;
         }
     }
