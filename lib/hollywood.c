@@ -39,10 +39,11 @@
 #include <stdlib.h>
 #include <sys/time.h>
 
+#define DEFAULT_TIMED_SUBSTREAM_ID 2
+#define DEFAULT_UNTIMED_SUBSTREAM_ID 3
+
 #ifndef __APPLE__
 #define TCP_OODELIVERY 27
-#define DEFAULT_TIMED_SUBSTREAM_ID 2 
-#define DEFAULT_UNTIMED_SUBSTREAM_ID 3 
 //#define TCP_PRELIABILITY 28
 #endif 
 /* Message queue functions */
