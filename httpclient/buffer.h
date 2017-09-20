@@ -5,7 +5,10 @@
 //  Created by Saba Ahsan on 17/01/17.
 //
 //
-
+#ifdef __cplusplus
+extern "C" {
+#endif
+    
 #ifndef ____buffer__
 #define ____buffer__
 
@@ -45,3 +48,6 @@ void shift_all_indices(int index);
 
 
 #endif /* defined(____buffer__) */
+#ifdef __cplusplus
+}
+#endif

@@ -8,7 +8,10 @@
 
 #ifndef ____bola__
 #define ____bola__
-
+#ifdef __cplusplus
+extern "C" {
+#endif
+    
 #include <stdio.h>
 #include <math.h>
 #include "readmpd.h"
@@ -63,8 +66,11 @@ int getQualityFromBufferLevel(struct bola_state * bola, float bufferLevel);
 int calculateInitialState(manifest * m, int isDynamic, struct bola_state * initialState);
 int getFirstIndex(struct bola_state * bola);
 int getMaxIndex(struct bola_state * bola, float bufferLevel, long long stime);
-
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* defined(____bola__) */
+
 
 

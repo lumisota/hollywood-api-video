@@ -7,6 +7,11 @@
 //  to make it compatible with our own client. 
 //
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+    
+
 #ifndef panda_h
 #define panda_h
 
@@ -44,3 +49,6 @@ int BandwidthAdaptation(long tput, struct panda_state * panda,
                         int prev_stream, int panda_enabled);
 
 int getMaxBitrateBelowBandwidth(struct panda_state  * panda, long throughput);
+#ifdef __cplusplus
+}
+#endif

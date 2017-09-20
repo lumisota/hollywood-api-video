@@ -6,6 +6,10 @@
 //
 //
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+    
 #ifndef ____readmpd__
 #define ____readmpd__
 
@@ -35,7 +39,7 @@ typedef struct
     /*DASH params*/
     int num_of_segments;
     int num_of_levels;
-    int segment_dur;
+    int segment_dur_ms;
     uint8_t init; /*boolean - init segment (with no media data) exists or not*/ 
     level bitrate_level[MAX_SUPPORTED_BITRATE_LEVELS];
     
@@ -44,3 +48,6 @@ typedef struct
 int read_mpddata(char * memory, char mpdlink[], manifest * m);
 
 #endif /* defined(____readmpd__) */
+#ifdef __cplusplus
+}
+#endif

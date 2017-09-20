@@ -172,11 +172,11 @@ int get_html_headers(void * sock, char *buf, int size, uint8_t hollywood, uint8_
                 }
                 if(offset!=NULL)
                 {
-                    *offset = atouint64 (buf+i);
+                    *offset = atouint64 ((unsigned char *)buf+i);
                 }
                 if(seq!=NULL)
                 {
-                    *seq = atouint32 (buf+i+sizeof(*offset));
+                    *seq = atouint32 ((unsigned char *)buf+i+sizeof(*offset));
                 }
             }
         }
@@ -309,11 +309,11 @@ int read_http_body_partial(void * sock, uint8_t * buf, int buflen, uint8_t holly
             }
             if(offset!=NULL)
             {
-                *offset = atouint64 (buf+ret);
+                *offset = atouint64 ((unsigned char *)buf+ret);
             }
             if(seq!=NULL)
             {
-                *seq = atouint32 (buf+ret+sizeof(uint64_t));
+                *seq = atouint32 ((unsigned char *)buf+ret+sizeof(uint64_t));
             }
             //printf("Lenght: %d OFFSET: %lu SEQ : %u\n", ret, *offset, *seq);
             //printf("1. Received packet size %d, offset %lu, seq %u\n", ret, *offset, *seq); 
@@ -515,7 +515,7 @@ int not_found(void * sock, uint8_t hollywood)
     
     if ( hollywood )
     {
-        return send_message_sub(sock, buf, strlen(buf), 0, HOLLYWOOD_HTTP_SUBSTREAM);
+        return send_message_sub((hlywd_sock *)sock, buf, strlen(buf), 0, HOLLYWOOD_HTTP_SUBSTREAM);
     }
     else
     {
@@ -544,7 +544,7 @@ int unimplemented(void * sock, uint8_t hollywood)
     
     if ( hollywood )
     {
-        return send_message_sub(sock, buf, strlen(buf), 0, HOLLYWOOD_HTTP_SUBSTREAM);
+        return send_message_sub((hlywd_sock *)sock, buf, strlen(buf), 0, HOLLYWOOD_HTTP_SUBSTREAM);
     }
     else
     {

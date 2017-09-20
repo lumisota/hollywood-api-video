@@ -1,5 +1,7 @@
 CC=gcc
-CCFLAGS=-std=gnu99 -c -g -Wall -I/Users/sahsan/Documents/libraries/include `xml2-config --cflags`
+CPP=g++
+CCFLAGS=-c -g -Wall -I/Users/sahsan/Documents/libraries/include `xml2-config --cflags`
+CPPFLAGS=-std=c++11 -c -g -Wall -I/Users/sahsan/Documents/libraries/include `xml2-config --cflags`
 LDFLAGS=-L/Users/sahsan/Documents/libraries/lib -lm -lpthread -lavformat -lavcodec -lavutil -lswresample `xml2-config --libs` -lz -ldl 
 
 SERVER_DIR=httpserver
@@ -13,9 +15,10 @@ SERVER_TL_SRC=media_sender_timeless.c httpd_timeless.c
 SERVER_TL_HDR=media_sender_timeless.h
 
 CLIENT_DIR=httpclient
-CLIENT_OBJ=mm_parser.o httpc.o playout_buffer.o readmpd.o mm_download.o bola.o panda.o
-CLIENT_SRC=mm_parser.c httpc.c playout_buffer.c readmpd.c mm_download.c bola.c panda.c
-CLIENT_HDR=mm_parser.h playout_buffer.h readmpd.h mm_download.h bola.h panda.h
+CLIENT_OBJ=mm_parser.o httpc.o playout_buffer.o readmpd.o bola.o panda.o mm_download.o
+#CLIENT_SRC=mm_parser.c httpc.c playout_buffer.c readmpd.c mm_download.cpp bola.c panda.c AdaptationManager.cpp AdaptationManagerABMAplus.cpp
+CLIENT_HDR=mm_parser.h playout_buffer.h readmpd.h mm_download.h bola.h panda.h AdaptationManager.h AdaptationManagerABMAplus.h
+CLIENT_CPP_OBJ=AdaptationManager.o AdaptationManagerABMAplus.o
 
 COMMON_DIR=common
 COMMON_OBJ=http_ops.o helper.o
@@ -31,7 +34,7 @@ LIB_DIR=lib
 all: httpd httpc httptl
 
 clean:
-	rm httpd httpc httptl $(SERVER_TL_OBJ) $(SERVER_OBJ) $(LIB_OBJ) $(CLIENT_OBJ) $(COMMON_OBJ)
+	rm httpd httpc httptl $(SERVER_TL_OBJ) $(SERVER_OBJ) $(LIB_OBJ) $(CLIENT_OBJ) $(COMMON_OBJ) $(CPP_OBJ)
 
 testfiles:
 	curl http://www.netlab.tkk.fi/tutkimus/rtc/BBB_8bitrates_hd.tar.gz > BBB_8bitrates_hd.tar.gz
@@ -50,10 +53,13 @@ $(SERVER_TL_OBJ): $(patsubst %,$(SERVER_TL_DIR)/%, $(SERVER_TL_HDR))
 	$(CC) $(CCFLAGS) $(SERVER_TL_DIR)/$*.c -o $*.o 
 
 $(CLIENT_OBJ): $(patsubst %,$(CLIENT_DIR)/%, $(CLIENT_HDR))
-	$(CC) $(CCFLAGS) $(CLIENT_DIR)/$*.c -o $*.o 
+	$(CPP) $(CPPFLAGS) $(CLIENT_DIR)/$*.c -o $*.o 
+
+$(CLIENT_CPP_OBJ): $(patsubst %,$(CLIENT_DIR)/%, $(CLIENT_HDR))
+	$(CPP) $(CPPFLAGS) $(CLIENT_DIR)/$*.cpp -o $*.o 
 
 $(LIB_OBJ): $(patsubst %,$(LIB_DIR)/%, $(LIB_HDR)) 
-	$(CC) $(CCFLAGS) $(LIB_DIR)/$*.c -o $*.o 
+	$(CC) $(CCFLAGS) -x c $(LIB_DIR)/$*.c -o $*.o 
 
 
 httpd: $(COMMON_OBJ) $(SERVER_OBJ) $(LIB_OBJ) testfiles
@@ -62,6 +68,6 @@ httpd: $(COMMON_OBJ) $(SERVER_OBJ) $(LIB_OBJ) testfiles
 httptl: $(COMMON_OBJ) $(SERVER_TL_OBJ) $(LIB_OBJ) testfiles
 	$(CC) -o httptl $(SERVER_TL_OBJ) $(COMMON_OBJ) $(LIB_OBJ) $(LDFLAGS) 
 
-httpc: $(COMMON_OBJ) $(CLIENT_OBJ) $(LIB_OBJ) testfiles
-	$(CC) -o httpc $(CLIENT_OBJ) $(COMMON_OBJ) $(LIB_OBJ) $(LDFLAGS) 
+httpc: $(COMMON_OBJ) $(CLIENT_CPP_OBJ) $(CLIENT_OBJ) $(LIB_OBJ) testfiles
+	$(CPP) -o httpc $(CLIENT_OBJ) $(COMMON_OBJ) $(CLIENT_CPP_OBJ) $(LIB_OBJ) $(LDFLAGS) 
 

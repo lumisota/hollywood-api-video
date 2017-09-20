@@ -15,7 +15,7 @@
 #include "mm_download.h"
 
 extern int verbose;
-int algo = 0; /*0 - BOLA, 1 - PANDA */
+int algo = 0; /*0 - BOLA, 1 - PANDA, 2 - ABMAP */
 int endnow = 0; 
 int buffer_dur_ms = DEFAULT_BUFFER_DURATION; 
 #define ISspace(x) isspace((int)(x))
@@ -48,7 +48,8 @@ int buffer_dur_ms = DEFAULT_BUFFER_DURATION;
 
 void print_instructions(char * prog)
 {
-    printf("Usage : %s --port <port number> --mpd <mpd link/url> --out <output file> [--verbose] [--oo] [--prebuf x (ms)] [--bufferlen x (ms)]\n", prog);
+    printf("Usage : %s --port <port number> --mpd <mpd link/url> --out <output file> [--verbose] [--oo] [--prebuf x (ms)] [--bufferlen x (ms)] [--algo <panda|bola|abma]\n", prog);
+    printf("Default paramaters: \nAlgo: BOLA\nProtocol: TCP\nLink: 127.0.0.1/BigBuckBunny/1sec/mp2s/BBB.mpd\nPort: 8080\nOutput: output.ts\n");
 }
 
 
@@ -115,8 +116,34 @@ int check_arguments(int argc, char* argv[], char * port, char * mpdlink, char * 
             *OO=1;
         else if(strcmp(argv[i], "--verbose")==0)
             verbose = 1;
-        else if(strcmp(argv[i], "--panda")==0)
-            algo = 1;
+        else if(strcmp(argv[i], "--algo")==0)
+        {
+            ++i;
+            if(i<argc)
+            {
+                if(strcmp(argv[i], "bola")==0){
+                    algo = 0;
+                }
+                else if(strcmp(argv[i], "panda")==0){
+                    algo = 1;
+                }
+                else if(strcmp(argv[i], "abma")==0){
+                    algo = 2;
+                }
+                else
+                {
+                    printf ("Invalid arguments\n");
+                    print_instructions(argv[0]);
+                    return -1;
+                }
+            }
+            else
+            {
+                printf ("Invalid arguments\n");
+                print_instructions(argv[0]);
+                return -1;
+            }
+        }
 
         else
         {
@@ -138,8 +165,7 @@ long fetch_manifest(transport * t, char * mpdlink, manifest * media_manifest )
     char memory[PAGESIZE];
     int contentlen;
     void * sock;
-    int bytes_rx;
-    long long start_time;
+    uint64_t start_time;
     long Throughput = -1;
     uint8_t substream;
     
@@ -151,16 +177,15 @@ long fetch_manifest(transport * t, char * mpdlink, manifest * media_manifest )
     {
         sock = &(t->sock);
     }
-    
-    send_get_request(sock, mpdlink, t->Hollywood, 0);
-    
     start_time = gettimelong();
+    send_get_request(sock, mpdlink, t->Hollywood, 0);
     if(get_html_headers(sock, buf, HTTPHEADERLEN, t->Hollywood, &substream, NULL, NULL)<=0)
     {
         printf("Error: Received no GET response from server\n");
         return -1;
     }
-    
+    t->rtt = gettimelong() - start_time;
+
     if (substream == HOLLYWOOD_DATA_SUBSTREAM_TIMELINED || substream == HOLLYWOOD_DATA_SUBSTREAM_UNTIMELINED)
     {
         printf("Error: Received timelined message in manifest GET\n");
@@ -181,8 +206,8 @@ long fetch_manifest(transport * t, char * mpdlink, manifest * media_manifest )
     else if (contentlen == 0)
         printf("Received no content length for manifest file \n");
 
-    bytes_rx = read_to_memory (sock, memory, contentlen, t->Hollywood);
-    if(bytes_rx<=0)
+    t->bytes_rx = read_to_memory (sock, memory, contentlen, t->Hollywood);
+    if(t->bytes_rx<=0)
     {
         printf("Unable to receive mpd file \n");
         return -1;
@@ -190,8 +215,8 @@ long fetch_manifest(transport * t, char * mpdlink, manifest * media_manifest )
     else
     {
        // double download_time = gettimelong() - start_time;
-        long long download_time =gettimelong() - start_time;
-        Throughput = (long)((double)bytes_rx*8000000/(double)download_time);  /*bps*/
+        t->download_time =gettimelong() - start_time;
+        Throughput = (long)((double)t->bytes_rx*8000000/(double)t->download_time);  /*bps*/
         if(read_mpddata(memory, mpdlink, media_manifest)<0)
         {
             printf("Unable to parse mpd file\n");

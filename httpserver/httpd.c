@@ -231,7 +231,7 @@ int serve_file(void * sock, const char *filename, int seq)
         
         if((strstr(filename,".mp4")!=NULL || strstr(filename,".ts")!=NULL || strstr(filename,".m4s")!=NULL || strstr(filename,".six")!=NULL) && Hollywood==1)
         {
-            ret = send_media_over_hollywood((hlywd_sock *)sock, resource, seq, filename);
+            ret = send_media_over_hollywood((hlywd_sock *)sock, resource, seq, (char *)filename);
         }
         else
         {

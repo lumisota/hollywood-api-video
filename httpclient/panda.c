@@ -15,18 +15,18 @@ const float K=0.7;
 const float a=0.4;
 const float e=0.1;
 const float b=0.3;
-const uint64_t B0=12000000; /* us */
+static uint64_t B0=12000000; /* us */
 
 
-void initialize_panda(struct panda_state * panda, manifest * m)
+void initialize_panda(struct panda_state * panda, manifest * m, uint64_t buffer_size_us)
 {
     for (int i = 0 ; i < m->num_of_levels; i++)
     {
         panda->bitrates[i] = (double)m->bitrate_level[i].bitrate;
     }
     panda->num_of_levels = m->num_of_levels;
-    panda->segment_duration = m->segment_dur;
-    
+    panda->segment_duration = m->segment_dur_ms;
+    B0 = buffer_size_us;
     return;
 }
 

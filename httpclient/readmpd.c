@@ -354,16 +354,16 @@ int read_mpddata(char * memory, char mpdlink[], manifest * m)
     }
     
     m->num_of_levels = num_of_rates;
-    m->segment_dur = (segdur/timescale);
+    m->segment_dur_ms = (segdur/timescale);
     
     int j, k;
     for (j = 0; j < num_of_rates; j++)
     {
         level * next_level = &m->bitrate_level[j];
-        next_level->segments = malloc (m->num_of_segments * sizeof(char *));
+        next_level->segments = (char **) malloc (m->num_of_segments * sizeof(char *));
         
         for (k = 0; k < m->num_of_segments ; k++)
-            next_level->segments[k] = malloc ( MAXURLLENGTH * sizeof (char));
+            next_level->segments[k] = (char *)malloc ( MAXURLLENGTH * sizeof (char));
         
         next_level->bitrate = atoi(bandwidth[j]);
         if( strlen(init_url[j])!=0)

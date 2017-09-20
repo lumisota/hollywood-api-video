@@ -8,7 +8,7 @@
 
 #define DIV_ROUND_CLOSEST(x, divisor)(                  \
 {                                                       \
-        typeof(divisor) __divisor = divisor;            \
+        decltype(divisor) __divisor = divisor;            \
         (((x) + ((__divisor) / 2)) / (__divisor));      \
 }                                                       \
 )
@@ -71,7 +71,7 @@ static int decode_packet(int *got_frame, int cached, struct metrics * m)
                         "new: width = %d, height = %d, format = %s\n",
                         width, height, av_get_pix_fmt_name(pix_fmt),
                         frame->width, frame->height,
-                        av_get_pix_fmt_name(frame->format));
+                        av_get_pix_fmt_name((enum AVPixelFormat)frame->format));
                 return -1;
             }
             if(pkt.dts > 0)
@@ -108,7 +108,7 @@ static int decode_packet(int *got_frame, int cached, struct metrics * m)
         decoded = FFMIN(ret, pkt.size);
         
         if (*got_frame) {
-            size_t unpadded_linesize = frame->nb_samples * av_get_bytes_per_sample(frame->format);
+            size_t unpadded_linesize = frame->nb_samples * av_get_bytes_per_sample((enum AVSampleFormat)frame->format);
             printf("audio_frame%s n:%d nb_samples:%d pts:%s\n",
                    cached ? "(cached)" : "",
                    audio_frame_count++, frame->nb_samples,
@@ -266,10 +266,15 @@ void * mm_parser(void * opaque)
 {
     int got_frame;
     struct metrics * m = (struct metrics * ) opaque;
-    minbuffer = m->minbufferlen; 
+    minbuffer = m->minbufferlen;
+    int videoStreamIdx = -1;
+    int audioStreamIdx = -1;
+    unsigned int i;
     av_register_all();
+    unsigned long long vtb = 0;
+    unsigned long long atb = 0;
 	void *buff = av_malloc(HOLLYWOOD_MSG_SIZE);
-	AVIOContext *avio = avio_alloc_context(buff, HOLLYWOOD_MSG_SIZE, 0,
+	AVIOContext *avio = avio_alloc_context((unsigned char *)buff, HOLLYWOOD_MSG_SIZE, 0,
 			m->t, mm_read, NULL, NULL);
 	if (avio == NULL) {
         fprintf(stderr, "Could not alloc avio context\n\n");
@@ -402,10 +407,7 @@ void * mm_parser(void * opaque)
     }
     
     
-#else 
-    int videoStreamIdx = -1;
-    int audioStreamIdx = -1;
-    unsigned int i;
+#else
     for (i = 0; i < fmt_ctx->nb_streams; i++) {
         if (fmt_ctx->streams[i]->codec->codec_type == AVMEDIA_TYPE_VIDEO) {
             videoStreamIdx = i;
@@ -414,7 +416,6 @@ void * mm_parser(void * opaque)
         }
     }
     
-    unsigned long long vtb = 0;
     if (videoStreamIdx != -1) {
         int vnum = fmt_ctx->streams[videoStreamIdx]->time_base.num;
         if (vnum > (int) (UINT64_MAX / SEC2PICO)) {
@@ -424,8 +425,7 @@ void * mm_parser(void * opaque)
         int vden = fmt_ctx->streams[videoStreamIdx]->time_base.den;
         vtb = DIV_ROUND_CLOSEST(vnum * SEC2PICO, vden);
     }
-    
-    unsigned long long atb = 0;
+
     if (audioStreamIdx != -1) {
         int anum = fmt_ctx->streams[audioStreamIdx]->time_base.num;
         if (anum > (int) (UINT64_MAX / SEC2PICO)) {
@@ -548,7 +548,7 @@ void checkstall(int end, struct metrics * m)
             m->Tplay = -1;
             m->TS0 = m->TSnow;
 #ifdef DEBUG
-            printf("Stall has occured at TS: %" PRIu64 " and Time: %lld\n", m->TSnow, m->Tempty); //calculate stall duration
+            printf("Stall has occured at TS: %lld and Time: %lld\n", m->TSnow, m->Tempty); //calculate stall duration
 #endif
         }
 #ifndef DECODE
@@ -624,7 +624,7 @@ void printmetric(struct metrics metric, transport media_transport )
     printf("PreBufLen_ms:%ld,",         metric.minbufferlen); 
     printf("ReBufLen_ms:%ld,",          metric.minbufferlen/2); 
     printf("DownloadTime_ms:%lld,",         (metric.etime-metric.stime)/1000);   //download time
-    printf("Duration_ms:%"PRIu64",",    metric.TSnow); // duration
+    printf("Duration_ms:%lld,",    metric.TSnow); // duration
     printf("StartupDelay_ms:%.0f,",         metric.startup/1000); /*startup delay*/
     printf("PrebufferingTime_ms:%.0f,",         metric.initialprebuftime/1000); // Initial prebuf time
 

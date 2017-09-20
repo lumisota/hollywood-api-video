@@ -1,3 +1,8 @@
+#ifdef __cplusplus
+extern "C" {
+#endif
+    
+
 #ifndef MM_PARSER_H_
 #define MM_PARSER_H_
 
@@ -54,6 +59,9 @@ typedef struct {
     char host[128];
     uint64_t playout_time;
     struct playout_buffer * rx_buf;
+    uint64_t rtt;
+    uint64_t bytes_rx;
+    uint64_t download_time;
 }transport;
 
 
@@ -93,4 +101,7 @@ void printmetric(struct metrics metric, transport media_transport );
 void * mm_parser(void * opaque);
 void checkstall(int end, struct metrics * metric);
 int init_metrics(struct metrics *metric);
+#endif
+#ifdef __cplusplus
+}
 #endif

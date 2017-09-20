@@ -6,6 +6,10 @@
 //
 //
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+    
 #ifndef ____playout_buffer__
 #define ____playout_buffer__
 
@@ -46,3 +50,6 @@ int is_full (struct playout_buffer * q, int new_seq);
 
 
 #endif /* defined(____playout_buffer__) */
+#ifdef __cplusplus
+}
+#endif
