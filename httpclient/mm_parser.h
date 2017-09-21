@@ -62,6 +62,7 @@ typedef struct {
     uint64_t rtt;
     uint64_t bytes_rx;
     uint64_t download_time;
+    int algo; 
 }transport;
 
 

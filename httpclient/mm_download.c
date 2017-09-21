@@ -705,6 +705,7 @@ int init_transport(transport * t)
 {
     t->Hollywood        = 0;
     t->sock             = -1;
+    t->algo             = 0;
     t->stream_complete  = 0;
     t->playout_time     = 0;
     t->OO               = 0;
@@ -719,7 +720,7 @@ int init_transport(transport * t)
 }
 
 
-int play_video (struct metrics * metric, manifest * media_manifest , transport * media_transport, long throughput, int algo)
+int play_video (struct metrics * metric, manifest * media_manifest , transport * media_transport, long throughput)
 {
     pthread_attr_t attr;
 
@@ -741,15 +742,15 @@ int play_video (struct metrics * metric, manifest * media_manifest , transport *
         return -1;
     }
     
-    if(algo == 0) /*BOLA*/
+    if(media_transport->algo == 0) /*BOLA*/
     {
         download_segments_bola(media_manifest, media_transport, metric->stime, throughput);
     }
-    else if(algo == 1) /*PANDA*/
+    else if(media_transport->algo == 1) /*PANDA*/
     {
         download_segments_panda(media_manifest, media_transport, metric->stime, throughput);
     }
-    else if(algo == 2) /*ABMAP*/
+    else if(media_transport->algo == 2) /*ABMAP*/
     {
         download_segments_abmap(media_manifest, media_transport, metric->stime);
     }

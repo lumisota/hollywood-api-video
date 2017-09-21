@@ -15,8 +15,7 @@
 #include "mm_download.h"
 
 extern int verbose;
-int algo = 0; /*0 - BOLA, 1 - PANDA, 2 - ABMAP */
-int endnow = 0; 
+int endnow = 0;
 int buffer_dur_ms = DEFAULT_BUFFER_DURATION; 
 #define ISspace(x) isspace((int)(x))
 /**********************************************************************/
@@ -53,7 +52,7 @@ void print_instructions(char * prog)
 }
 
 
-int check_arguments(int argc, char* argv[], char * port, char * mpdlink, char * filename, uint8_t * hollywood, uint8_t * OO, int * prebuf)
+int check_arguments(int argc, char* argv[], char * port, char * mpdlink, char * filename, uint8_t * hollywood, uint8_t * OO, int * prebuf, int * algo)
 {
     int i;
     for(i=1; i<argc; i++)
@@ -122,13 +121,13 @@ int check_arguments(int argc, char* argv[], char * port, char * mpdlink, char * 
             if(i<argc)
             {
                 if(strcmp(argv[i], "bola")==0){
-                    algo = 0;
+                    *algo = 0;
                 }
                 else if(strcmp(argv[i], "panda")==0){
-                    algo = 1;
+                    *algo = 1;
                 }
                 else if(strcmp(argv[i], "abma")==0){
-                    algo = 2;
+                    *algo = 2;
                 }
                 else
                 {
@@ -274,7 +273,7 @@ int main(int argc, char *argv[])
 
     /* Check for hostname parameter */
     if (argc > 1) {
-        if((check_arguments(argc, argv, media_transport.port, mpdlink, filename, &hollywood, &oo, &prebuf))<0)
+        if((check_arguments(argc, argv, media_transport.port, mpdlink, filename, &hollywood, &oo, &prebuf, & media_transport.algo))<0)
             return(0);
     }
 
@@ -327,7 +326,7 @@ int main(int argc, char *argv[])
         printdebug(READMPD, " %s\n", media_manifest.bitrate_level[i].segments[0]);
         printdebug(READMPD, " %s\n", media_manifest.bitrate_level[i].segments[media_manifest.num_of_segments-1]);
     }
-    if(play_video(&metric, &media_manifest, &media_transport, initial_throughput, algo)==0)
+    if(play_video(&metric, &media_manifest, &media_transport, initial_throughput)==0)
         printmetric(metric, media_transport);
     
     exit_http_operations(); 

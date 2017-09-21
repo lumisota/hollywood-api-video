@@ -619,7 +619,6 @@ void printmetric(struct metrics metric, transport media_transport )
     }
     else
         printf("Prot:TCP,");
-
     printf("BufferLen_ms:%d,",          buffer_dur_ms); 
     printf("PreBufLen_ms:%ld,",         metric.minbufferlen); 
     printf("ReBufLen_ms:%ld,",          metric.minbufferlen/2); 
@@ -634,9 +633,18 @@ void printmetric(struct metrics metric, transport media_transport )
     printf("TotalBytesrx:%lld,",         media_transport.rx_buf->total_bytes_received);
     printf("TotalBytesUsed:%lld,",         media_transport.rx_buf->total_bytes_pushed);
     printf("LateOrDuplicatepkts:%d,",         media_transport.rx_buf->late_or_duplicate_packets);
-    printf("DiscardedPackets:%d\n",         media_transport.rx_buf->lost_packets);
-
-    fflush(stdout); 
+    printf("DiscardedPackets:%d,",         media_transport.rx_buf->lost_packets);
+    if(media_transport.algo == 0){
+        printf("Algo:BOLA\n");
+    }
+    else if(media_transport.algo == 1){
+        printf("Algo:PANDA\n");
+    }
+    else if(media_transport.algo == 2){
+        printf("Algo:ABMAP\n");
+    }
+    
+    fflush(stdout);
     
     
 }
