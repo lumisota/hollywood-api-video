@@ -39,7 +39,7 @@ struct panda_state
     int num_of_levels; 
 } ;
 
-void initialize_panda(struct panda_state * panda, manifest * m);
+void initialize_panda(struct panda_state * panda, manifest * m, uint64_t buffer_size_us);
 
 int BandwidthAdaptation(long tput, struct panda_state * panda,
                         long download_duration,

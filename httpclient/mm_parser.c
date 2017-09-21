@@ -54,7 +54,7 @@ static int decode_packet(int *got_frame, int cached, struct metrics * m)
         /* decode video frame */
         ret = avcodec_decode_video2(video_dec_ctx, frame, got_frame, &pkt);
         if (ret < 0) {
-            fprintf(stderr, "Error decoding video frame (%s)\n", av_err2str(ret));
+//            fprintf(stderr, "Error decoding video frame (%s)\n", av_err2str(ret));
             return ret;
         }
         
@@ -98,7 +98,7 @@ static int decode_packet(int *got_frame, int cached, struct metrics * m)
         /* decode audio frame */
         ret = avcodec_decode_audio4(audio_dec_ctx, frame, got_frame, &pkt);
         if (ret < 0) {
-            fprintf(stderr, "Error decoding audio frame (%s)\n", av_err2str(ret));
+//            fprintf(stderr, "Error decoding audio frame (%s)\n", av_err2str(ret));
             return ret;
         }
         /* Some audio decoders decode only part of the packet, and have to be
@@ -109,10 +109,10 @@ static int decode_packet(int *got_frame, int cached, struct metrics * m)
         
         if (*got_frame) {
             size_t unpadded_linesize = frame->nb_samples * av_get_bytes_per_sample((enum AVSampleFormat)frame->format);
-            printf("audio_frame%s n:%d nb_samples:%d pts:%s\n",
-                   cached ? "(cached)" : "",
-                   audio_frame_count++, frame->nb_samples,
-                   av_ts2timestr(frame->pts, &audio_dec_ctx->time_base));
+//            printf("audio_frame%s n:%d nb_samples:%d pts:%s\n",
+//                   cached ? "(cached)" : "",
+//                   audio_frame_count++, frame->nb_samples,
+//                   av_ts2timestr(frame->pts, &audio_dec_ctx->time_base));
 
         }
     }

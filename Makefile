@@ -1,6 +1,6 @@
 CC=gcc
 CPP=g++
-CCFLAGS=-c -g -Wall -I/Users/sahsan/Documents/libraries/include `xml2-config --cflags`
+CCFLAGS=-std=gnu99 -c -g -Wall -I/Users/sahsan/Documents/libraries/include `xml2-config --cflags`
 CPPFLAGS=-std=c++11 -c -g -Wall -I/Users/sahsan/Documents/libraries/include `xml2-config --cflags`
 LDFLAGS=-L/Users/sahsan/Documents/libraries/lib -lm -lpthread -lavformat -lavcodec -lavutil -lswresample `xml2-config --libs` -lz -ldl 
 
