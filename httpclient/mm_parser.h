@@ -58,6 +58,7 @@ typedef struct {
     char path[380];
     char host[128];
     uint64_t playout_time;
+    uint8_t loss_alert; 
     struct playout_buffer * rx_buf;
     uint64_t rtt;
     uint64_t bytes_rx;

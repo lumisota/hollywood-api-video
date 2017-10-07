@@ -156,6 +156,7 @@ static int mm_read(void * opaque, uint8_t *buf, int buf_size)
 	    if(ret==0)
         {
             ++t->rx_buf->lost_packets;
+            t->loss_alert = 1; 
         }
         else if (ret > 0)
         {
@@ -635,13 +636,22 @@ void printmetric(struct metrics metric, transport media_transport )
     printf("LateOrDuplicatepkts:%d,",         media_transport.rx_buf->late_or_duplicate_packets);
     printf("DiscardedPackets:%d,",         media_transport.rx_buf->lost_packets);
     if(media_transport.algo == 0){
-        printf("Algo:BOLA\n");
+        if(media_transport.Hollywood)
+            printf("Algo:BOLA_H\n");
+        else
+            printf("Algo:BOLA\n");
     }
     else if(media_transport.algo == 1){
-        printf("Algo:PANDA\n");
+        if(media_transport.Hollywood)
+            printf("Algo:PANDA_H\n");
+        else
+            printf("Algo:PANDA\n");
     }
     else if(media_transport.algo == 2){
-        printf("Algo:ABMAP\n");
+        if(media_transport.Hollywood)
+            printf("Algo:ABMAP_H\n");
+        else
+            printf("Algo:ABMAP\n");
     }
     else {
 	printf("Algo:WTF!\n"); 

@@ -112,7 +112,8 @@ int download_segments_abmap( manifest * m, transport * t , long long stime)
     double download_time            = t->download_time;
     uint64_t rtt                    = t->rtt;
     AdaptationManagerABMAplus * buffMgr;
-    
+    uint8_t loss_alert              = 0;
+
     if ( t->Hollywood) {
         sock = &(t->h_sock);
     }
@@ -142,6 +143,9 @@ int download_segments_abmap( manifest * m, transport * t , long long stime)
                 pthread_mutex_unlock(&t->msg_mutex);
                 goto END_DOWNLOAD;
             }
+            loss_alert = t->loss_alert;
+            t->loss_alert = 0;
+
             if(t->p_status == P_READY)
             {
                 pthread_cond_signal(&t->queue_ready);
@@ -177,7 +181,10 @@ int download_segments_abmap( manifest * m, transport * t , long long stime)
         }
         
         buffMgr->addRtt(rtt);
-        buffMgr->addData(bytes_rx, download_time, buffered_duration);
+        if(loss_alert)
+            buffMgr->addData(bytes_rx, download_time+rtt, buffered_duration);
+        else
+            buffMgr->addData(bytes_rx, download_time, buffered_duration);
         buffMgr->adaptation();
         curr_bitrate_level = buffMgr->getRepresentationIdx();
         curr_url = m->bitrate_level[curr_bitrate_level].segments[curr_segment];
@@ -190,7 +197,7 @@ int download_segments_abmap( manifest * m, transport * t , long long stime)
             buffered_duration = 0 ;
         }
         
-        printf("BUFFER: %lld %lld %ld %d %d %ld (%llu:%llu (%d))\n", (gettimelong()-stime)/1000, t->playout_time, buffered_duration, curr_bitrate_level, curr_segment, m->bitrate_level[curr_bitrate_level].bitrate, curr_offset, end_offset, bytes_rx);
+        printf("BUFFER: %lld %lld %ld %d %d %ld (%llu:%llu (%d)) %d\n", (gettimelong()-stime)/1000, t->playout_time, buffered_duration, curr_bitrate_level, curr_segment, m->bitrate_level[curr_bitrate_level].bitrate, curr_offset, end_offset, bytes_rx, loss_alert);
         
         bytes_rx = 0;
         download_start_time = gettimelong();
@@ -318,6 +325,7 @@ int download_segments_panda( manifest * m, transport * t , long long stime, long
     long target_bitrate = 500000; /* bit/s */
     long target_avg_bitrate = 500000; /* bit/s */
     long rate_limit = 100000000; /* bit/s */
+    uint8_t loss_alert              = 0;
     
     if ( t->Hollywood) {
         sock = &(t->h_sock);
@@ -340,6 +348,8 @@ int download_segments_panda( manifest * m, transport * t , long long stime, long
                 pthread_mutex_unlock(&t->msg_mutex);
                 goto END_DOWNLOAD;
             }
+            loss_alert = t->loss_alert;
+            t->loss_alert = 0;
             if(t->p_status == P_READY)
             {
                 pthread_cond_signal(&t->queue_ready);
@@ -355,7 +365,15 @@ int download_segments_panda( manifest * m, transport * t , long long stime, long
             fflush(stdout);
             pthread_mutex_unlock(&t->msg_mutex);
         }
-        curr_bitrate_level = BandwidthAdaptation(throughput, &panda,
+        if(loss_alert)
+            curr_bitrate_level = BandwidthAdaptation(throughput, &panda,
+                                                 download_time/1000000,
+                                                 &target_inter_request_time,
+                                                 &target_bitrate, 0,
+                                                 &target_avg_bitrate, &rate_limit,
+                                                 curr_bitrate_level, panda_enabled);
+        else
+            curr_bitrate_level = BandwidthAdaptation(throughput, &panda,
                                                  download_time/1000000,
                                                  &target_inter_request_time,
                                                  &target_bitrate, buffered_duration/1000,
@@ -514,7 +532,8 @@ int download_segments_bola( manifest * m, transport * t , long long stime, long 
     uint64_t end_offset             = 0;
     uint64_t curr_offset            = 0;
     uint64_t highest_offset         = 0;
-    double download_time            = 0.0; 
+    double download_time            = 0.0;
+    uint8_t loss_alert              = 0; 
 
     /*Initialize bola, isDynamic is set to 1 (Live)*/
     curr_bitrate_level = calculateInitialState(m, IS_DYNAMIC, &bola);
@@ -541,6 +560,8 @@ int download_segments_bola( manifest * m, transport * t , long long stime, long 
                 pthread_mutex_unlock(&t->msg_mutex);
                 goto END_DOWNLOAD;
             }
+            loss_alert = t->loss_alert;
+            t->loss_alert = 0;
             if(t->p_status == P_READY)
             {
                 printf("Signalling condition\n"); 
@@ -597,11 +618,16 @@ int download_segments_bola( manifest * m, transport * t , long long stime, long 
         }
 
         saveThroughput(&bola, (long)((double)bytes_rx*8/(download_time/1000000)));  /*bps*/
+        if(loss_alert)
+            curr_bitrate_level = getMaxIndex(&bola, 0, stime);
+        else
+            curr_bitrate_level = getMaxIndex(&bola, (float)buffered_duration/1000.0, stime);
         
-        curr_bitrate_level = getMaxIndex(&bola, (float)buffered_duration/1000.0, stime);
         curr_url = m->bitrate_level[curr_bitrate_level].segments[curr_segment];
 
-        printf("BUFFER: %lld %lld %ld %d %d %ld (%llu:%llu (%d))\n", (gettimelong()-stime)/1000, t->playout_time, buffered_duration, curr_bitrate_level, curr_segment, m->bitrate_level[curr_bitrate_level].bitrate, curr_offset, end_offset, bytes_rx);
+        printf("BUFFER: %lld %lld %ld %d %d %ld (%llu:%llu (%d)) %d\n", (gettimelong()-stime)/1000, t->playout_time, buffered_duration, curr_bitrate_level, curr_segment, m->bitrate_level[curr_bitrate_level].bitrate, curr_offset, end_offset, bytes_rx, loss_alert);
+        if(t->loss_alert)
+        t->loss_alert = 0;
 
         bytes_rx = 0;
         download_start_time = gettimelong();
@@ -712,7 +738,8 @@ int init_transport(transport * t)
     t->OO               = 0;
     t->fptr             = NULL; 
     t->p_status = P_STARTUP;    
-    t->parser_exited    = 0; 
+    t->parser_exited    = 0;
+    t->loss_alert       = 0;
     t->rx_buf  = (struct playout_buffer *)malloc(sizeof(struct playout_buffer));
     memzero(t->rx_buf, sizeof(struct playout_buffer) );
     sprintf(t->host, "");
