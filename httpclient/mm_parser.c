@@ -643,7 +643,9 @@ void printmetric(struct metrics metric, transport media_transport )
     else if(media_transport.algo == 2){
         printf("Algo:ABMAP\n");
     }
-    
+    else {
+	printf("Algo:WTF!\n"); 
+    }
     fflush(stdout);
     
     

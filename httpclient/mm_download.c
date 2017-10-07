@@ -125,8 +125,9 @@ int download_segments_abmap( manifest * m, transport * t , long long stime)
     {
         repVector.push_back((uint64_t) m->bitrate_level[i].bitrate);
     }
+    printf("Segment Duration: %ld\n", m->segment_dur_ms); 
 
-    buffMgr = new AdaptationManagerABMAplus(repVector, m->segment_dur_ms*1000, (uint64_t)buffer_dur_ms*1000, (uint64_t)buffer_dur_ms*1000/2, 10, 50, 0.1 );
+    buffMgr = new AdaptationManagerABMAplus(repVector, m->segment_dur_ms*1000000, (uint64_t)buffer_dur_ms*1000, 2000000, 10, 50, 0.1 );
 
     while (curr_segment < m->num_of_segments ){
         

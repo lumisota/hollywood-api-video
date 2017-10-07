@@ -34,7 +34,7 @@ LIB_DIR=lib
 all: httpd httpc httptl
 
 clean:
-	rm httpd httpc httptl $(SERVER_TL_OBJ) $(SERVER_OBJ) $(LIB_OBJ) $(CLIENT_OBJ) $(COMMON_OBJ) $(CPP_OBJ)
+	rm httpd httpc httptl $(SERVER_TL_OBJ) $(SERVER_OBJ) $(LIB_OBJ) $(CLIENT_OBJ) $(COMMON_OBJ) $(CLIENT_CPP_OBJ) 
 
 testfiles:
 	curl http://www.netlab.tkk.fi/tutkimus/rtc/BBB_8bitrates_hd.tar.gz > BBB_8bitrates_hd.tar.gz

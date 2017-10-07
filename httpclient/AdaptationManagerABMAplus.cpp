@@ -53,8 +53,11 @@ AdaptationManagerABMAplus::AdaptationManagerABMAplus(
 
   if (!mapFile.is_open())
   {
-      cerr << "Failed to open file: " << "buffer_map.txt" << endl;
+      cout << "Failed to open file: " << "buffer_map.txt :" <<strerror(errno)<<endl;
   }
+//  else
+//      cout<<"buffer_map.txt opened\n"; 
+
   string stringLine;
   int ovStart, cvStart, ovStep, cvStep, ovEnd, cvEnd;
   ovStart = cvStart = ovStep = cvStep = 1;
@@ -68,13 +71,13 @@ AdaptationManagerABMAplus::AdaptationManagerABMAplus(
       streamLine >> b;
       bMap[ov][cv]=b;   
     }
-  } 
-    
+  }
+
   if (mapFile.is_open()) 
     mapFile.close();
 
   cout << "Used Adaptation Manager: ABMAplus" << endl;
-  
+
 }
 
 AdaptationManagerABMAplus::~AdaptationManagerABMAplus(){}
@@ -86,6 +89,7 @@ void AdaptationManagerABMAplus::addData(uint64_t segmentSize, uint64_t sdt,
   this->bufferOccupancy = buffOccupancy;
   if (sample.size() == maxEntries)
     sample.pop_front();
+  //cout<<"SDT added: "<<(float)sdt<<endl;
   this->sample.push_back(float(sdt));
 
 }
@@ -103,7 +107,7 @@ int AdaptationManagerABMAplus::adaptation(){
 
   float sum = accumulate(sample.begin(), sample.end(), 0.0);
   float mean = sum / sample.size();
-    
+
   vector<float> diff(sample.size());
   transform(sample.begin(), sample.end(), diff.begin(), 
                                            bind2nd(std::minus<float>(), mean));
@@ -116,14 +120,16 @@ int AdaptationManagerABMAplus::adaptation(){
 
   float ov = min(omega/mean-1, maxOv);
   float cv = min(sqrt(variance)/mean, maxCv);
+  //cout<<"s "<<sum<<", m "<<mean<<" ,omega "<<omega<<" ,variance "<<variance<<", reps "<<reps.size()<<endl;
 
-  
-  if (DEBUG_ADAPTATION){	
+  //cout<<"ov: "<<ov<<endl;
+  //cout<<"cv: "<<cv<<endl;
+  if (DEBUG_ADAPTATION){
     if (cv==maxCv)
       cout<<"*** cv exceeds "<<maxCv<<" ***\n";
     if (ov==maxOv)
       cout<<"*** ov exceeds "<<maxOv<<" ***\n";
-  } 
+  }
 
   if (ov > 0)
     b = bMap[int(ov*100)][int(cv*100)];
@@ -156,6 +162,8 @@ int AdaptationManagerABMAplus::adaptation(){
         tmp = bMap[int(ov*100)][int(cv*100)];
       else
         tmp = 0;
+      //cout<<"Up: ov "<<ov<<" , tmp "<<tmp<<" , buffsize "<<maxBuffSize<<" , ressize"<<reservoirSize<<endl; 
+
       if (tmp != 0 && tmp < int((1.0-beta) * float(maxBuffSize - reservoirSize))){ 
         transform(sample.begin(), sample.end(), sample.begin(), 
                                    bind2nd(std::multiplies<float>(), scale));
@@ -172,9 +180,9 @@ int AdaptationManagerABMAplus::adaptation(){
     }
   }
   if (DEBUG_ADAPTATION){	  
-    cout<< "Finished adaptation\n"; 
-    cout<< "currentRepIdx: "<< currentRepIdx<<endl;
-    cout<< "b: "<< b << endl;
+    cout<< "Finished adaptation AJIN!\n"; 
+    cout<< "currentRepIdx AJIN!: "<< currentRepIdx<<endl;
+    cout<< "b AJIN!: "<< b << endl;
   }
 }
 
