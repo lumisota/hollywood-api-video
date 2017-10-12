@@ -26,7 +26,7 @@ void * print_instantaneous_throughput(void * opaque)
     {
         pthread_mutex_lock(&http_mutex);
         timenow = gettimelong();
-        printf("RATE: %lld, %f\n", (timenow - starttime)/1000, (double)inst_bytes*8000000/(timenow - inst_time) );
+        printf("RATE: %lld, %lld, %lld\n", (timenow - starttime)/1000, inst_bytes, (timenow - inst_time)/1000);
         inst_time = timenow;
         inst_bytes = 0;
         pthread_mutex_unlock(&http_mutex);
