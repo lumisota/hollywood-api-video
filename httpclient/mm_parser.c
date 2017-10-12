@@ -160,7 +160,7 @@ static int mm_read(void * opaque, uint8_t *buf, int buf_size)
         }
         else if (ret > 0)
         {
-            if(fwrite (buf , sizeof(uint8_t), ret, t->fptr)!=ret)
+            if(fwrite (buf, sizeof(uint8_t), ret, t->fptr)!=ret)
             {
                 if (ferror (t->fptr))
                     printf ("download_segments: Error Writing to file\n");

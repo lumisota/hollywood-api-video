@@ -18,6 +18,7 @@ pthread_t       av_tid;          /*thread id of the av parser thread*/
 #define DOWNLOAD ""
 extern int endnow; 
 extern int buffer_dur_ms; 
+extern float min_rxcontent_ratio;
 
 int add_to_queue(uint8_t * buf, uint32_t len, transport * t, uint32_t new_seq)
 {
@@ -197,7 +198,7 @@ int download_segments_abmap( manifest * m, transport * t , long long stime)
             buffered_duration = 0 ;
         }
         
-        printf("BUFFER: %lld %lld %ld %d %d %ld (%llu:%llu (%d)) %d\n", (gettimelong()-stime)/1000, t->playout_time, buffered_duration, curr_bitrate_level, curr_segment, m->bitrate_level[curr_bitrate_level].bitrate, curr_offset, end_offset, bytes_rx, loss_alert);
+        printf("BUFFER: %lld %lld %ld %d %d %ld (%llu:%llu (%d of %d)) %d %d\n", (gettimelong()-stime)/1000, t->playout_time, buffered_duration, curr_bitrate_level, curr_segment, m->bitrate_level[curr_bitrate_level].bitrate, curr_offset, end_offset, bytes_rx, contentlen, loss_alert, t->rx_buf->late_or_duplicate_packets);
         
         bytes_rx = 0;
         download_start_time = gettimelong();
@@ -239,7 +240,7 @@ int download_segments_abmap( manifest * m, transport * t , long long stime)
         }
         
         end_offset += contentlen;
-        while ((bytes_rx < contentlen && !t->Hollywood) || ((highest_offset < end_offset ||  bytes_rx < 0.80*contentlen )&& t->Hollywood) )
+        while ((bytes_rx < contentlen && !t->Hollywood) || ((highest_offset < end_offset ||  bytes_rx < min_rxcontent_ratio*contentlen )&& t->Hollywood) )
         {
             if(endnow)
                 goto END_DOWNLOAD;
@@ -405,9 +406,8 @@ int download_segments_panda( manifest * m, transport * t , long long stime, long
             printdebug(DOWNLOAD,"Getting negative buffered duration, zeroing it");
             buffered_duration = 0 ;
         }
-
-        printf("BUFFER: %lld %lld %ld %d %d %ld (%llu:%llu (%d))\n", (gettimelong()-stime)/1000, t->playout_time, buffered_duration, curr_bitrate_level, curr_segment, m->bitrate_level[curr_bitrate_level].bitrate, curr_offset, end_offset, bytes_rx);
-
+        printf("BUFFER: %lld %lld %ld %d %d %ld (%llu:%llu (%d of %d)) %d %d\n", (gettimelong()-stime)/1000, t->playout_time, buffered_duration, curr_bitrate_level, curr_segment, m->bitrate_level[curr_bitrate_level].bitrate, curr_offset, end_offset, bytes_rx, contentlen, loss_alert, t->rx_buf->late_or_duplicate_packets);
+        
         bytes_rx = 0;
         download_start_time = gettimelong();
         http_resp_len = 0 ;
@@ -448,7 +448,7 @@ int download_segments_panda( manifest * m, transport * t , long long stime, long
         }
         
         end_offset += contentlen;
-        while ((bytes_rx < contentlen && !t->Hollywood) || ((highest_offset < end_offset ||  bytes_rx < 0.80*contentlen )&& t->Hollywood) )
+        while ((bytes_rx < contentlen && !t->Hollywood) || ((highest_offset < end_offset ||  bytes_rx < min_rxcontent_ratio*contentlen )&& t->Hollywood) )
         {
             if(endnow)
                 goto END_DOWNLOAD; 
@@ -625,9 +625,9 @@ int download_segments_bola( manifest * m, transport * t , long long stime, long 
         
         curr_url = m->bitrate_level[curr_bitrate_level].segments[curr_segment];
 
-        printf("BUFFER: %lld %lld %ld %d %d %ld (%llu:%llu (%d)) %d\n", (gettimelong()-stime)/1000, t->playout_time, buffered_duration, curr_bitrate_level, curr_segment, m->bitrate_level[curr_bitrate_level].bitrate, curr_offset, end_offset, bytes_rx, loss_alert);
+        printf("BUFFER: %lld %lld %ld %d %d %ld (%llu:%llu (%d of %d)) %d %d\n", (gettimelong()-stime)/1000, t->playout_time, buffered_duration, curr_bitrate_level, curr_segment, m->bitrate_level[curr_bitrate_level].bitrate, curr_offset, end_offset, bytes_rx, contentlen, loss_alert, t->rx_buf->late_or_duplicate_packets);
         if(t->loss_alert)
-        t->loss_alert = 0;
+            t->loss_alert = 0;
 
         bytes_rx = 0;
         download_start_time = gettimelong();
@@ -669,7 +669,7 @@ int download_segments_bola( manifest * m, transport * t , long long stime, long 
         }
         
         end_offset += contentlen;
-        while ((bytes_rx < contentlen && !t->Hollywood) || ((highest_offset < end_offset ||  bytes_rx < 0.80*contentlen )&& t->Hollywood) )
+        while ((bytes_rx < contentlen && !t->Hollywood) || ((highest_offset < end_offset ||  bytes_rx < min_rxcontent_ratio*contentlen )&& t->Hollywood) )
         {
             if(endnow)
                 goto END_DOWNLOAD; 

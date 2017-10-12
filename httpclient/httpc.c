@@ -16,7 +16,8 @@
 
 extern int verbose;
 int endnow = 0;
-int buffer_dur_ms = DEFAULT_BUFFER_DURATION; 
+int buffer_dur_ms = DEFAULT_BUFFER_DURATION;
+float min_rxcontent_ratio = 0.8;
 #define ISspace(x) isspace((int)(x))
 /**********************************************************************/
 //
@@ -47,8 +48,9 @@ int buffer_dur_ms = DEFAULT_BUFFER_DURATION;
 
 void print_instructions(char * prog)
 {
-    printf("Usage : %s --port <port number> --mpd <mpd link/url> --out <output file> [--verbose] [--oo] [--prebuf x (ms)] [--bufferlen x (ms)] [--algo <panda|bola|abma]\n", prog);
+    printf("Usage : %s --port <port number> --mpd <mpd link/url> --out <output file> [--verbose] [--oo] [--prebuf x (ms)] [--bufferlen x (ms)] [--algo <panda|bola|abma] [--minrxration <0-1>]\n", prog);
     printf("Default paramaters: \nAlgo: BOLA\nProtocol: TCP\nLink: 127.0.0.1/BigBuckBunny/1sec/mp2s/BBB.mpd\nPort: 8080\nOutput: output.ts\n");
+    printf("Min Rx Ratio: 0.8 (Ratio of Contenlen that must be received before requesting next chunk)\n");
 }
 
 
@@ -111,6 +113,18 @@ int check_arguments(int argc, char* argv[], char * port, char * mpdlink, char * 
                 return -1; 
             }
         }
+        else if(strcmp(argv[i], "--minrxratio")==0)
+        {
+            ++i;
+            min_rxcontent_ratio = atoi(argv[i]);
+            if(min_rxcontent_ratio < 0 || minrxratio > 1)
+            {
+                printf("Invalid minrxratio argument, value must be between 0 and 1\n");
+                print_instructions(argv[0]);
+                return -1;
+            }
+        }
+
         else if(strcmp(argv[i], "--oo")==0)
             *OO=1;
         else if(strcmp(argv[i], "--verbose")==0)
