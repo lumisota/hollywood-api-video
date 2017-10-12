@@ -117,7 +117,7 @@ int check_arguments(int argc, char* argv[], char * port, char * mpdlink, char * 
         {
             ++i;
             min_rxcontent_ratio = atoi(argv[i]);
-            if(min_rxcontent_ratio < 0 || minrxratio > 1)
+            if(min_rxcontent_ratio < 0 || min_rxcontent_ratio > 1)
             {
                 printf("Invalid minrxratio argument, value must be between 0 and 1\n");
                 print_instructions(argv[0]);
