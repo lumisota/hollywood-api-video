@@ -19,7 +19,7 @@
 //#define SEC2NANO 1000000000
 #define SEC2MILI 1000
 
-
+extern float min_rxcontent_ratio;
 int stream_finished = 0; 
 extern int buffer_dur_ms; 
 static uint minbuffer = MIN_PREBUFFER;
@@ -635,6 +635,7 @@ void printmetric(struct metrics metric, transport media_transport )
     printf("TotalBytesUsed:%lld,",         media_transport.rx_buf->total_bytes_pushed);
     printf("LateOrDuplicatepkts:%d,",         media_transport.rx_buf->late_or_duplicate_packets);
     printf("DiscardedPackets:%d,",         media_transport.rx_buf->lost_packets);
+    printf("TcpHrxratio:%f,",min_rxcontent_ratio);
     if(media_transport.algo == 0){
         if(media_transport.Hollywood)
             printf("Algo:BOLA_H\n");
