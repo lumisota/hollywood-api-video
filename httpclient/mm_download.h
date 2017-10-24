@@ -19,6 +19,7 @@ extern "C" {
     
 #include <stdio.h>
 #include <pthread.h>
+#include <math.h>
 
 #include "mm_parser.h"
 #include "../common/http_ops.h"

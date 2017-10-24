@@ -533,7 +533,8 @@ int download_segments_bola( manifest * m, transport * t , long long stime, long 
     uint64_t curr_offset            = 0;
     uint64_t highest_offset         = 0;
     double download_time            = 0.0;
-    uint8_t loss_alert              = 0; 
+    uint8_t loss_alert              = 0;
+    long long last_seq_last_chunk   = 0;
 
     /*Initialize bola, isDynamic is set to 1 (Live)*/
     curr_bitrate_level = calculateInitialState(m, IS_DYNAMIC, &bola);
@@ -667,17 +668,16 @@ int download_segments_bola( manifest * m, transport * t , long long stime, long 
             printf("HTTP Response error: \n%s\n", buf);
             goto END_DOWNLOAD;
         }
-        
         end_offset += contentlen;
-        while ((bytes_rx < contentlen && !t->Hollywood) || ((highest_offset < end_offset ||  bytes_rx < min_rxcontent_ratio*contentlen )&& t->Hollywood) )
+        bytes_rx_this_chunk = 0;
+        while ((bytes_rx < contentlen && !t->Hollywood) || ((bytes_rx_this_chunk < min_rxcontent_ratio*contentlen )&& t->Hollywood) )
         {
             if(endnow)
                 goto END_DOWNLOAD; 
             
             ret = read_http_body_partial(sock, rx_buf, HOLLYWOOD_MSG_SIZE, t->Hollywood, &new_seq, &curr_offset);
             //printf("2. Received packet size %d, offset %" PRIu64 ", seq %u\n", ret, curr_offset, new_seq); 
-            if(highest_offset<curr_offset)
-                highest_offset = curr_offset;
+
             if(ret==-2)
             {
                 printdebug(DOWNLOAD,"Timeout occurred while receiving for HTTP body\n"); 
@@ -690,10 +690,13 @@ int download_segments_bola( manifest * m, transport * t , long long stime, long 
             }
             
             
-            bytes_rx += add_to_queue((unsigned char *)rx_buf, ret, t, new_seq); 
+            ret = add_to_queue((unsigned char *)rx_buf, ret, t, new_seq);
+            bytes_rx += ret;
+            if(new_seq >last_seq_last_chunk)
+                bytes_rx_this_chunk+=ret;
             
         }
-
+        last_seq_last_chunk = ceil(contentlen/HOLLYWOOD_MSG_SIZE);
         download_time = gettimelong() - download_start_time;
 
 
