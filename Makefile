@@ -31,7 +31,7 @@ LIB_OBJ=hollywood.o cobs.o
 LIB_DIR=lib
 
 
-all: httpd httpc httptl
+all: httpc httptl #httpd
 
 clean:
 	rm httpd httpc httptl $(SERVER_TL_OBJ) $(SERVER_OBJ) $(LIB_OBJ) $(CLIENT_OBJ) $(COMMON_OBJ) $(CLIENT_CPP_OBJ) 
@@ -46,8 +46,8 @@ $(COMMON_OBJ): $(patsubst %,$(COMMON_DIR)/%, $(COMMON_HDR))
 	$(CC) $(CCFLAGS) $(COMMON_DIR)/$*.c -o $*.o 
 
 
-$(SERVER_OBJ): $(patsubst %,$(SERVER_DIR)/%, $(SERVER_HDR))
-	$(CC) $(CCFLAGS) $(SERVER_DIR)/$*.c -o $*.o 
+#$(SERVER_OBJ): $(patsubst %,$(SERVER_DIR)/%, $(SERVER_HDR))
+#	$(CC) $(CCFLAGS) $(SERVER_DIR)/$*.c -o $*.o 
 
 $(SERVER_TL_OBJ): $(patsubst %,$(SERVER_TL_DIR)/%, $(SERVER_TL_HDR))
 	$(CC) $(CCFLAGS) $(SERVER_TL_DIR)/$*.c -o $*.o 
@@ -62,8 +62,8 @@ $(LIB_OBJ): $(patsubst %,$(LIB_DIR)/%, $(LIB_HDR))
 	$(CC) $(CCFLAGS) -x c $(LIB_DIR)/$*.c -o $*.o 
 
 
-httpd: $(COMMON_OBJ) $(SERVER_OBJ) $(LIB_OBJ) testfiles
-	$(CC) -o httpd $(SERVER_OBJ) $(COMMON_OBJ) $(LIB_OBJ) $(LDFLAGS) 
+#httpd: $(COMMON_OBJ) $(SERVER_OBJ) $(LIB_OBJ) testfiles
+#	$(CC) -o httpd $(SERVER_OBJ) $(COMMON_OBJ) $(LIB_OBJ) $(LDFLAGS) 
 
 httptl: $(COMMON_OBJ) $(SERVER_TL_OBJ) $(LIB_OBJ) testfiles
 	$(CC) -o httptl $(SERVER_TL_OBJ) $(COMMON_OBJ) $(LIB_OBJ) $(LDFLAGS) 
