@@ -452,17 +452,17 @@ int cat_full_file(hlywd_sock * sock, FILE *fptr)
 /**********************************************************************/
 int cat_stream(int client, FILE *fptr)
 {
-    char    buffer[1024];
+    char    buffer[HOLLYWOOD_MSG_SIZE];
     int     bytes_read, msg_len;
     
-    bytes_read = fread(buffer, 1, 1024, fptr);
-    while(bytes_read==1024) {
+    bytes_read = fread(buffer, 1, HOLLYWOOD_MSG_SIZE, fptr);
+    while(bytes_read==HOLLYWOOD_MSG_SIZE) {
         msg_len = send(client, buffer, bytes_read, 0);
         if (msg_len == -1) {
             printf("Unable to send message over TCP\n");
             return -1;
         }
-        bytes_read = fread(buffer, 1,1024,fptr);
+        bytes_read = fread(buffer, 1,HOLLYWOOD_MSG_SIZE,fptr);
         
     }
     if (feof(fptr)) {
