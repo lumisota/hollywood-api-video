@@ -93,9 +93,9 @@ size_t chunk_fread(char ** pkt_buf, FILE * ts)
     return ret_size;
 }
 
-vid_frame *get_frames(struct parse_attr *p) {        
+vid_frame *get_frames(char *src_filename) {        
     /* open TS file */
-    FILE *ts = fopen(p->src_filename, "r");
+    FILE *ts = fopen(src_filename, "r");
 
     uint64_t packet_num = 1;
     char * pkt_buf = NULL;
@@ -395,6 +395,22 @@ vid_frame *get_frames(struct parse_attr *p) {
     last_frame->len += bytes_read;
     
     }
+        
+    /* close TS file */
+    fclose(ts);
+    
+    return frames;
+}
+
+vid_frame *get_frames_from_file(struct parse_attr *p) {
+    vid_frame *frames = (vid_frame *) malloc(sizeof(vid_frame));
+    vid_frame *last_frame = frames;
+    last_frame->starts_at = -1;
+    last_frame->len = 0;
+    last_frame->key_frame = 1;
+    last_frame->next = NULL;
+    
+    /* TODO: read from frames data file, into linked list */
     
     stream *cur_stream = p->streams;
     while (cur_stream != NULL) {
@@ -402,9 +418,19 @@ vid_frame *get_frames(struct parse_attr *p) {
         free(cur_stream);
         cur_stream = next_stream;
     }
-    
-    /* close TS file */
-    fclose(ts);
-    
     return frames;
+}
+
+int main(int argc, char *argv[]) {
+    char *src = argv[1];
+    char *dst = argv[2];
+    vid_frame *frames = get_frames(src);
+    FILE *dst_file = fopen(dst, "w");
+
+    struct vid_frame *cur_frame = frames;
+    while (cur_frame != NULL) {
+        fprintf(dst_file, "%d,%zu,%zu,%d\n", cur_frame->starts_at, cur_frame->len, cur_frame->timestamp, cur_frame->key_frame);
+    }
+    fclose(dst_file);
+    return 0;
 }

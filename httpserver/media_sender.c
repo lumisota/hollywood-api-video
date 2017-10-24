@@ -269,7 +269,7 @@ int send_media_over_hollywood(hlywd_sock * sock, FILE *fptr, int seq, char *src_
     size_t src_filesize = src_file_stat.st_size;
 
     if(strcmp(file_ext, "ts") == 0) {
-        video_frames = get_frames(&pparams);
+        video_frames = get_frames_from_file(&pparams);
     } else {
         struct vid_frame *new_frame = (struct vid_frame *) malloc(sizeof(struct vid_frame));
         new_frame->starts_at = 0;

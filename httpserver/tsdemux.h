@@ -79,6 +79,7 @@ uint8_t to_byte(const char* p);
 uint16_t to_int(const char* p);
 uint64_t decode_pts(const char* ptr);
 stream *get_stream(uint16_t pid);
-vid_frame *get_frames(struct parse_attr *p);
+vid_frame *get_frames(char *src_file);
+vid_frame *get_frames_from_file(struct parse_attr *pparams);
 
 #endif
