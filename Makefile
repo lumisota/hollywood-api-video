@@ -30,12 +30,7 @@ LIB_HDR=hollywood.h cobs.h
 LIB_OBJ=hollywood.o cobs.o
 LIB_DIR=lib
 
-
-<<<<<<< HEAD
-all: httpc httptl
-=======
 all: httpc httptl #httpd
->>>>>>> c72a4042b32a392268a1aa8b59c9220c62f9e0ca
 
 clean:
 	rm httpd httpc httptl $(SERVER_TL_OBJ) $(SERVER_OBJ) $(LIB_OBJ) $(CLIENT_OBJ) $(COMMON_OBJ) $(CLIENT_CPP_OBJ) 
