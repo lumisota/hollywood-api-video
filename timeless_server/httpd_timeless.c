@@ -239,7 +239,7 @@ int serve_file(void * sock, const char *filename, int seq)
                 stream_seq = 0;
 
             }
-            if((strstr(filename,".mpd")!=NULL)
+            if((strstr(filename,".mpd")!=NULL))
                ret = cat(sock, resource, 1, Hollywood);
             else
                ret = cat(sock, resource, 0, Hollywood);
