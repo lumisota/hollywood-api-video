@@ -239,7 +239,10 @@ int serve_file(void * sock, const char *filename, int seq)
                 stream_seq = 0;
 
             }
-            ret = cat(sock, resource, Hollywood);
+            if((strstr(filename,".mpd")!=NULL)
+               ret = cat(sock, resource, 1, Hollywood);
+            else
+               ret = cat(sock, resource, 0, Hollywood);
         }
         fclose(resource);
     }

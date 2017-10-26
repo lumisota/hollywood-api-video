@@ -611,7 +611,7 @@ void checkstall(int end, struct metrics * m)
 
 void printmetric(struct metrics metric, transport media_transport )
 {    
-    printf("ALL.1,");
+    printf("ALL.2,");
     if(media_transport.Hollywood){
         if(media_transport.OO)
             printf("Prot:Hollywood_OOO,");

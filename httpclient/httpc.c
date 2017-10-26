@@ -17,7 +17,7 @@
 extern int verbose;
 int endnow = 0;
 int buffer_dur_ms = DEFAULT_BUFFER_DURATION;
-float min_rxcontent_ratio = 0.8;
+float min_rxcontent_ratio = 0.99;
 #define ISspace(x) isspace((int)(x))
 /**********************************************************************/
 //
@@ -116,7 +116,7 @@ int check_arguments(int argc, char* argv[], char * port, char * mpdlink, char * 
         else if(strcmp(argv[i], "--minrxratio")==0)
         {
             ++i;
-            min_rxcontent_ratio = atoi(argv[i]);
+            min_rxcontent_ratio = atof(argv[i]);
             if(min_rxcontent_ratio < 0 || min_rxcontent_ratio > 1)
             {
                 printf("Invalid minrxratio argument, value must be between 0 and 1\n");

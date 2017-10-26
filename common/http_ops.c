@@ -424,7 +424,7 @@ int send_resp_headers(void * sock , const char *filename, uint8_t hollywood)
 
 
 /**********************************************************************/
-int cat_full_file(hlywd_sock * sock, FILE *fptr)
+int cat_full_file(void * sock, FILE *fptr, uint8_t hollywood)
 {
     char buffer[PAGESIZE];
     int bytes_read;
@@ -433,7 +433,12 @@ int cat_full_file(hlywd_sock * sock, FILE *fptr)
     
     if ( feof(fptr) )
     {
-        return send_message_sub(sock, buffer, bytes_read, 0, HOLLYWOOD_HTTP_SUBSTREAM);
+        if(hollywood){
+            return send_message_sub((hlywd_sock *)sock, buffer, bytes_read, 0, HOLLYWOOD_HTTP_SUBSTREAM);
+        }
+        else{
+            return send(*((int *) sock), buffer, bytes_read, 0);
+        }
     }
     
     if(bytes_read == PAGESIZE)
@@ -484,11 +489,11 @@ int cat_stream(int client, FILE *fptr)
 
 /**********************************************************************/
 
-int cat(void * sock, FILE * fptr, uint8_t hollywood)
+int cat(void * sock, FILE * fptr, uint8_t manifest, uint8_t hollywood)
 {
-    if (hollywood)
+    if (manifest)
     {
-        return cat_full_file((hlywd_sock *)sock, fptr);
+        return cat_full_file((hlywd_sock *)sock, fptr, hollywood);
     }
     else
     {

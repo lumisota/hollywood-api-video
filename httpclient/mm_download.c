@@ -535,6 +535,7 @@ int download_segments_bola( manifest * m, transport * t , long long stime, long 
     double download_time            = 0.0;
     uint8_t loss_alert              = 0;
     long long last_seq_last_chunk   = 0;
+    long long bytes_rx_this_chunk   = 0;
 
     /*Initialize bola, isDynamic is set to 1 (Live)*/
     curr_bitrate_level = calculateInitialState(m, IS_DYNAMIC, &bola);

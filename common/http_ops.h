@@ -52,7 +52,7 @@ int connect_tcp_port (char * host, char * port, uint8_t hollywood, void * sock, 
 
 int send_resp_headers(void * sock , const char *filename, uint8_t hollywood);
 
-int cat(void * sock, FILE * fptr, uint8_t hollywood);
+int cat(void * sock, FILE * fptr, uint8_t manifest, uint8_t hollywood);
 
 int not_found(void * sock, uint8_t hollywood);
 
