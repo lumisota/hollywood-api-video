@@ -85,6 +85,11 @@ void * accept_request(void * a)
     }
     else
     {
+        int flag = 1;
+        int fd = *((int *)a;
+        int result = setsockopt(fd, IPPROTO_TCP, TCP_NODELAY, (char *) &flag, sizeof(int));
+        if (result<0)
+           printf("Setting TCP_NODELAY on TCP socket failed");
         sock = a ;
     }
     

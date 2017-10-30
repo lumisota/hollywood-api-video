@@ -118,6 +118,12 @@ int connect_tcp_port (char * host, char * port, uint8_t hollywood, void * sock, 
     else
     {
         *(int *)sock = fd;
+        int flag = 1;
+        /* Disable Nagle's algorithm (TCP_ NODELAY = 1) */
+        int result = setsockopt(fd, IPPROTO_TCP, TCP_NODELAY, (char *) &flag, sizeof(int));
+        if (result<0)
+            printf("Setting TCP_NODELAY on TCP socket failed");
+
     }
         
     return fd;
