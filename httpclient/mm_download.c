@@ -16,6 +16,8 @@ pthread_t       av_tid;          /*thread id of the av parser thread*/
 #define ENCODING_DELAY  3000
 //#define DOWNLOAD "DOWNLOAD"
 #define DOWNLOAD ""
+static uint min_buffer_len = 1000; 
+
 extern int endnow; 
 extern int buffer_dur_ms; 
 extern float min_rxcontent_ratio;
@@ -41,12 +43,12 @@ int add_to_queue(uint8_t * buf, uint32_t len, transport * t, uint32_t new_seq)
 }
 
 
-int monitor_socket_for_delayed_packets(void * sock, char * buf, int len,  transport * t, int delay, double * download_time, long long download_start_time){
+int monitor_socket_for_delayed_packets(void * sock, char * buf, int len,  transport * t, long long * delay_ms, double * download_time, long long download_start_time){
 
     uint8_t substream            = 0;
     uint32_t seq                    = 0;
     uint64_t offset                 = 0;
-    long long exit_time             = gettimelong() + (delay * 1000000);
+    long long exit_time             = gettimelong() + (*delay_ms * 1000);
     int ret                         = 0; 
     int timeout_s                   = (exit_time - gettimelong())/1000000;
     int bytes_rx                    = 0;
@@ -78,7 +80,10 @@ int monitor_socket_for_delayed_packets(void * sock, char * buf, int len,  transp
                     bytes_rx += i; 
                     *download_time = gettimelong() - download_start_time; 
                 }
+
                 timeout_s = (exit_time - gettimelong())/1000000;
+                if (*delay_ms/1000>timeout_s)
+                    *delay_ms = *delay_ms - (timeout_s*1000); 
             }
         }
         else 
@@ -167,7 +172,8 @@ int download_segments_abmap( manifest * m, transport * t , long long stime)
             /*Delay due to bufferLevel > bufferTarget is added to BOLA placeholder buffer*/
             printdebug(DOWNLOAD, "Buffer full, going to sleep for %ld milliseconds", delay);
             if ( t->Hollywood) {
-                int i = monitor_socket_for_delayed_packets(sock, (char *)rx_buf, HOLLYWOOD_MSG_SIZE, t, delay/1000, &download_time, download_start_time);
+                long long tmp_delay = delay;
+                int i = monitor_socket_for_delayed_packets(sock, (char *)rx_buf, HOLLYWOOD_MSG_SIZE, t, &tmp_delay, &download_time, download_start_time);
                 if (i > 0)
                     bytes_rx+=i;
             }
@@ -386,7 +392,8 @@ int download_segments_panda( manifest * m, transport * t , long long stime, long
                     /*Delay due to bufferLevel > bufferTarget is added to BOLA placeholder buffer*/
             printdebug(DOWNLOAD, "Buffer full, going to sleep for %ld milliseconds", delay);
             if ( t->Hollywood) {
-                int i = monitor_socket_for_delayed_packets(sock, (char *)rx_buf, HOLLYWOOD_MSG_SIZE, t, delay/1000, &download_time, download_start_time);
+                long long tmp_delay = delay;
+                int i = monitor_socket_for_delayed_packets(sock, (char *)rx_buf, HOLLYWOOD_MSG_SIZE, t, &tmp_delay, &download_time, download_start_time);
                 if (i > 0)
                     bytes_rx+=i;
                 
@@ -536,6 +543,7 @@ int download_segments_bola( manifest * m, transport * t , long long stime, long 
     uint8_t loss_alert              = 0;
     long long last_seq_last_chunk   = 0;
     long long bytes_rx_this_chunk   = 0;
+    float buffered_duration_in_sec  = 0.0;
     
     /*Initialize bola, isDynamic is set to 1 (Live)*/
     curr_bitrate_level = calculateInitialState(m, IS_DYNAMIC, &bola);
@@ -564,35 +572,30 @@ int download_segments_bola( manifest * m, transport * t , long long stime, long 
             }
             loss_alert = t->loss_alert;
             t->loss_alert = 0;
+            segment_start = m->segment_dur_ms * (curr_segment - m->init);
+            buffered_duration = (segment_start * 1000) - t->playout_time;
+            if(t->p_status==P_STARTUP && buffered_duration > min_buffer_len)
+                t->p_status=P_READY;
             if(t->p_status == P_READY)
             {
                 printf("Signalling condition\n"); 
                 pthread_cond_signal(&t->queue_ready);
             }
-            if(t->p_status==P_STARTUP)
-                t->p_status=P_STANDBY;
-            else if(t->p_status==P_STANDBY)
-                t->p_status=P_READY; 
-            segment_start = m->segment_dur_ms * (curr_segment - m->init);
-            buffered_duration = (segment_start * 1000) - t->playout_time;
-            fflush(stdout);
             pthread_mutex_unlock(&t->msg_mutex);
         }
-        
-        
+
         if((delay = (buffered_duration - buffer_dur_ms)) >= 1000 ) {
             /*Delay due to bufferLevel > bufferTarget is added to BOLA placeholder buffer*/
             printdebug(DOWNLOAD, "Buffer full, going to sleep for %ld milliseconds", delay);
             if ( t->Hollywood) {
-                int i = monitor_socket_for_delayed_packets(sock, (char *)rx_buf, HOLLYWOOD_MSG_SIZE, t, delay/1000, &download_time, download_start_time);
-                if (i > 0)
-                    bytes_rx+=i;
-                else
-                    bola.placeholderBuffer+= (float)delay/1000.0; 
+		printf("Delay before: %lld, ", delay); 
+                int i = monitor_socket_for_delayed_packets(sock, (char *)rx_buf, HOLLYWOOD_MSG_SIZE, t, &delay, &download_time, download_start_time);
+		printf("Delay after: %lld ", delay); 
+                bola.placeholderBuffer+= (float)delay/1000.0; 
             }
             else
             {
-                usleep(delay*1000); 
+                usleep(delay*1000);
                 bola.placeholderBuffer+= (float)delay/1000.0;
             }
             pthread_mutex_lock(&t->msg_mutex);
@@ -620,14 +623,17 @@ int download_segments_bola( manifest * m, transport * t , long long stime, long 
         }
 
         saveThroughput(&bola, (long)((double)bytes_rx*8/(download_time/1000000)));  /*bps*/
-        if(loss_alert)
-            curr_bitrate_level = getMaxIndex(&bola, 0, stime);
-        else
-            curr_bitrate_level = getMaxIndex(&bola, (float)buffered_duration/1000.0, stime);
-        
+        buffered_duration_in_sec = (float)buffered_duration/1000.0; 
+        if(loss_alert && buffered_duration_in_sec >= (float)m->segment_dur_ms )
+	{
+            buffered_duration_in_sec = buffered_duration_in_sec - (float)m->segment_dur_ms; 
+            printf("Setting Buffered duration to %f\n ", buffered_duration_in_sec);
+	}
+        curr_bitrate_level = getMaxIndex(&bola, buffered_duration_in_sec, stime);
+
         curr_url = m->bitrate_level[curr_bitrate_level].segments[curr_segment];
 
-        printf("BUFFER: %lld %lld %ld %d %d %ld (%llu:%llu (%d of %d)) %d %d\n", (gettimelong()-stime)/1000, t->playout_time, buffered_duration, curr_bitrate_level, curr_segment, m->bitrate_level[curr_bitrate_level].bitrate, curr_offset, end_offset, bytes_rx, contentlen, loss_alert, t->rx_buf->late_or_duplicate_packets);
+        printf("BUFFER: %lld %lld %ld %d %d %ld (%llu:%llu (%d of %d)) %d %d %lld\n", (gettimelong()-stime)/1000, t->playout_time, buffered_duration, curr_bitrate_level, curr_segment, m->bitrate_level[curr_bitrate_level].bitrate, curr_offset, end_offset, bytes_rx, contentlen, loss_alert, t->rx_buf->late_or_duplicate_packets,(long)((double)bytes_rx*8/(download_time/1000000)));
         if(t->loss_alert)
             t->loss_alert = 0;
 
@@ -642,7 +648,7 @@ int download_segments_bola( manifest * m, transport * t , long long stime, long 
         while (http_resp_len==0)
         {
             http_resp_len = get_html_headers(sock, buf, HTTPHEADERLEN, t->Hollywood, &substream, &new_seq, &curr_offset);
-            
+
             if( http_resp_len == 0 )
             {
                 close(t->sock);
@@ -757,7 +763,8 @@ int play_video (struct metrics * metric, manifest * media_manifest , transport *
     pthread_attr_t attr;
 
     metric->stime = gettimelong();
-    
+    min_buffer_len = metric->minbufferlen;
+
     /*Initialize the condition and mutex*/
     pthread_cond_init(&media_transport->msg_ready, NULL);
     pthread_cond_init(&media_transport->queue_ready, NULL);

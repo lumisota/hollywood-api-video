@@ -23,7 +23,7 @@ extern "C" {
 
 /* Buffer size of ~15MB, would hold for instance ~15 seconds of 8Mbps video
  * and 1000 Hollywood messages, each of HOLLYWOOD_MSG_SIZE bytes*/
-#define MAX_QUEUED_MSGS 10000
+#define MAX_QUEUED_MSGS 50000
 
 
 struct playout_buffer
