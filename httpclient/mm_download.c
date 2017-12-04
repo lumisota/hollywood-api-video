@@ -588,9 +588,7 @@ int download_segments_bola( manifest * m, transport * t , long long stime, long 
             /*Delay due to bufferLevel > bufferTarget is added to BOLA placeholder buffer*/
             printdebug(DOWNLOAD, "Buffer full, going to sleep for %ld milliseconds", delay);
             if ( t->Hollywood) {
-		printf("Delay before: %lld, ", delay); 
                 int i = monitor_socket_for_delayed_packets(sock, (char *)rx_buf, HOLLYWOOD_MSG_SIZE, t, &delay, &download_time, download_start_time);
-		printf("Delay after: %lld ", delay); 
                 bola.placeholderBuffer+= (float)delay/1000.0; 
             }
             else

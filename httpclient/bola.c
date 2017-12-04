@@ -13,16 +13,6 @@
 #define BOLAMETRIC "ABR"
 #define BOLA "BOLA"
 
-void pprintdebug(const char* source, const char* format, ... )
-{
-    va_list args;
-    fprintf( stdout,"%s: ", source );
-    va_start( args, format );
-    vfprintf( stdout, format, args );
-    va_end( args );
-    fprintf( stdout, "\n" );
-    fflush(stdout); 
-}
 
 float getStableBufferTime()
 {
@@ -156,7 +146,7 @@ int calculateInitialState(manifest * m, int isDynamic, struct bola_state * initi
      * measured throughput calculations will be. please use carefully. This will directly
      * affect the ABR logic in dash.js*/
     
-    initialState->bandwidthSafetyFactor = 0.9;
+    initialState->bandwidthSafetyFactor = 0.85;
     initialState->rebufferSafetyFactor  = REBUFFER_SAFETY_FACTOR;
     initialState->bufferTarget          = getStableBufferTime();
     

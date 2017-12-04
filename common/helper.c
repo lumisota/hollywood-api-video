@@ -26,6 +26,12 @@ void printdebug(const char* source, const char* format, ... )
     fprintf( stderr, "\n" );
 }
 
+/*Defined as secondary print function for debug reasons, modify if needed*/
+void pprintdebug(const char* source, const char* format, ... )
+{
+   return; 
+}
+
 
 
 
