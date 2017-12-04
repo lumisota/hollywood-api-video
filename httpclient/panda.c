@@ -25,7 +25,7 @@ void initialize_panda(struct panda_state * panda, manifest * m, uint64_t buffer_
         panda->bitrates[i] = (double)m->bitrate_level[i].bitrate;
     }
     panda->num_of_levels = m->num_of_levels;
-    panda->segment_duration = m->segment_dur_ms;
+    panda->segment_duration = m->segment_dur_s;
     B0 = buffer_size_us;
     return;
 }

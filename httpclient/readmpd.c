@@ -354,7 +354,7 @@ int read_mpddata(char * memory, char mpdlink[], manifest * m)
     }
     
     m->num_of_levels = num_of_rates;
-    m->segment_dur_ms = (segdur/timescale);
+    m->segment_dur_s = (segdur/timescale);
     
     int j, k;
     for (j = 0; j < num_of_rates; j++)

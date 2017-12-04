@@ -138,7 +138,7 @@ int calculateInitialState(manifest * m, int isDynamic, struct bola_state * initi
     
     initialState->state                 = BOLA_STATE_STARTUP;
     initialState->isDynamic             = isDynamic;
-    initialState->fragmentDuration      = m->segment_dur_ms;
+    initialState->fragmentDuration      = m->segment_dur_s;
     
     /* SA: COMMENTS COPIED FROM streaming/MediaPlayer.js, we hardcode the default value
      * A percentage between 0.0 and 1 to reduce the measured throughput calculations.
