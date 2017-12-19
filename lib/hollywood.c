@@ -48,7 +48,7 @@
 #endif 
 /* Message queue functions */
 int add_message(hlywd_sock *socket, uint8_t *data, size_t len);
-size_t dequeue_message(hlywd_sock *socket, uint8_t *buf, uint8_t *substream_id);
+size_t dequeue_message(hlywd_sock *socket, uint8_t *buf, size_t len, uint8_t *substream_id);
 
 /* Segment parsing */
 void parse_segment(hlywd_sock *socket, uint8_t *segment, size_t segment_len, tcp_seq sequence_num);
@@ -94,7 +94,8 @@ int hollywood_socket(int fd, hlywd_sock *socket, int oo, int pr) {
     
 	socket->current_sequence_num = 0;
     socket->old_segments.index = 0;
-    for (int i = 0; i < SEQNUM_MEMORYQ_LEN; i++) 
+    int i = 0;
+    for (i = 0; i < SEQNUM_MEMORYQ_LEN; i++) 
     {
         socket->old_segments.seq_num[i] = 0; 
     }
@@ -225,7 +226,8 @@ size_t encoded_len(size_t len) {
 
 int is_duplicate (hlywd_sock *socket, tcp_seq sequence_num)
 {
-    for (int i = 0; i < SEQNUM_MEMORYQ_LEN; i++) 
+    int i = 0;
+    for (i = 0; i < SEQNUM_MEMORYQ_LEN; i++) 
     {
         if (sequence_num == socket->old_segments.seq_num[i])
             return 1; 
@@ -271,32 +273,44 @@ ssize_t recv_message(hlywd_sock *socket, void *buf, size_t len, int flags, uint8
 			socket->current_sequence_num += segment_len;
 		}
 	    //fprintf(stderr, "[hlywd_lib] sbuf before\n");
-	    print_sbuffer(socket->sb);
-	    //fprintf(stderr, "[hlywd_lib] ---\n");
+	    //print_sbuffer(socket->sb);
+	    //fprintf(stderr, "[hlywd_lib] --- %d \n", segment_len);
 		parse_segment(socket, segment, segment_len, sequence_num);
 	    //fprintf(stderr, "[hlywd_lib] sbuf after\n");
-	    print_sbuffer(socket->sb);
+	    //print_sbuffer(socket->sb);
 	    //fprintf(stderr, "[hlywd_lib] ---\n");
         //fflush(stderr);
 	}
-	return dequeue_message(socket, (uint8_t *)buf, substream_id);
+	//logprint("trying to dequeue message.. len: %d", len);
+	return dequeue_message(socket, (uint8_t *)buf, len, substream_id);
 }
 
 /* Message queue functions */
 
 /* Removes the message at the head of the message queue */
-size_t dequeue_message(hlywd_sock *socket, uint8_t *buf, uint8_t *substream_id) {
+size_t dequeue_message(hlywd_sock *socket, uint8_t *buf, size_t len, uint8_t *substream_id) {
 	if (socket->message_count > 0) {
-		memcpy(buf, socket->message_q_head->data, socket->message_q_head->len);
+	    //logprint("message_q_head->len %d", socket->message_q_head->len);
+	    size_t copy_len = socket->message_q_head->len-socket->message_q_head->copied_len;
+	    if (copy_len > len) {
+	        copy_len = len;
+	    }
+	    //logprint("copy len is %d", copy_len);
+	    socket->message_q_head->copied_len += copy_len;
+		memcpy(buf, socket->message_q_head->data+(socket->message_q_head->copied_len-copy_len), copy_len);
 		memcpy(substream_id, &socket->message_q_head->substream_id, 1);
-		message *dequeued_msg = socket->message_q_head;
-		socket->message_q_head = dequeued_msg->next;
-		size_t return_len = dequeued_msg->len;
-		free(dequeued_msg->data-1);
-		free(dequeued_msg);
-		socket->message_count--;
-                //printf("Message: %2x%2x%2x%2x:%2x%2x%2x%2x\n",buf[0],buf[1],buf[2],buf[3],buf[return_len-8],buf[return_len-7],buf[return_len-6],buf[return_len-5]);
-		return return_len;
+		//logprint("hej");
+		if (socket->message_q_head->copied_len >= socket->message_q_head->len) {
+		    //logprint("I'm gonna catch ya, I'm gonna getcha");
+		    message *dequeued_msg = socket->message_q_head;
+		    socket->message_q_head = dequeued_msg->next;
+		    free(dequeued_msg->data-1);
+		    free(dequeued_msg);
+		    socket->message_count--;
+		} else {
+		    //logprint("oh ah oh, I want to taste the way that you bleed oohhhh");
+		}
+		return copy_len;
 	} else {
 		return -1;
 	}
@@ -312,6 +326,7 @@ int add_message(hlywd_sock *socket, uint8_t *data, size_t len) {
 	new_message->data = data+1;
 	new_message->len = len-1;
 	new_message->next = NULL;
+    new_message->copied_len = 0;
 	if (socket->message_q_head == NULL) {
 		socket->message_q_head = new_message;
 		socket->message_q_tail = new_message;
