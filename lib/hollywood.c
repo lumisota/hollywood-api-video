@@ -104,7 +104,6 @@ int hollywood_socket(int fd, hlywd_sock *socket, int oo, int pr) {
 	return result;
 }
 
-
 int recv_nb(int fd, uint8_t *buffer, int len, int flags, int timeout) {
     
     fd_set readset;
@@ -123,10 +122,8 @@ int recv_nb(int fd, uint8_t *buffer, int len, int flags, int timeout) {
     {
         result = select(fd+1, &readset, NULL, NULL, NULL);
     }
-   // printf("Return: %d \n", result);
     if (result < 0)
     {
-        printf("Select failed for some reason\n");
         return -1;
     }
     else if (result > 0 && FD_ISSET(fd, &readset)) {
@@ -172,7 +169,6 @@ ssize_t send_message_time_sub(hlywd_sock *socket, const void *buf, size_t len, i
 	    memcpy(encoded_message+metadata_start+5+sizeof(struct timespec), &socket->playout_delay, sizeof(struct timespec));
 	    /* free pre-encoding buffer */
 	    free(preencode_buf);
-	    printf("sub-stream id: %c\n", encoded_message[metadata_start]);
 	    /* send, returning sent size to application */
 	    return send(socket->sock_fd, encoded_message, encoded_len+5+2*sizeof(struct timespec)+2, flags);
     } else {
@@ -191,11 +187,9 @@ ssize_t send_message_time(hlywd_sock *socket, const void *buf, size_t len, int f
 
 /* Sends a non-time-lined message */
 ssize_t send_message_sub(hlywd_sock *socket, const void *buf, size_t len, int flags, uint8_t substream_id) {
-    //printf("sending a message with length %d..\n", len);
 	/* Add sub-stream ID to start of unencoded data */
-        uint8_t * tmp = (uint8_t * ) buf;
-        //printf("Message: %2x%2x%2x%2x:%2x%2x%2x%2x\n",tmp[0],tmp[1],tmp[2],tmp[3],tmp[len-8],tmp[len-7],tmp[len-6],tmp[len-5]);	
-        uint8_t *preencode_buf = (uint8_t *) malloc(len+1);
+    uint8_t * tmp = (uint8_t * ) buf;
+    uint8_t *preencode_buf = (uint8_t *) malloc(len+1);
 	memcpy(preencode_buf, &substream_id, 1);
 	memcpy(preencode_buf+1, buf, len);
 	len++;
@@ -209,9 +203,14 @@ ssize_t send_message_sub(hlywd_sock *socket, const void *buf, size_t len, int fl
 	/* free pre-encoding buffer */
 	free(preencode_buf);
 	/* send, returning sent size to application */
-	//fprintf(stderr, "[hlywd_lib] sending message (size: %d)\n", len);
-    //fflush(stderr);
-	return send(socket->sock_fd, encoded_message, encoded_len+2, flags);
+    ssize_t bytes_written = 0;
+    while (bytes_written < len) {
+        ssize_t bytes_attempted = send(socket->sock_fd, encoded_message+bytes_written, encoded_len+2-bytes_written, flags);
+        if (bytes_attempted > -1) {
+            bytes_written += bytes_attempted;
+        }
+    }
+	return bytes_written;
 }
 
 /* Sends a message */
@@ -246,16 +245,12 @@ ssize_t recv_message(hlywd_sock *socket, void *buf, size_t len, int flags, uint8
 		uint8_t segment[1500+sizeof(tcp_seq)];
 		tcp_seq sequence_num = 0;
 		ssize_t segment_len;
-        //printf("(Hollywood[%d:%d]... ",socket->sock_fd, flags);
-        //fflush(stdout);
         if(timeout_s>0) {
     		segment_len = recv_nb(socket->sock_fd, segment, 1500+sizeof(tcp_seq), flags, timeout_s);
     	}
         else {   
 		    segment_len = recv(socket->sock_fd, segment, 1500+sizeof(tcp_seq), flags);
 		}
-        //printf(" %d bytes (%x:%x)) ", segment_len, segment[0], segment[segment_len-1]); fflush(stdout);
-        //printf("received %d bytes..\n", segment_len);
 		if (segment_len <= 0) {
 			return segment_len;
 		}
@@ -267,21 +262,11 @@ ssize_t recv_message(hlywd_sock *socket, void *buf, size_t len, int flags, uint8
 			//	    continue; 
 			}
 		} else {
-		    //fprintf(stderr, "[hlywd_lib] receiving %d\n", segment_len);
-		    //fflush(stderr);
 			sequence_num = socket->current_sequence_num;
 			socket->current_sequence_num += segment_len;
 		}
-	    //fprintf(stderr, "[hlywd_lib] sbuf before\n");
-	    //print_sbuffer(socket->sb);
-	    //fprintf(stderr, "[hlywd_lib] --- %d \n", segment_len);
 		parse_segment(socket, segment, segment_len, sequence_num);
-	    //fprintf(stderr, "[hlywd_lib] sbuf after\n");
-	    //print_sbuffer(socket->sb);
-	    //fprintf(stderr, "[hlywd_lib] ---\n");
-        //fflush(stderr);
 	}
-	//logprint("trying to dequeue message.. len: %d", len);
 	return dequeue_message(socket, (uint8_t *)buf, len, substream_id);
 }
 
@@ -290,25 +275,19 @@ ssize_t recv_message(hlywd_sock *socket, void *buf, size_t len, int flags, uint8
 /* Removes the message at the head of the message queue */
 size_t dequeue_message(hlywd_sock *socket, uint8_t *buf, size_t len, uint8_t *substream_id) {
 	if (socket->message_count > 0) {
-	    //logprint("message_q_head->len %d", socket->message_q_head->len);
 	    size_t copy_len = socket->message_q_head->len-socket->message_q_head->copied_len;
 	    if (copy_len > len) {
 	        copy_len = len;
 	    }
-	    //logprint("copy len is %d", copy_len);
 	    socket->message_q_head->copied_len += copy_len;
 		memcpy(buf, socket->message_q_head->data+(socket->message_q_head->copied_len-copy_len), copy_len);
 		memcpy(substream_id, &socket->message_q_head->substream_id, 1);
-		//logprint("hej");
 		if (socket->message_q_head->copied_len >= socket->message_q_head->len) {
-		    //logprint("I'm gonna catch ya, I'm gonna getcha");
 		    message *dequeued_msg = socket->message_q_head;
 		    socket->message_q_head = dequeued_msg->next;
 		    free(dequeued_msg->data-1);
 		    free(dequeued_msg);
 		    socket->message_count--;
-		} else {
-		    //logprint("oh ah oh, I want to taste the way that you bleed oohhhh");
 		}
 		return copy_len;
 	} else {
@@ -318,9 +297,9 @@ size_t dequeue_message(hlywd_sock *socket, uint8_t *buf, size_t len, uint8_t *su
 
 /* Adds a message to the end of the message queue */
 int add_message(hlywd_sock *socket, uint8_t *data, size_t len) {
-    //printf("message (len %zu)\n", len);
-	//fprintf(stderr, "[hlywd_lib] receiving message (size: %d)\n", len);
-    //fflush(stderr);
+    if (len == 0) {
+        return 0;
+    }
 	message *new_message = (message *) malloc(sizeof(message));
 	memcpy(&new_message->substream_id, data, 1);
 	new_message->data = data+1;
@@ -341,8 +320,6 @@ int add_message(hlywd_sock *socket, uint8_t *data, size_t len) {
 
 /* Parse an incoming segment */
 void parse_segment(hlywd_sock *socket, uint8_t *segment, size_t segment_len, tcp_seq sequence_num) {
-    //fprintf(stderr, "segment (seq %zu, len %zu)\n", sequence_num, segment_len);
-    //fflush(stderr);
 	int message_region_start = 0;
 	int message_region_end = segment_len-1;
 	/* check for head */
@@ -471,10 +448,19 @@ void destroy_sb_entry(sparsebuffer_entry *sb_entry) {
 	free(sb_entry);
 }
 
+void destroy_sbuffer(sparsebuffer *sb) {
+    while (sb->head) {
+        sparsebuffer_entry *next = sb->head->next;
+        destroy_sb_entry(sb->head);
+        sb->head = next;
+    }
+    free(sb);
+}
+
 void print_sbuffer(sparsebuffer *sb) {
 	sparsebuffer_entry *sb_entry = sb->head;
 	while (sb_entry != NULL) {
-		//print_sbuffer_entry(sb_entry);
+		print_sbuffer_entry(sb_entry);
 		sb_entry = sb_entry->next;
 	}
 }
@@ -492,8 +478,7 @@ sparsebuffer_entry *add_entry(sparsebuffer *sb, tcp_seq sequence_num, size_t len
     }
     /* construct new entry */
     sparsebuffer_entry *new_sbe = (sparsebuffer_entry *) malloc(sizeof(sparsebuffer_entry));
-    //printf(">>>\n");
-    //print_sbuffer_entry(starts_in);
+
     /* populate sequence number */
     if (starts_in != NULL && starts_in->sequence_num < sequence_num) {
         new_sbe->sequence_num = starts_in->sequence_num;
@@ -570,4 +555,9 @@ sparsebuffer_entry *add_entry(sparsebuffer *sb, tcp_seq sequence_num, size_t len
         destroy_sb_entry(ends_in);
     }
     return new_sbe;
+}
+
+void destroy_hollywood_socket(hlywd_sock *socket) {
+    destroy_sbuffer(socket->sb);
+    free(socket);
 }

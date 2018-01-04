@@ -94,6 +94,7 @@ typedef struct hlywd_sock {
 } hlywd_sock;
 
 int hollywood_socket(int fd, hlywd_sock *socket, int oo, int pr);
+void destroy_hollywood_socket(hlywd_sock *socket);
 
 void set_playout_delay(hlywd_sock *socket, int pd_ms);
 
