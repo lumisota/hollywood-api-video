@@ -35,12 +35,6 @@ all: httpc httptl #httpd
 clean:
 	rm httpd httpc httptl $(SERVER_TL_OBJ) $(SERVER_OBJ) $(LIB_OBJ) $(CLIENT_OBJ) $(COMMON_OBJ) $(CLIENT_CPP_OBJ) 
 
-testfiles:
-	curl http://www.netlab.tkk.fi/tutkimus/rtc/BBB_8bitrates_hd.tar.gz > BBB_8bitrates_hd.tar.gz
-	tar -zxvf BBB_8bitrates_hd.tar.gz
-	mkdir testfiles
-	mv BBB_8bitrates_hd testfiles/.
-
 $(COMMON_OBJ): $(patsubst %,$(COMMON_DIR)/%, $(COMMON_HDR))
 	$(CC) $(CCFLAGS) $(COMMON_DIR)/$*.c -o $*.o 
 
@@ -61,12 +55,12 @@ $(LIB_OBJ): $(patsubst %,$(LIB_DIR)/%, $(LIB_HDR))
 	$(CC) $(CCFLAGS) -x c $(LIB_DIR)/$*.c -o $*.o 
 
 
-#httpd: $(COMMON_OBJ) $(SERVER_OBJ) $(LIB_OBJ) testfiles
+#httpd: $(COMMON_OBJ) $(SERVER_OBJ) $(LIB_OBJ)
 #	$(CC) -o httpd $(SERVER_OBJ) $(COMMON_OBJ) $(LIB_OBJ) $(LDFLAGS) 
 
-httptl: $(COMMON_OBJ) $(SERVER_TL_OBJ) $(LIB_OBJ) testfiles
+httptl: $(COMMON_OBJ) $(SERVER_TL_OBJ) $(LIB_OBJ)
 	$(CC) -o httptl $(SERVER_TL_OBJ) $(COMMON_OBJ) $(LIB_OBJ) $(LDFLAGS) 
 
-httpc: $(COMMON_OBJ) $(CLIENT_CPP_OBJ) $(CLIENT_OBJ) $(LIB_OBJ) testfiles
+httpc: $(COMMON_OBJ) $(CLIENT_CPP_OBJ) $(CLIENT_OBJ) $(LIB_OBJ)
 	$(CPP) -o httpc $(CLIENT_OBJ) $(COMMON_OBJ) $(CLIENT_CPP_OBJ) $(LIB_OBJ) $(LDFLAGS) 
 
