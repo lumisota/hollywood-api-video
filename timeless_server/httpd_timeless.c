@@ -66,7 +66,7 @@ void * accept_request(void * a)
     char buf[HTTPHEADERLEN];
     int numchars;
     char method[255];
-    char url[255];
+    char *url = (char *) malloc(255);
     char path[512];
     size_t i, j;
     struct stat st;
@@ -130,8 +130,8 @@ void * accept_request(void * a)
         }
         
 
-        sprintf(path, "%s", url);
-        path++; // skip the leading '/'
+        sprintf(path, "%s", url+1);
+
         if (path[strlen(path) - 1] == '/')
             strcat(path, "index.html");
         if (strstr(path, ".mpd")!=NULL)
@@ -165,6 +165,7 @@ void * accept_request(void * a)
     }
     printf("\nClosing client connection %d after %d Requests \n", *(int *)a, num_of_requests);
     close(*(int *)a);
+    free(url);
     return NULL;
 }
 
