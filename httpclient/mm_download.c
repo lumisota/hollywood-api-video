@@ -607,12 +607,14 @@ int download_segments_bola( manifest * m, transport * t , long long stime, long 
         if ((delay = (segment_start * 1000000) - (gettimelong()-stime + ENCODING_DELAY*1000)) > 10000)
         {
             printdebug(DOWNLOAD, "Encoding Delay: waiting %lld ms \n", delay/1000);
+
             bola.placeholderBuffer+= (double)delay/1000000.0;
             usleep(delay);
             pthread_mutex_lock(&t->msg_mutex);
             buffered_duration = (segment_start * 1000) - t->playout_time;
             pthread_mutex_unlock(&t->msg_mutex);
         }
+
         */
         if(buffered_duration< 0) {
             /*This shouldn't happen*/
@@ -799,3 +801,4 @@ int play_video (struct metrics * metric, manifest * media_manifest , transport *
 
 
 }
+

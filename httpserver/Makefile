@@ -1,5 +1,5 @@
 CC=gcc
-CCFLAGS=-c -g -I/usr/local/include -std=c99
+CCFLAGS=-c -g -I/usr/local/include
 LDFLAGS=-L/usr/local/lib -lpthread
 
 ALL_OBJ=media_sender.o httpd.o ../common/http_ops.o

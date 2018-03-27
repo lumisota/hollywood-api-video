@@ -20,7 +20,6 @@
 
 char *str_replace(char *orig, char *rep, char *with);
 void printdebug(const char* source, const char* format, ... );
-void pprintdebug(const char* source, const char* format, ... );
 
 
 static inline void memzero (void * ptr, int size)

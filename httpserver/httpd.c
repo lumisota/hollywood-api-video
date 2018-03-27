@@ -86,7 +86,7 @@ void * accept_request(void * a)
     else
     {
         int flag = 1;
-        int fd = *((int *)a);
+        int fd = *((int *)a;
         int result = setsockopt(fd, IPPROTO_TCP, TCP_NODELAY, (char *) &flag, sizeof(int));
         if (result<0)
            printf("Setting TCP_NODELAY on TCP socket failed");
@@ -247,7 +247,7 @@ int serve_file(void * sock, const char *filename, int seq)
                 stream_seq = 0;
 
             }
-            ret = cat(sock, resource, 1, Hollywood);
+            ret = cat(sock, resource, Hollywood);
         }
         fclose(resource);
     }

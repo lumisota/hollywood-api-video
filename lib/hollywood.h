@@ -45,7 +45,6 @@
 typedef struct message {
 	uint8_t *data;
 	size_t len;
-	size_t copied_len;
 	uint8_t substream_id;
 	struct message *next;
 } message;
@@ -94,7 +93,6 @@ typedef struct hlywd_sock {
 } hlywd_sock;
 
 int hollywood_socket(int fd, hlywd_sock *socket, int oo, int pr);
-void destroy_hollywood_socket(hlywd_sock *socket);
 
 void set_playout_delay(hlywd_sock *socket, int pd_ms);
 
