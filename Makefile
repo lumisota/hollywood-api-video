@@ -55,7 +55,7 @@ $(LIB_OBJ): $(patsubst %,$(LIB_DIR)/%, $(LIB_HDR))
 	$(CC) $(CCFLAGS) -x c $(LIB_DIR)/$*.c -o $*.o 
 
 
-#httpd: $(COMMON_OBJ) $(SERVER_OBJ) $(LIB_OBJ) testfiles
+#httpd: $(COMMON_OBJ) $(SERVER_OBJ) $(LIB_OBJ) 
 #	$(CC) -o httpd $(SERVER_OBJ) $(COMMON_OBJ) $(LIB_OBJ) $(LDFLAGS) 
 
 httptl: $(COMMON_OBJ) $(SERVER_TL_OBJ) $(LIB_OBJ)
