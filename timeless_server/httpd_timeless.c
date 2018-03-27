@@ -131,6 +131,7 @@ void * accept_request(void * a)
         
 
         sprintf(path, "%s", url);
+        path++; // skip the leading '/'
         if (path[strlen(path) - 1] == '/')
             strcat(path, "index.html");
         if (strstr(path, ".mpd")!=NULL)
