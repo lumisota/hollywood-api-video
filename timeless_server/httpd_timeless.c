@@ -115,7 +115,7 @@ void * accept_request(void * a)
         i = 0;
         while (ISspace(buf[j]) && (j < sizeof(buf)))
             j++;
-        while (!ISspace(buf[j]) && (i < sizeof(url) - 1) && (j < sizeof(buf)))
+        while (!ISspace(buf[j]) && (i < 254) && (j < sizeof(buf)))
         {
             url[i] = buf[j];
             i++; j++;
