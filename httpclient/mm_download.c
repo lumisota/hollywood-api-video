@@ -132,9 +132,9 @@ int download_segments_abmap( manifest * m, transport * t , long long stime)
     {
         repVector.push_back((uint64_t) m->bitrate_level[i].bitrate);
     }
-    printf("Segment Duration: %ld\n", m->segment_dur_s);
+    printf("Segment Duration: %ld\n", m->segment_dur_ms); 
 
-    buffMgr = new AdaptationManagerABMAplus(repVector, m->segment_dur_s*1000000, (uint64_t)buffer_dur_ms*1000, 2000000, 10, 50, 0.1 );
+    buffMgr = new AdaptationManagerABMAplus(repVector, m->segment_dur_ms*1000000, (uint64_t)buffer_dur_ms*1000, 2000000, 10, 50, 0.1 );
 
     while (curr_segment < m->num_of_segments ){
         
@@ -160,7 +160,7 @@ int download_segments_abmap( manifest * m, transport * t , long long stime)
                 t->p_status=P_STANDBY;
             else if(t->p_status==P_STANDBY)
                 t->p_status=P_READY;
-            segment_start = m->segment_dur_s * (curr_segment - m->init);
+            segment_start = m->segment_dur_ms * (curr_segment - m->init);
             buffered_duration = (segment_start * 1000) - t->playout_time;
             //printf("Buffered Duration %ld, (segment_start %ld, playout_time %ld)\n",  buffered_duration,segment_start, t->playout_time);
             fflush(stdout);
@@ -333,10 +333,6 @@ int download_segments_panda( manifest * m, transport * t , long long stime, long
     long target_avg_bitrate = 500000; /* bit/s */
     long rate_limit = 100000000; /* bit/s */
     uint8_t loss_alert              = 0;
-    long long last_seq_last_chunk   = 0;
-    long long bytes_rx_this_chunk   = 0;
-    float buffered_duration_in_sec  = 0.0;
-
     
     if ( t->Hollywood) {
         sock = &(t->h_sock);
@@ -361,31 +357,39 @@ int download_segments_panda( manifest * m, transport * t , long long stime, long
             }
             loss_alert = t->loss_alert;
             t->loss_alert = 0;
-            segment_start = m->segment_dur_s * (curr_segment - m->init);
-            buffered_duration = (segment_start * 1000) - t->playout_time;
-            if(t->p_status==P_STARTUP && buffered_duration > min_buffer_len)
-                t->p_status=P_READY;
             if(t->p_status == P_READY)
             {
-                printf("Signalling condition\n");
                 pthread_cond_signal(&t->queue_ready);
+                panda_enabled = 1;
             }
+            if(t->p_status==P_STARTUP)
+                t->p_status=P_STANDBY;
+            else if(t->p_status==P_STANDBY)
+                t->p_status=P_READY; 
+            segment_start = m->segment_dur_ms * (curr_segment - m->init);
+            buffered_duration = (segment_start * 1000) - t->playout_time;
+            //printf("Buffered Duration %ld, (segment_start %ld, playout_time %ld)\n",  buffered_duration,segment_start, t->playout_time);
+            fflush(stdout);
             pthread_mutex_unlock(&t->msg_mutex);
         }
-        buffered_duration_in_sec = (float)buffered_duration/1000.0;
-        if(loss_alert && buffered_duration_in_sec >= (float)m->segment_dur_s )
-            buffered_duration_in_sec = buffered_duration_in_sec - (float)m->segment_dur_ms;
-        
-        curr_bitrate_level = BandwidthAdaptation(throughput, &panda,
+        if(loss_alert)
+            curr_bitrate_level = BandwidthAdaptation(throughput, &panda,
                                                  download_time/1000000,
                                                  &target_inter_request_time,
-                                                 &target_bitrate, buffered_duration_in_sec,
+                                                 &target_bitrate, 0,
                                                  &target_avg_bitrate, &rate_limit,
                                                  curr_bitrate_level, panda_enabled);
-        
+        else
+            curr_bitrate_level = BandwidthAdaptation(throughput, &panda,
+                                                 download_time/1000000,
+                                                 &target_inter_request_time,
+                                                 &target_bitrate, buffered_duration/1000,
+                                                 &target_avg_bitrate, &rate_limit,
+                                                 curr_bitrate_level, panda_enabled);
         curr_url = m->bitrate_level[curr_bitrate_level].segments[curr_segment];
         
         if(target_inter_request_time >= 1000 ) {
+                    /*Delay due to bufferLevel > bufferTarget is added to BOLA placeholder buffer*/
             printdebug(DOWNLOAD, "Buffer full, going to sleep for %ld milliseconds", delay);
             if ( t->Hollywood) {
                 long long tmp_delay = delay;
@@ -409,10 +413,7 @@ int download_segments_panda( manifest * m, transport * t , long long stime, long
             printdebug(DOWNLOAD,"Getting negative buffered duration, zeroing it");
             buffered_duration = 0 ;
         }
-        printf("BUFFER: %lld %lld %ld %d %d %ld (%llu:%llu (%d of %d)) %d %d %lld\n", (gettimelong()-stime)/1000, t->playout_time, buffered_duration, curr_bitrate_level, curr_segment, m->bitrate_level[curr_bitrate_level].bitrate, curr_offset, end_offset, bytes_rx, contentlen, loss_alert, t->rx_buf->late_or_duplicate_packets,(long)((double)bytes_rx*8/(download_time/1000000)));
-
-        if(t->loss_alert)
-            t->loss_alert = 0;
+        printf("BUFFER: %lld %lld %ld %d %d %ld (%llu:%llu (%d of %d)) %d %d\n", (gettimelong()-stime)/1000, t->playout_time, buffered_duration, curr_bitrate_level, curr_segment, m->bitrate_level[curr_bitrate_level].bitrate, curr_offset, end_offset, bytes_rx, contentlen, loss_alert, t->rx_buf->late_or_duplicate_packets);
         
         bytes_rx = 0;
         download_start_time = gettimelong();
@@ -454,15 +455,15 @@ int download_segments_panda( manifest * m, transport * t , long long stime, long
         }
         
         end_offset += contentlen;
-        bytes_rx_this_chunk = 0;
-        while ((bytes_rx < contentlen && !t->Hollywood) || ((bytes_rx_this_chunk < min_rxcontent_ratio*contentlen )&& t->Hollywood) )
+        while ((bytes_rx < contentlen && !t->Hollywood) || ((highest_offset < end_offset ||  bytes_rx < min_rxcontent_ratio*contentlen )&& t->Hollywood) )
         {
             if(endnow)
                 goto END_DOWNLOAD; 
             
             ret = read_http_body_partial(sock, rx_buf, HOLLYWOOD_MSG_SIZE, t->Hollywood, &new_seq, &curr_offset);
             //printf("2. Received packet size %d, offset %" PRIu64 ", seq %u\n", ret, curr_offset, new_seq); 
-
+            if(highest_offset<curr_offset)
+                highest_offset = curr_offset;
             if(ret==-2)
             {
                 printdebug(DOWNLOAD,"Timeout occurred while receiving for HTTP body\n"); 
@@ -475,15 +476,11 @@ int download_segments_panda( manifest * m, transport * t , long long stime, long
             }
             
             
-            ret = add_to_queue((unsigned char *)rx_buf, ret, t, new_seq);
-            bytes_rx += ret;
-            if(new_seq >last_seq_last_chunk)
-                bytes_rx_this_chunk+=ret;
-
+            bytes_rx += add_to_queue((unsigned char *)rx_buf, ret, t, new_seq);
+            
         }
-        last_seq_last_chunk = ceil(contentlen/HOLLYWOOD_MSG_SIZE);
-        download_time = gettimelong() - download_start_time;
 
+        download_time = gettimelong() - download_start_time;
 
         throughput =  (long)((double)bytes_rx*8/(download_time/1000000));
         
@@ -575,7 +572,7 @@ int download_segments_bola( manifest * m, transport * t , long long stime, long 
             }
             loss_alert = t->loss_alert;
             t->loss_alert = 0;
-            segment_start = m->segment_dur_s * (curr_segment - m->init);
+            segment_start = m->segment_dur_ms * (curr_segment - m->init);
             buffered_duration = (segment_start * 1000) - t->playout_time;
             if(t->p_status==P_STARTUP && buffered_duration > min_buffer_len)
                 t->p_status=P_READY;
@@ -591,7 +588,9 @@ int download_segments_bola( manifest * m, transport * t , long long stime, long 
             /*Delay due to bufferLevel > bufferTarget is added to BOLA placeholder buffer*/
             printdebug(DOWNLOAD, "Buffer full, going to sleep for %ld milliseconds", delay);
             if ( t->Hollywood) {
+		printf("Delay before: %lld, ", delay); 
                 int i = monitor_socket_for_delayed_packets(sock, (char *)rx_buf, HOLLYWOOD_MSG_SIZE, t, &delay, &download_time, download_start_time);
+		printf("Delay after: %lld ", delay); 
                 bola.placeholderBuffer+= (float)delay/1000.0; 
             }
             else
@@ -608,14 +607,12 @@ int download_segments_bola( manifest * m, transport * t , long long stime, long 
         if ((delay = (segment_start * 1000000) - (gettimelong()-stime + ENCODING_DELAY*1000)) > 10000)
         {
             printdebug(DOWNLOAD, "Encoding Delay: waiting %lld ms \n", delay/1000);
-
             bola.placeholderBuffer+= (double)delay/1000000.0;
             usleep(delay);
             pthread_mutex_lock(&t->msg_mutex);
             buffered_duration = (segment_start * 1000) - t->playout_time;
             pthread_mutex_unlock(&t->msg_mutex);
         }
-
         */
         if(buffered_duration< 0) {
             /*This shouldn't happen*/
@@ -625,9 +622,9 @@ int download_segments_bola( manifest * m, transport * t , long long stime, long 
 
         saveThroughput(&bola, (long)((double)bytes_rx*8/(download_time/1000000)));  /*bps*/
         buffered_duration_in_sec = (float)buffered_duration/1000.0; 
-        if(loss_alert && buffered_duration_in_sec >= (float)m->segment_dur_s )
+        if(loss_alert && buffered_duration_in_sec >= (float)m->segment_dur_ms )
 	{
-            buffered_duration_in_sec = buffered_duration_in_sec - (float)m->segment_dur_s;
+            buffered_duration_in_sec = buffered_duration_in_sec - (float)m->segment_dur_ms; 
             printf("Setting Buffered duration to %f\n ", buffered_duration_in_sec);
 	}
         curr_bitrate_level = getMaxIndex(&bola, buffered_duration_in_sec, stime);
@@ -802,4 +799,3 @@ int play_video (struct metrics * metric, manifest * media_manifest , transport *
 
 
 }
-
