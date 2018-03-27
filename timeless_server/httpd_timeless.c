@@ -129,6 +129,8 @@ void * accept_request(void * a)
                 query_string++;
         }
         
+
+        sprintf(path, "%s", url);
         if (path[strlen(path) - 1] == '/')
             strcat(path, "index.html");
         if (strstr(path, ".mpd")!=NULL)
