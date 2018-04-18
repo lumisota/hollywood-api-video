@@ -156,7 +156,7 @@ int calculateInitialState(manifest * m, int isDynamic, struct bola_state * initi
      * measured throughput calculations will be. please use carefully. This will directly
      * affect the ABR logic in dash.js*/
     
-    initialState->bandwidthSafetyFactor = 0.9;
+    initialState->bandwidthSafetyFactor = 0.85;
     initialState->rebufferSafetyFactor  = REBUFFER_SAFETY_FACTOR;
     initialState->bufferTarget          = getStableBufferTime();
     
