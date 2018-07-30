@@ -94,7 +94,8 @@ int hollywood_socket(int fd, hlywd_sock *socket, int oo, int pr) {
     
 	socket->current_sequence_num = 0;
     socket->old_segments.index = 0;
-    for (int i = 0; i < SEQNUM_MEMORYQ_LEN; i++) 
+    int i;
+    for (i = 0; i < SEQNUM_MEMORYQ_LEN; i++) 
     {
         socket->old_segments.seq_num[i] = 0; 
     }
@@ -225,7 +226,8 @@ size_t encoded_len(size_t len) {
 
 int is_duplicate (hlywd_sock *socket, tcp_seq sequence_num)
 {
-    for (int i = 0; i < SEQNUM_MEMORYQ_LEN; i++) 
+	int i;
+    for (i = 0; i < SEQNUM_MEMORYQ_LEN; i++) 
     {
         if (sequence_num == socket->old_segments.seq_num[i])
             return 1; 
