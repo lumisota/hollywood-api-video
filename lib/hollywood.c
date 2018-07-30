@@ -54,7 +54,7 @@ size_t dequeue_message(hlywd_sock *socket, uint8_t *buf, uint8_t *substream_id);
 void parse_segment(hlywd_sock *socket, uint8_t *segment, size_t segment_len, tcp_seq sequence_num);
 
 /* Utility functions */
-void print_data(uint8_t *data, size_t data_len);
+//void print_data(uint8_t *data, size_t data_len);
 
 /* Sparsebuffer functions */
 
@@ -398,18 +398,18 @@ void parse_segment(hlywd_sock *socket, uint8_t *segment, size_t segment_len, tcp
 
 /* Utility functions */
 
-void print_data(uint8_t *data, size_t len) {
-	printf("[");
-	int i;
-	for (i = 0; i < len; i++) {
-		if (data[i] == '\0') {
-			printf("0");
-		} else {
-			printf(".");
-		}
-	}
-	printf("]\n");
-}
+//void print_data(uint8_t *data, size_t len) {
+//	printf("[");
+//	int i;
+//	for (i = 0; i < len; i++) {
+//		if (data[i] == '\0') {
+//			printf("0");
+//		} else {
+//			printf(".");
+//		}
+//	}
+//	printf("]\n");
+//}
 
 /* Sparsebuffer functions */
 
