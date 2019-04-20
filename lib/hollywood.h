@@ -35,6 +35,7 @@
 #include <stdint.h>
 #include <netinet/tcp.h>
 #include <sys/time.h>
+#include <time.h>
 #include "cobs.h"
 
 #define MIN(a,b) (((a)<(b))?(a):(b))
@@ -45,6 +46,7 @@
 typedef struct message {
 	uint8_t *data;
 	size_t len;
+	size_t bytes_read;
 	uint8_t substream_id;
 	struct message *next;
 } message;
@@ -87,21 +89,25 @@ typedef struct hlywd_sock {
 	/*Received sequence numbers*/ 
     seq_num_manager old_segments; 
     
-    
 	int oo;
 	int pr;
+	
+	/* nb send buffer */
+	char *nb_send_buf;
+	size_t nb_send_buf_len;
+	size_t nb_send_buf_offset;
 } hlywd_sock;
 
 int hollywood_socket(int fd, hlywd_sock *socket, int oo, int pr);
 
 void set_playout_delay(hlywd_sock *socket, int pd_ms);
 
-ssize_t send_message_time(hlywd_sock *socket, const void *buf, size_t len, int flags, uint16_t sequence_num, uint16_t depends_on, int lifetime_ms);
-ssize_t send_message_sub(hlywd_sock *socket, const void *buf, size_t len, int flags, uint8_t substream_id);
-ssize_t send_message(hlywd_sock *socket, const void *buf, size_t len, int flags);
+ssize_t send_message_time(hlywd_sock *socket, const uint8_t *buf, size_t len, int flags, uint32_t sequence_num, uint32_t depends_on, int lifetime_ms);
+ssize_t send_message_sub(hlywd_sock *socket, const uint8_t *buf, size_t len, int flags, uint8_t substream_id);
+ssize_t send_message(hlywd_sock *socket, const uint8_t *buf, size_t len, int flags);
 
-ssize_t recv_message(hlywd_sock *socket, void *buf, size_t len, int flags, uint8_t *substream_id, int timeout_s);
+ssize_t recv_message(hlywd_sock *socket, uint8_t *buf, size_t len, int flags, uint8_t *substream_id, int timeout_s, int *read_all);
 
-ssize_t send_message_time_sub(hlywd_sock *socket, const void *buf, size_t len, int flags, uint16_t sequence_num, uint16_t depends_on, int lifetime_ms, uint8_t substream_id);
+ssize_t send_message_time_sub(hlywd_sock *socket, const uint8_t *buf, size_t len, int flags, uint32_t sequence_num, uint32_t depends_on, int lifetime_ms, uint8_t substream_id);
 
 #endif
