@@ -5,83 +5,54 @@
 #include <stdint.h>
 #include <stddef.h>
 
-/* Stuffs "length" bytes of data at the location pointed to by
- * "input", writing the output to the location pointed to by
- * "output". Returns the number of bytes written to "output".
- *
- * Remove the "restrict" qualifiers if compiling with a
- * pre-C99 C dialect.
- */
-size_t cobs_encode(const uint8_t *input, size_t length, uint8_t *output)
+#define StartBlock()	(code_ptr = dst++, code = 1)
+#define FinishBlock()	(*code_ptr = code)
+
+size_t cobs_encode(const uint8_t *ptr, size_t length, uint8_t *dst)
 {
-    size_t read_index = 0;
-    size_t write_index = 1;
-    size_t code_index = 0;
-    uint8_t code = 1;
+	const uint8_t *start = dst, *end = ptr + length;
+	uint8_t code, *code_ptr; /* Where to insert the leading count */
 
-    while(read_index < length)
-    {
-        if(input[read_index] == 0)
-        {
-            output[code_index] = code;
-            code = 1;
-            code_index = write_index++;
-            read_index++;
-        }
-        else
-        {
-            output[write_index++] = input[read_index++];
-            code++;
-            if(code == 0xFF)
-            {
-                output[code_index] = code;
-                code = 1;
-                code_index = write_index++;
-            }
-        }
-    }
-
-    output[code_index] = code;
-
-    return write_index;
+	StartBlock();
+	while (ptr < end) {
+		if (code != 0xFF) {
+			uint8_t c = *ptr++;
+			if (c != 0) {
+				*dst++ = c;
+				code++;
+				continue;
+			}
+		}
+		FinishBlock();
+		StartBlock();
+	}
+	FinishBlock();
+	return dst - start;
 }
 
-/* Unstuffs "length" bytes of data at the location pointed to by
- * "input", writing the output * to the location pointed to by
- * "output". Returns the number of bytes written to "output" if
- * "input" was successfully unstuffed, and 0 if there was an
- * error unstuffing "input".
+/*
+ * UnStuffData decodes "length" bytes of data at
+ * the location pointed to by "ptr", writing the
+ * output to the location pointed to by "dst".
  *
- * Remove the "restrict" qualifiers if compiling with a
- * pre-C99 C dialect.
+ * Returns the length of the decoded data
+ * (which is guaranteed to be <= length).
  */
-size_t cobs_decode(const uint8_t *input, size_t length, uint8_t *output)
+size_t cobs_decode(const uint8_t *ptr, size_t length, uint8_t *dst)
 {
-    size_t read_index = 0;
-    size_t write_index = 0;
-    uint8_t code;
-    uint8_t i;
+	const uint8_t *start = dst, *end = ptr + length;
+	uint8_t code = 0xFF, copy = 0;
 
-    while(read_index < length)
-    {
-        code = input[read_index];
-
-        if(read_index + code > length && code != 1)
-        {
-            return 0;
-        }
-
-        read_index++;
-
-        for(i = 1; i < code; i++)
-        {
-            output[write_index++] = input[read_index++];
-        }
-        if(code != 0xFF && read_index != length)
-        {
-            output[write_index++] = '\0';
-        }
-    }
-
-    return write_index;
+	for (; ptr < end; copy--) {
+		if (copy != 0) {
+			*dst++ = *ptr++;
+		} else {
+			if (code != 0xFF)
+				*dst++ = 0;
+			copy = code = *ptr++;
+			if (code == 0)
+				break; /* Source length too long */
+		}
+	}
+	return dst - start;
 }

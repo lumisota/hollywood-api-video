@@ -38,17 +38,33 @@
 #include <string.h>
 #include <stdlib.h>
 #include <sys/time.h>
+#include <errno.h>
 
 #define DEFAULT_TIMED_SUBSTREAM_ID 2
 #define DEFAULT_UNTIMED_SUBSTREAM_ID 3
 
 #ifndef __APPLE__
 #define TCP_OODELIVERY 27
-//#define TCP_PRELIABILITY 28
+#define TCP_PRELIABILITY 28
 #endif 
+
+static inline void
+timespec_add (struct timespec *sum, const struct timespec *left,
+	              const struct timespec *right)
+{
+  sum->tv_sec = left->tv_sec + right->tv_sec;
+  sum->tv_nsec = left->tv_nsec + right->tv_nsec;
+
+  if (sum->tv_nsec >= 1000000000)
+    {
+      ++sum->tv_sec;
+      sum->tv_nsec -= 1000000000;
+    }
+}
+
 /* Message queue functions */
 int add_message(hlywd_sock *socket, uint8_t *data, size_t len);
-size_t dequeue_message(hlywd_sock *socket, uint8_t *buf, uint8_t *substream_id);
+size_t dequeue_message(hlywd_sock *socket, uint8_t *buf, size_t len, uint8_t *substream_id, int *read_all);
 
 /* Segment parsing */
 void parse_segment(hlywd_sock *socket, uint8_t *segment, size_t segment_len, tcp_seq sequence_num);
@@ -74,13 +90,13 @@ int hollywood_socket(int fd, hlywd_sock *socket, int oo, int pr) {
 
 	/* Enable out-of-order delivery, if available */
 	#ifdef TCP_OODELIVERY
-	printf("setting TCP_OODELIVERY to %d..\n", oo);
+	//printf("setting TCP_OODELIVERY to %d..\n", oo);
 	result = setsockopt(fd, IPPROTO_TCP, TCP_OODELIVERY, (char *) &oo, sizeof(int));
 	#endif
 
 	/* Enable partial reliability, if available */
 	#ifdef TCP_PRELIABILITY
-	printf("setting TCP_PRELIABILITY to %d..\n", pr);
+	//printf("setting TCP_PRELIABILITY to %d..\n", pr);
 	result = setsockopt(fd, IPPROTO_TCP, TCP_PRELIABILITY, (char *) &pr, sizeof(int));
 	#endif
 
@@ -91,7 +107,10 @@ int hollywood_socket(int fd, hlywd_sock *socket, int oo, int pr) {
 	socket->message_count = 0;
 	socket->oo = oo;
     socket->pr = pr;
-    
+    socket->nb_send_buf = NULL;
+	socket->nb_send_buf_len = 0;
+	socket->nb_send_buf_offset = 0;
+
 	socket->current_sequence_num = 0;
     socket->old_segments.index = 0;
     int i;
@@ -106,7 +125,6 @@ int hollywood_socket(int fd, hlywd_sock *socket, int oo, int pr) {
 
 
 int recv_nb(int fd, uint8_t *buffer, int len, int flags, int timeout) {
-    
     fd_set readset;
     int result, iof = -1;
     struct timeval tv;
@@ -135,17 +153,29 @@ int recv_nb(int fd, uint8_t *buffer, int len, int flags, int timeout) {
     return -2;
 }
 
-
-/* Set the play-out delay to pd_ms, a value in ms */
-void set_playout_delay(hlywd_sock *socket, int pd_ms) {
-	int pd_ns = pd_ms * 1000000;
-	socket->playout_delay.tv_sec = pd_ns / 1000000000;
-	socket->playout_delay.tv_nsec = pd_ns % 1000000000;
+int send_msg_retry(hlywd_sock *socket) {
+    size_t write_size = socket->nb_send_buf_len-socket->nb_send_buf_offset;
+	int send_rv = send(socket->sock_fd, socket->nb_send_buf+socket->nb_send_buf_offset, write_size, 0);
+	if (send_rv > 0) {
+	}
+    if (send_rv > 0 && send_rv < write_size) {
+        socket->nb_send_buf_offset += send_rv;
+        errno = EWOULDBLOCK;
+        return -1;
+    } else if (send_rv == write_size) {
+        free(socket->nb_send_buf);
+        socket->nb_send_buf = NULL;
+        socket->nb_send_buf_len = 0;
+        socket->nb_send_buf_offset = 0;
+        return 1;
+    }
+    errno = EWOULDBLOCK;
+    return -1;
 }
 
 #ifdef TCP_PRELIABILITY
 /* Sends a time-lined message */
-ssize_t send_message_time_sub(hlywd_sock *socket, const void *buf, size_t len, int flags, uint16_t sequence_num, uint16_t depends_on, int lifetime_ms, uint8_t substream_id) {
+ssize_t send_message_time_sub(hlywd_sock *socket, const uint8_t *buf, size_t len, int flags, uint32_t sequence_num, uint32_t depends_on, int lifetime_ms, uint8_t substream_id) {
     if (socket->pr == 1) {
 	    /* Add sub-stream ID (2) to start of unencoded data */
 	    uint8_t substream_id = 2;
@@ -155,67 +185,136 @@ ssize_t send_message_time_sub(hlywd_sock *socket, const void *buf, size_t len, i
 	    len++;
 	    /* max overhead of COBS is 0.4%, plus the leading and trailing \0 bytes */
 	    size_t max_encoded_len = ceil(2 + 1.04*len);
-	    uint8_t encoded_message[max_encoded_len+5+2*sizeof(struct timespec)];
+	    size_t metadata_length = 9+sizeof(struct timespec)+sizeof(size_t);
+	    uint8_t encoded_message[max_encoded_len+metadata_length];
 	    /* add the leading \0, encoded message, and trailing \0 */
-	    encoded_message[0] = '\0';
-	    size_t encoded_len = cobs_encode(preencode_buf, len, encoded_message+1);
-	    encoded_message[encoded_len+1] = '\0';
-	    size_t metadata_start = encoded_len+2;
+	    encoded_message[metadata_length] = '\0';
+	    size_t encoded_len = cobs_encode(preencode_buf, len, encoded_message+metadata_length+1);
+	    encoded_message[metadata_length+encoded_len+1] = '\0';
 	    /* add partial reliability metadata */
-	    encoded_message[metadata_start] = substream_id;
-	    memcpy(encoded_message+metadata_start+1, &sequence_num, 2);
-	    memcpy(encoded_message+metadata_start+3, &depends_on, 2);
+	    size_t send_length = encoded_len+2;
+	    encoded_message[0] = substream_id;
+	    memcpy(encoded_message+1, &send_length, sizeof(size_t));
+	    memcpy(encoded_message+1+sizeof(size_t), &sequence_num, 4);
+	    /* deadline calculation */
+	    struct timespec deadline;
 	    struct timespec lifetime;
 	    lifetime.tv_sec = (lifetime_ms * 1000000) / 1000000000;
 	    lifetime.tv_nsec = (lifetime_ms * 1000000) % 1000000000;
-	    memcpy(encoded_message+metadata_start+5, &lifetime, sizeof(struct timespec));
-	    memcpy(encoded_message+metadata_start+5+sizeof(struct timespec), &socket->playout_delay, sizeof(struct timespec));
+        struct timespec current_time;
+        clock_gettime(CLOCK_REALTIME, &current_time);
+        timespec_add(&deadline, &current_time, &lifetime);
+        memcpy(encoded_message+1+sizeof(size_t)+4, &deadline, sizeof(struct timespec));
+	    memcpy(encoded_message+1+sizeof(size_t)+4+sizeof(struct timespec), &depends_on, 4);
 	    /* free pre-encoding buffer */
 	    free(preencode_buf);
-	    printf("sub-stream id: %c\n", encoded_message[metadata_start]);
 	    /* send, returning sent size to application */
-	    return send(socket->sock_fd, encoded_message, encoded_len+5+2*sizeof(struct timespec)+2, flags);
+	    size_t write_size = encoded_len+2+metadata_length;
+        int send_rv = send(socket->sock_fd, encoded_message, write_size, flags);
+        send_rv += metadata_length;
+        if (send_rv < 0 && errno == EWOULDBLOCK) {
+            socket->nb_send_buf = realloc(socket->nb_send_buf, socket->nb_send_buf_len+write_size);
+            socket->nb_send_buf_len = write_size;
+            memcpy(socket->nb_send_buf, encoded_message, write_size);
+            errno = EWOULDBLOCK;
+            return -1;
+        } else if (send_rv < write_size) {
+            socket->nb_send_buf = realloc(socket->nb_send_buf, socket->nb_send_buf_len+(write_size-send_rv));
+            socket->nb_send_buf_len = write_size-send_rv;
+            memcpy(socket->nb_send_buf, encoded_message+send_rv, write_size-send_rv);
+            errno = EWOULDBLOCK;
+            return -1;
+        }
+        return 1;
     } else {
         return send_message(socket, buf, len, flags);
     }
 }
 #else
-ssize_t send_message_time_sub(hlywd_sock *socket, const void *buf, size_t len, int flags, uint16_t sequence_num, uint16_t depends_on, int lifetime_ms, uint8_t substream_id) {
+ssize_t send_message_time_sub(hlywd_sock *socket, const uint8_t *buf, size_t len, int flags, uint32_t sequence_num, uint32_t depends_on, int lifetime_ms, uint8_t substream_id) {
 	return send_message_sub(socket, buf, len, flags, substream_id);
 }
 #endif
 
-ssize_t send_message_time(hlywd_sock *socket, const void *buf, size_t len, int flags, uint16_t sequence_num, uint16_t depends_on, int lifetime_ms) {
+ssize_t send_message_time(hlywd_sock *socket, const uint8_t *buf, size_t len, int flags, uint32_t sequence_num, uint32_t depends_on, int lifetime_ms) {
     return send_message_time_sub(socket, buf, len, flags, sequence_num, depends_on, lifetime_ms, DEFAULT_TIMED_SUBSTREAM_ID);
 }
 
 /* Sends a non-time-lined message */
-ssize_t send_message_sub(hlywd_sock *socket, const void *buf, size_t len, int flags, uint8_t substream_id) {
-    //printf("sending a message with length %d..\n", len);
-	/* Add sub-stream ID to start of unencoded data */
-        uint8_t * tmp = (uint8_t * ) buf;
-        //printf("Message: %2x%2x%2x%2x:%2x%2x%2x%2x\n",tmp[0],tmp[1],tmp[2],tmp[3],tmp[len-8],tmp[len-7],tmp[len-6],tmp[len-5]);	
+ssize_t send_message_sub(hlywd_sock *socket, const uint8_t *buf, size_t len, int flags, uint8_t substream_id) {
+    if (socket->pr == 1) {
         uint8_t *preencode_buf = (uint8_t *) malloc(len+1);
-	memcpy(preencode_buf, &substream_id, 1);
-	memcpy(preencode_buf+1, buf, len);
-	len++;
-	/* max overhead of COBS is 0.4%, plus the leading and trailing \0 bytes */
-	size_t max_encoded_len = ceil(2 + 1.04*len);
-	uint8_t encoded_message[max_encoded_len];
-	/* add the leading \0, encoded message, and trailing \0 */
-	encoded_message[0] = '\0';
-	size_t encoded_len = cobs_encode(preencode_buf, len, encoded_message+1);
-	encoded_message[encoded_len+1] = '\0';
-	/* free pre-encoding buffer */
-	free(preencode_buf);
-	/* send, returning sent size to application */
-	//fprintf(stderr, "[hlywd_lib] sending message (size: %d)\n", len);
-    //fflush(stderr);
-	return send(socket->sock_fd, encoded_message, encoded_len+2, flags);
+        memcpy(preencode_buf, &substream_id, 1);
+        memcpy(preencode_buf+1, buf, len);
+        len++;
+        /* max overhead of COBS is 0.4%, plus the leading and trailing \0 bytes */
+        size_t max_encoded_len = ceil(2 + 1.04*len);
+        size_t metadata_length = 9+sizeof(struct timespec)+sizeof(size_t);
+        uint8_t encoded_message[max_encoded_len+metadata_length];
+        /* add the leading \0, encoded message, and trailing \0 */
+        encoded_message[metadata_length] = '\0';
+        size_t encoded_len = cobs_encode(preencode_buf, len, encoded_message+metadata_length+1);
+        encoded_message[metadata_length+encoded_len+1] = '\0';
+        size_t send_length = encoded_len+2;
+        /* add metadata */
+        encoded_message[0] = substream_id;
+        memcpy(encoded_message+1, &send_length, sizeof(size_t));
+        memset(encoded_message+1+sizeof(size_t), 0, metadata_length-1-sizeof(size_t));
+        /* free pre-encoding buffer */
+        free(preencode_buf);
+        size_t write_size = encoded_len+2+metadata_length;
+        int send_rv = send(socket->sock_fd, encoded_message, write_size, flags);
+        send_rv += metadata_length;
+        if (send_rv < 0 && errno == EWOULDBLOCK) {
+            socket->nb_send_buf = realloc(socket->nb_send_buf, socket->nb_send_buf_len+write_size);
+            socket->nb_send_buf_len = write_size;
+            memcpy(socket->nb_send_buf, encoded_message, write_size);
+            errno = EWOULDBLOCK;
+            return -1;
+        } else if (send_rv < write_size) {
+            socket->nb_send_buf = realloc(socket->nb_send_buf, socket->nb_send_buf_len+(write_size-send_rv));
+            socket->nb_send_buf_len = write_size-send_rv;
+            memcpy(socket->nb_send_buf, encoded_message+send_rv, write_size-send_rv);
+            errno = EWOULDBLOCK;
+            return -1;
+        }
+        return 1;
+    } else {
+        uint8_t *preencode_buf = (uint8_t *) malloc(len+1);
+        memcpy(preencode_buf, &substream_id, 1);
+        memcpy(preencode_buf+1, buf, len);
+        len++;
+        int i;
+        /* max overhead of COBS is 0.4%, plus the leading and trailing \0 bytes */
+        size_t max_encoded_len = ceil(2 + 1.04*len);
+        uint8_t encoded_message[max_encoded_len];
+        /* add the leading \0, encoded message, and trailing \0 */
+        encoded_message[0] = '\0';
+        size_t encoded_len = cobs_encode(preencode_buf, len, encoded_message+1);
+        encoded_message[encoded_len+1] = '\0';
+        /* free pre-encoding buffer */
+        free(preencode_buf);
+        size_t write_size = encoded_len+2;
+        int send_rv = send(socket->sock_fd, encoded_message, write_size, flags);
+        if (send_rv < 0 && errno == EWOULDBLOCK) {
+            socket->nb_send_buf = realloc(socket->nb_send_buf, socket->nb_send_buf_len+write_size);
+            socket->nb_send_buf_len = write_size;
+            memcpy(socket->nb_send_buf, encoded_message, write_size);
+            errno = EWOULDBLOCK;
+            return -1;
+        } else if (send_rv < write_size) {
+            socket->nb_send_buf = realloc(socket->nb_send_buf, socket->nb_send_buf_len+(write_size-send_rv));
+            socket->nb_send_buf_len = write_size-send_rv;
+            memcpy(socket->nb_send_buf, encoded_message+send_rv, write_size-send_rv);
+            errno = EWOULDBLOCK;
+            return -1;
+        }
+        return 1;
+    }
 }
 
 /* Sends a message */
-ssize_t send_message(hlywd_sock *socket, const void *buf, size_t len, int flags) {
+ssize_t send_message(hlywd_sock *socket, const uint8_t *buf, size_t len, int flags) {
 	return send_message_sub(socket, buf, len, flags, DEFAULT_UNTIMED_SUBSTREAM_ID);
 }
 
@@ -224,7 +323,7 @@ size_t encoded_len(size_t len) {
 	return ceil(2 + 1.04*len) + 2;
 }
 
-int is_duplicate (hlywd_sock *socket, tcp_seq sequence_num)
+int is_duplicate(hlywd_sock *socket, tcp_seq sequence_num)
 {
 	int i;
     for (i = 0; i < SEQNUM_MEMORYQ_LEN; i++) 
@@ -241,7 +340,7 @@ int is_duplicate (hlywd_sock *socket, tcp_seq sequence_num)
 }
 
 /* Receives a message */
-ssize_t recv_message(hlywd_sock *socket, void *buf, size_t len, int flags, uint8_t *substream_id, int timeout_s) {
+ssize_t recv_message(hlywd_sock *socket, uint8_t *buf, size_t len, int flags, uint8_t *substream_id, int timeout_s, int *read_all) {
 	while (socket->message_count == 0) {
 		uint8_t segment[1500+sizeof(tcp_seq)];
 		tcp_seq sequence_num = 0;
@@ -254,8 +353,6 @@ ssize_t recv_message(hlywd_sock *socket, void *buf, size_t len, int flags, uint8
         else {   
 		    segment_len = recv(socket->sock_fd, segment, 1500+sizeof(tcp_seq), flags);
 		}
-        //printf(" %d bytes (%x:%x)) ", segment_len, segment[0], segment[segment_len-1]); fflush(stdout);
-        //printf("received %d bytes..\n", segment_len);
 		if (segment_len <= 0) {
 			return segment_len;
 		}
@@ -281,24 +378,28 @@ ssize_t recv_message(hlywd_sock *socket, void *buf, size_t len, int flags, uint8
 	    //fprintf(stderr, "[hlywd_lib] ---\n");
         //fflush(stderr);
 	}
-	return dequeue_message(socket, (uint8_t *)buf, substream_id);
+	return dequeue_message(socket, (uint8_t *)buf, len, substream_id, read_all);
 }
 
 /* Message queue functions */
-
+	
 /* Removes the message at the head of the message queue */
-size_t dequeue_message(hlywd_sock *socket, uint8_t *buf, uint8_t *substream_id) {
+size_t dequeue_message(hlywd_sock *socket, uint8_t *buf, size_t len, uint8_t *substream_id, int *read_all) {
 	if (socket->message_count > 0) {
-		memcpy(buf, socket->message_q_head->data, socket->message_q_head->len);
-		memcpy(substream_id, &socket->message_q_head->substream_id, 1);
-		message *dequeued_msg = socket->message_q_head;
-		socket->message_q_head = dequeued_msg->next;
-		size_t return_len = dequeued_msg->len;
-		free(dequeued_msg->data-1);
-		free(dequeued_msg);
-		socket->message_count--;
-                //printf("Message: %2x%2x%2x%2x:%2x%2x%2x%2x\n",buf[0],buf[1],buf[2],buf[3],buf[return_len-8],buf[return_len-7],buf[return_len-6],buf[return_len-5]);
-		return return_len;
+	    size_t bytes_to_read = MIN(socket->message_q_head->len-socket->message_q_head->bytes_read, len);
+	    //printf("dequeue_message (msg_len %d, bytes_read %d, read_len %d, bytes_to_read %d)\n", socket->message_q_head->len, socket->message_q_head->bytes_read, len, bytes_to_read);
+	    memcpy(buf, socket->message_q_head->data+socket->message_q_head->bytes_read, bytes_to_read);
+	    memcpy(substream_id, &socket->message_q_head->substream_id, 1);
+	    socket->message_q_head->bytes_read += bytes_to_read;
+	    if (socket->message_q_head->bytes_read == socket->message_q_head->len) {
+		    message *dequeued_msg = socket->message_q_head;
+		    socket->message_q_head = dequeued_msg->next;
+		    free(dequeued_msg->data-1);
+			free(dequeued_msg);
+			socket->message_count--;
+			*read_all = 1;
+	    }
+	    return bytes_to_read;
 	} else {
 		return -1;
 	}
@@ -306,13 +407,15 @@ size_t dequeue_message(hlywd_sock *socket, uint8_t *buf, uint8_t *substream_id) 
 
 /* Adds a message to the end of the message queue */
 int add_message(hlywd_sock *socket, uint8_t *data, size_t len) {
-    //printf("message (len %zu)\n", len);
-	//fprintf(stderr, "[hlywd_lib] receiving message (size: %d)\n", len);
+    if (len == 0) {
+        return 0;
+    }
     //fflush(stderr);
 	message *new_message = (message *) malloc(sizeof(message));
 	memcpy(&new_message->substream_id, data, 1);
 	new_message->data = data+1;
 	new_message->len = len-1;
+	new_message->bytes_read = 0;
 	new_message->next = NULL;
 	if (socket->message_q_head == NULL) {
 		socket->message_q_head = new_message;
@@ -390,6 +493,7 @@ void parse_segment(hlywd_sock *socket, uint8_t *segment, size_t segment_len, tcp
 		/* decode received message */
 		uint8_t substream_id;
 		uint8_t *decoded_msg = (uint8_t *) malloc(msg_end-msg_start-1);
+		//printf("decoded_msg_len is %d\n", decoded_msg);
 		size_t decoded_msg_len = cobs_decode(segment+msg_start+1, msg_end-msg_start-1, decoded_msg);
 		memcpy(&substream_id, decoded_msg, 1);
 		add_message(socket, decoded_msg, decoded_msg_len);
@@ -557,4 +661,8 @@ sparsebuffer_entry *add_entry(sparsebuffer *sb, tcp_seq sequence_num, size_t len
         destroy_sb_entry(ends_in);
     }
     return new_sbe;
+}
+
+void destroy_socket(hlywd_sock *sock) {
+    free(sock->sb);
 }
