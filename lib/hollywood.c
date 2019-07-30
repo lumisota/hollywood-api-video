@@ -398,8 +398,14 @@ size_t dequeue_message(hlywd_sock *socket, uint8_t *buf, size_t len, uint8_t *su
 			free(dequeued_msg);
 			socket->message_count--;
 			*read_all = 1;
+                    //printf("read everything -- dequeueing!!\n");
 	    }
-	    return bytes_to_read;
+	    //printf("Hollywood: bytes to read: %zu\n", bytes_to_read);
+	    if (bytes_to_read == 0) {
+		return -1;
+	    } else {
+	        return bytes_to_read;
+            }
 	} else {
 		return -1;
 	}
